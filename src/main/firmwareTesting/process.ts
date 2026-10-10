@@ -15,7 +15,9 @@ export function runProcess(command: string, args: string[], options: {
   timeoutMs: number
   maxBytes?: number
   onStdout?: (chunk: string) => void
+  signal?: AbortSignal
 }): Promise<ProcessResult> {
+  if (options.signal?.aborted) return Promise.resolve({ code: null, stdout: '', stderr: '', wallMs: 0, error: 'Firmware test cancelled' })
   return new Promise(resolve => {
     const started = performance.now()
     const child = spawn(command, args, { cwd: options.cwd, windowsHide: true, detached: process.platform !== 'win32' })
@@ -34,6 +36,7 @@ export function runProcess(command: string, args: string[], options: {
       settled = true
       clearTimeout(timer)
       clearTimeout(terminationTimer)
+      options.signal?.removeEventListener('abort', cancel)
       resolve({ code, stdout, stderr, wallMs: performance.now() - started, ...(error ? { error } : {}) })
     }
     const kill = (): void => {
@@ -66,6 +69,9 @@ export function runProcess(command: string, args: string[], options: {
       }, 2000)
     }
     const timer = setTimeout(() => abort(`Wall-clock timeout after ${options.timeoutMs}ms`), options.timeoutMs)
+    const cancel = (): void => abort('Firmware test cancelled')
+    options.signal?.addEventListener('abort', cancel, { once: true })
+    if (options.signal?.aborted) cancel()
     const capture = (chunk: string, stream: 'stdout' | 'stderr'): void => {
       if (error) return
       bytes += Buffer.byteLength(chunk)

@@ -17,6 +17,7 @@ export interface RunnerOptions {
   compiler?: string
   firmware?: string
   scenario?: FirmwareScenario
+  signal?: AbortSignal
 }
 
 export interface PreparedScenario {
@@ -74,7 +75,7 @@ export async function prepareScenario(scenarioPath: string, options: RunnerOptio
     if (!isHostCpp(wanted)) throw new Error(`Unsupported compiler ${wanted}; use a host g++ or clang++`)
     const compiler = safeCommand(wanted, dirname(path))
     if (!compiler) throw new Error(`Host compiler ${wanted} was not found on PATH or was refused; install g++/clang++ outside the project`)
-    const version = await runProcess(compiler, ['--version'], { cwd: directory, timeoutMs: 5000 })
+    const version = await runProcess(compiler, ['--version'], { cwd: directory, timeoutMs: 5000, signal: options.signal })
     if (version.error || version.code !== 0) throw new Error(version.error || version.stderr || 'Compiler version probe failed')
     const driver = testMain(scenario)
     const prepared = await prepareSimulation({ filePath: sourcePath, simDir: directory, compiler, mainSource: driver, testMode: true })
@@ -93,7 +94,7 @@ export async function prepareScenario(scenarioPath: string, options: RunnerOptio
       host: { platform: process.platform, arch: process.arch, release: release(), cpu: cpus()[0]?.model || 'unknown', node: process.version },
       revision, dirty, buildWallMs: performance.now() - started
     }
-    const compiled = await runProcess(compiler, prepared.args, { cwd: directory, timeoutMs: 60_000 })
+    const compiled = await runProcess(compiler, prepared.args, { cwd: directory, timeoutMs: 60_000, signal: options.signal })
     compilerLog = compiled.stdout + compiled.stderr
     build.buildWallMs = performance.now() - started
     if (compiled.error || compiled.code !== 0) throw new Error(`${compiled.error || `Compilation failed (exit ${compiled.code})`}\n${compilerLog}`)
@@ -110,7 +111,7 @@ export async function prepareScenario(scenarioPath: string, options: RunnerOptio
   }
 }
 
-export async function executePrepared(prepared: PreparedScenario): Promise<FirmwareReport> {
+export async function executePrepared(prepared: PreparedScenario, signal?: AbortSignal): Promise<FirmwareReport> {
   const { scenario } = prepared
   const timeline: TimelineEvent[] = []
   let buffer = ''
@@ -147,7 +148,7 @@ export async function executePrepared(prepared: PreparedScenario): Promise<Firmw
     if (timeline.length > scenario.limits.maxEvents) throw new Error(`Simulation exceeded maxEvents (${scenario.limits.maxEvents})`)
   }
   const execution = await runProcess(prepared.exePath, [], {
-    cwd: prepared.directory, timeoutMs: scenario.limits.wallTimeoutMs,
+    cwd: prepared.directory, timeoutMs: scenario.limits.wallTimeoutMs, signal,
     onStdout(chunk) {
       buffer += chunk
       const lines = buffer.split(/\r?\n/)
@@ -187,7 +188,7 @@ export async function disposePrepared(prepared: PreparedScenario): Promise<void>
 export async function runScenario(path: string, options: RunnerOptions = {}): Promise<FirmwareReport> {
   try {
     const prepared = await prepareScenario(path, options)
-    try { return await executePrepared(prepared) } finally { await disposePrepared(prepared) }
+    try { return await executePrepared(prepared, options.signal) } finally { await disposePrepared(prepared) }
   } catch (error) {
     if (error instanceof ScenarioPreparationError) return error.report
     throw error

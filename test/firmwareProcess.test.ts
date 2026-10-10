@@ -1,8 +1,40 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tmpdir } from 'node:os'
 import { runProcess } from '../src/main/firmwareTesting/process'
 
 describe('independent firmware process guard', () => {
+  it('does not launch a process when its request was already cancelled', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const result = await runProcess('cortex-must-not-launch', [], {
+      cwd: tmpdir(), timeoutMs: 5000, signal: controller.signal
+    })
+    expect(result).toMatchObject({ code: null, stdout: '', stderr: '', error: 'Firmware test cancelled' })
+  })
+
+  it('stops live firmware on cancellation and retains its earlier output', async () => {
+    const controller = new AbortController()
+    const result = await runProcess(process.execPath, ['-e', 'process.stdout.write("ready"); setInterval(() => {}, 1000)'], {
+      cwd: tmpdir(), timeoutMs: 10000, signal: controller.signal,
+      onStdout: () => controller.abort()
+    })
+    expect(result).toMatchObject({ stdout: 'ready', error: 'Firmware test cancelled' })
+    expect(result.code).not.toBe(0)
+    expect(result.wallMs).toBeLessThan(5000)
+  })
+
+  it('removes the cancellation listener when a process finishes normally', async () => {
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    const result = await runProcess(process.execPath, ['-e', 'process.stdout.write("done")'], {
+      cwd: tmpdir(), timeoutMs: 5000, signal: controller.signal
+    })
+    expect(result).toMatchObject({ code: 0, stdout: 'done' })
+    expect(result.error).toBeUndefined()
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function))
+    controller.abort()
+  })
+
   it('captures UTF-8 stdout/stderr and reports the real exit code', async () => {
     const chunks: string[] = []
     const result = await runProcess(process.execPath, ['-e', 'process.stdout.write("ready"); process.stderr.write("diagnostic"); process.exitCode = 7'], {
