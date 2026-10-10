@@ -54,9 +54,7 @@ export default function StatusBar(): JSX.Element {
       )}
       <div className="row gap-3">
         <span className="row gap-1">
-          {/* A folder icon, not a git branch: Cortex has no git integration
-              yet, and a branch glyph here read as a branch indicator that
-              does not exist. This labels the open workspace, nothing more. */}
+          {/* This labels the open workspace; Git branch details belong to the Git panel. */}
           <Folder size={12} /> {workspaceName || 'no folder'}
         </span>
         {/* The running text is cyan, not the identity navy: navy at 11px on

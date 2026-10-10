@@ -212,6 +212,9 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [ ] Fix the native debugger Stop lifecycle failure: a disposed process's late
   exit must not overwrite idle or a new session; verify real Stop/restart after
   focused callback/command ownership regressions.
+- [ ] Protect reviewed AI-edit approval from concurrent typing, disk changes,
+  duplicate approvals and stale project/proposal callbacks; prove deferred
+  actual-store failures before fixing the existing approval path.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
 Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,

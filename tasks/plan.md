@@ -84,6 +84,8 @@ into release requirements. Preserve all unfinished external validation tasks.
 7. Close the discovered local publication bypass: keep packaging non-publishing,
    enforce the same quality/audit and exact-target draft guards for manual
    publication, and test failures without publishing a real release.
+8. Close the discovered existing AI-approval data-loss race with deferred store
+   regressions, disk comparison and live buffer/project/proposal ownership checks.
 
 Each slice needs focused failure-path tests, relevant types/build/runtime checks
 and a scoped commit. Full regression/firmware/audit checks close the combined pass.

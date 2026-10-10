@@ -88,5 +88,7 @@ Native simulation is application logic testing. It uses host C++ types and
 libraries; it does not model AVR instructions, physical PWM, analog circuits,
 interrupt timing or general I2C/SPI devices. Board labels outside Uno, renderer
 component animations and planned cycle-accurate engines do not imply headless
-test support. Desktop Run Tests/results/replay is follow-up work, tracked in
-[tasks/todo.md](../tasks/todo.md).
+test support. Desktop Run Tests calls the same runner, presents scenario results
+with failure details, and can rerun saved scenario/report inputs against current
+source. See [Firmware testing](FIRMWARE-TESTING.md) for instructions and limits;
+unfinished external validation remains in [tasks/todo.md](../tasks/todo.md).

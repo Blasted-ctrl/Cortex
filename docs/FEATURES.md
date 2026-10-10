@@ -164,8 +164,12 @@ another firmware example.
 - ✅ Sends the active file as context
 - ✅ Quick actions: Analyze firmware · Optimize power · Explain file
 - ✅ Provider-agnostic: Anthropic, OpenAI, or local OpenAI-compatible (Ollama/LM Studio)
-- ⬜ Agentic edits (apply diffs to files), multi-file context
-- ⬜ Datasheet ingestion & Q&A; schematic image analysis
+- ✅ Workspace read/search tools and per-file edit proposals with explicit
+  review/approval: [AI assistant](AI-ASSISTANT.md). Approval race hardening is
+  tracked in [Task audit](TASK-AUDIT.md).
+- ✅ Imported-document search and cited context for chat/agent tools:
+  [Datasheets](DATASHEETS.md).
+- ⬜ Repository-wide autonomous editing and schematic image analysis
 - ⬜ MCP tool integrations (flash, read registers, run tests)
 
 ## Hardware inspectors (planned)

@@ -46,7 +46,7 @@ records the actual checks.
 | 12 | Command palette (Ctrl+Shift+P) + quick-open (Ctrl+P) | ux | high | L | **done** |
 | 13 | File-tree context menu wired to existing rename/delete IPC | ux | high | M | **done** |
 | 14 | LSP integration (clangd / pyright / rust-analyzer) | language | high | XL | **done** (requires installed servers; see LSP.md for limits) |
-| 15 | Agentic AI (tool calling, apply diffs, multi-file context) | ai | high | XL | todo |
+| 15 | Agentic AI (tool calling, apply diffs, multi-file context) | ai | high | XL | partial: workspace read/search + reviewed per-file proposals and cited document retrieval implemented; approval safety in task audit, repo-wide autonomy remains future |
 | 16 | Extract plotter parser to shared; fix chunk-boundary split bug + test | testing | medium | M | **done** |
 | 17 | Extract sim protocol parser to shared; fix malformed-line drops + tests | testing | medium | M | **done** |
 

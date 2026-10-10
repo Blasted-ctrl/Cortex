@@ -88,8 +88,10 @@ See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work
 - Logic-analyzer / I²C / SPI decoding via plugins
 
 ## 🔜 Phase 5 - AI-native workflow
-- Agentic multi-file edits (apply diffs), repo-wide context
-- Datasheet ingestion + Q&A; schematic image analysis
+- Implemented workspace read/search tools and reviewed per-file edit proposals;
+  approval-race safety verification is in [TASK-AUDIT.md](TASK-AUDIT.md)
+- Implemented imported-document search and cited chat/agent context; see [DATASHEETS.md](DATASHEETS.md)
+- Repository-wide autonomous edits/context and schematic image analysis remain future work
 - MCP tool integrations (flash the board, read registers, run the Python test suite)
 - Power/timing analysis agents with concrete estimates
 

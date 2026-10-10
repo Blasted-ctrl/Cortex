@@ -90,6 +90,8 @@ first 100 listed releases, covering the installed publisher's default 30-entry
 lookup. See GitHub's [tag lookup](https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name)
 and [release listing](https://docs.github.com/en/rest/releases/releases#list-releases)
 contracts. This is not an exhaustive inventory of older releases.
+The lookups are not an atomic remote-state lock; coordinate concurrent maintainers
+and inspect the resulting draft before any customer distribution.
 
 Configuration must use the single pinned draft publisher, without inherited,
 platform-specific or version overrides. The verified configuration is handed to
