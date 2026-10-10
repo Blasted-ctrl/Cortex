@@ -1,6 +1,11 @@
+import { readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-const { verifyRelease } = createRequire(import.meta.url)('../scripts/release-guard.cjs')
+const require = createRequire(import.meta.url)
+const { verifyRelease } = require('../scripts/release-guard.cjs')
+const { FileMatcher } = require('app-builder-lib/out/fileMatcher')
+const { load } = require('js-yaml')
 const config = { repository: 'Blasted-ctrl/Cortex', tag: 'v0.1.0', token: 'fixture-not-a-real-token' }
 describe('fail-closed release publication guard', () => {
   it.each([[404, {}, 'absent'], [200, { draft: true }, 'draft']])('allows only verified absence or draft (%i)', async (status, body, expected) => {
@@ -22,5 +27,23 @@ describe('fail-closed release publication guard', () => {
     const fetchImpl = vi.fn()
     await expect(verifyRelease({ ...config, repository: '../evil', fetchImpl })).rejects.toThrow('configuration')
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('packaged application file selection', () => {
+  it('excludes tooling config formats while keeping the built application', () => {
+    const root = resolve(__dirname, '..')
+    const packaging = load(readFileSync(resolve(root, 'electron-builder.yml'), 'utf8'))
+    const matcher = new FileMatcher(root, resolve(root, 'release'), (pattern: string) => pattern, ['**/*', ...packaging.files])
+    const includes = matcher.createFilter()
+    const fileStat = statSync(resolve(root, 'package.json'))
+
+    for (const extension of ['js', 'ts', 'mjs', 'cjs', 'mts', 'cts']) {
+      const file = `electron.vite.config.${extension}`
+      expect(includes(resolve(root, file), fileStat), file).toBe(false)
+    }
+    for (const file of ['package.json', 'out/main/index.js', 'out/preload/index.js', 'out/renderer/index.html']) {
+      expect(includes(resolve(root, file), fileStat), file).toBe(true)
+    }
   })
 })
