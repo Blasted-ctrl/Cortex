@@ -29,15 +29,18 @@ retention gap, not the backlog's producer/IPC backpressure task. The packaging
 config now excludes `.mts`/`.cts` tooling configs; that is a local packaging
 guard, not installer validation. Its actual electron-builder matcher regression
 is in [releaseGuard.test.ts](../test/releaseGuard.test.ts); the fix is checkpoint
-`30f6421`. A normal fresh `npm ci` is still unverified.
+`30f6421`. A normal fresh `npm ci` now passes in an owned copy of `f89dce0`;
+its independent full regression and later-snapshot runtime checks are still running.
 
 ## Finite local queue
 
-Each row is a bounded next slice, not a completed checkbox. The desktop firmware
-slice is in progress during this inventory; promote its status only after the
-implementation and matching evidence are recorded in the firmware checklist.
-PDF isolation and renderer security follow-ups are also being investigated or
-implemented in parallel; their rows remain open until matching gates pass.
+The finite queue below is now being executed. Desktop tests/replay, PDF worker
+isolation and debugger state have matching implementation and acceptance evidence;
+their firmware/local checklist entries are checked. Keyboard navigation, sessions,
+advanced choices and renderer guards are committed and have focused checks, with
+final native verification pending. The recorded demo needs playback validation;
+fresh-install full regression and output/panel hardening are still in progress.
+Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
 |---|---|---|
@@ -63,26 +66,29 @@ Implementation evidence for these remaining boundaries:
 - [Console buffer](../src/shared/consoleBuffer.ts) bounds retained display text;
   [runnerService](../src/main/services/runnerService.ts) still streams chunks to
   the renderer. Retention is not an IPC queue/throughput guarantee.
-- [pdfExtractor](../src/main/services/pdfExtractor.ts) parses in the main process.
-  Its same-thread timeout can handle asynchronous delay, not preempt synchronous
-  event-loop blockage. The verified file-parser path is not broken merely because
-  a separate buffer-helper fixture exposed an upstream issue.
-- [DebugPanel](../src/renderer/src/components/DebugPanel.tsx) keeps watch and
-  expression-console state locally; [SideBar](../src/renderer/src/components/SideBar.tsx)
-  conditionally mounts it. [DEBUGGING.md](DEBUGGING.md) states the current limits.
+- [pdfExtractor](../src/main/services/pdfExtractor.ts) now delegates parsing to a
+  terminable worker. The real CPU-loop watchdog, page/text limits, lifecycle and
+  native built-worker import pass. [DATASHEETS.md](DATASHEETS.md) distinguishes
+  the V8 heap limit from total-memory or security isolation.
+- [DebugPanel](../src/renderer/src/components/DebugPanel.tsx) now stays mounted
+  across tool switches and follows an explicit session reset policy. Nine real
+  React state/race checks pass; [DEBUGGING.md](DEBUGGING.md) states the limits.
 - [FileExplorer](../src/renderer/src/components/FileExplorer.tsx) and
-  [EditorArea](../src/renderer/src/components/EditorArea.tsx) use buttons, but do
-  not yet implement a complete tree/tablist keyboard/ARIA model. Historical
-  accessibility deferral is not proof the current UI meets a full audit.
-- [Store](../src/renderer/src/store/useStore.ts) persists recent project folders,
-  not a complete saved tab/expanded-tree session. [PROJECTS.md](PROJECTS.md)
-  documents the existing save and switch safeguards.
+  [EditorArea](../src/renderer/src/components/EditorArea.tsx) now expose tree/tablist
+  semantics and roving keyboard focus, with 19 actual React behavior cases.
+  Native keyboard checks remain separate from a complete accessibility audit.
+- [Store](../src/renderer/src/store/useStore.ts) now persists bounded relative-path
+  session metadata and restores current disk-backed tabs/expanded folders through
+  physically confined main-process reads. Restore/watch/user-intent and delayed
+  discard races have regressions. [PROJECTS.md](PROJECTS.md) documents the limits.
 - [TargetSelect](../src/renderer/src/components/TargetSelect.tsx) exposes
-  optimization presets and an existing custom-value display, not an advanced
-  custom editor; [PROJECT-CONFIG.md](PROJECT-CONFIG.md) defines trusted sinks.
-- [Window setup](../src/main/index.ts) has context isolation, no Node integration
-  and a new-window handler, but currently sets `sandbox: false` and lacks a
-  `will-navigate` allowlist. These are guarded security follow-ups, not waived.
+  optimization presets and a validated advanced disclosure, without free-form
+  shell arguments. [PROJECT-CONFIG.md](PROJECT-CONFIG.md) distinguishes host Run,
+  Debug and scenario build policies; native persistence/sink checks remain open.
+- [Window setup](../src/main/index.ts) now uses `sandbox: true`, an exact renderer
+  document navigation policy and main-frame/window IPC guards. Security tests and
+  actual production sandbox/bridge/native controls pass; dev/HMR and final source
+  checks remain separate gates. No dependency security waiver follows from this.
 
 ## Security majors requiring individual review/approval
 

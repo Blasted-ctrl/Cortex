@@ -30,9 +30,9 @@
 - [ ] Capture/promote a compatible Linux CI baseline after observing normal
   variability. The saved Windows baseline is actual local evidence; incompatible
   environments publish metrics but do not produce a misleading speed comparison.
-- [ ] Add desktop Run Tests action calling the same headless runner.
-- [ ] Add desktop results view with failure inputs, outputs and logs.
-- [ ] Add saved-scenario/report rerun in desktop; preserve reproduction config.
+- [x] Add desktop Run Tests action calling the same headless runner.
+- [x] Add desktop results view with failure inputs, outputs and logs.
+- [x] Add saved-scenario/report rerun in desktop; preserve reproduction config.
 - [ ] Record demonstration: correct firmware passes, broken firmware fails,
   report explains failure, and the fix passes.
 - [ ] Have two teammates try the quickstart from fresh installations; record
@@ -177,11 +177,26 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [x] Propagate firmware cancellation through compiler/run processes; verify an
   already-cancelled request never launches and a live child stops with retained logs.
 - [x] Bound debugger console text with the existing output-retention helper.
-- [ ] Isolate PDF parsing so a CPU-stuck parser cannot block the main-process timeout.
-- [ ] Preserve debugger watch/console state when changing sidebar tools.
+- [x] Isolate PDF parsing so a CPU-stuck parser cannot block the main-process timeout.
+- [x] Preserve debugger watch/console state when changing sidebar tools.
 - [ ] Complete locally verifiable Explorer/editor keyboard and ARIA follow-ups.
 - [ ] Restore saved workspace tabs/expanded folders without overwriting unsaved data.
 - [ ] Expose persisted advanced optimization choices without losing custom values.
 - [ ] Harden renderer sandbox/navigation and verify native dev/production workflows.
 - [ ] Verify a fresh locked source installation in an owned temporary directory.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
+
+Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,
+`b9fca01` debugger state, `b1ca901` advanced optimization, `2d96c01` keyboard/ARIA,
+and `7f508e5` saved sessions. The corrected combined pass covers 89 suites/1610
+tests plus five existing explicit platform/local skips; types/build, CLI suite
+and negative self-tests pass. Session/keyboard follow-up adds 165 focused passes
+and zero type errors; native latest-snapshot checks remain in progress.
+
+Actual desktop correct/broken/deleted-scenario-replay/fixed runs and live hanging
+fixture Stop passed in an isolated project. Genuine built PDF-worker import and
+termination passed with only the OS file picker substituted by an owned fixture;
+the picker itself remains unverified. The recorded WebM still requires playback
+validation before its demonstration checkbox is checked. Fresh locked source
+installation/build/native terminal passed; its full suite is still running.
+These statements are local evidence, not human trials or customer release approval.
