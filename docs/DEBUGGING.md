@@ -73,10 +73,13 @@ process to pause: on Windows `kill()` maps to `TerminateProcess` and would end t
   Without it the Debug action reports that gdb was not found rather than failing silently.
 - **No thread selector.** The variables request currently targets thread 1;
   multi-thread selection, LLDB and DAP support are not implemented.
-- **Watch/console UI lifetime.** Watch expressions and the expression-console
-  history are local to the mounted Debug panel and can reset when switching
-  sidebar views. Preserving them for the intended debug-session lifetime is an
-  open local task, not saved project-session support.
+- **Project-scoped UI lifetime.** Once opened, the Debug panel remains mounted
+  but hidden when another sidebar tool is selected or the sidebar is collapsed.
+  Watch expressions, drafts and expression-console history survive those
+  switches. Changing or closing the project resets them. Starting a new debug
+  session preserves watch definitions but clears their old values and the
+  console/history; late evaluations cannot populate a newer session. This is
+  in-memory UI state, not saved project sessions or crash recovery.
 
 ## Safety
 

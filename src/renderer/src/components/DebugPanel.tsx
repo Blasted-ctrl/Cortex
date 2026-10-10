@@ -165,8 +165,12 @@ export default function DebugPanel(): JSX.Element {
     const expr = newExpr.trim()
     if (!expr) return
     setNewExpr('')
-    const value = stopped ? await window.api.debugEvaluate(expr) : ''
-    setWatch((w) => [...w, { id: watchId.current++, expr, value }])
+    const id = watchId.current++
+    setWatch((w) => [...w, { id, expr, value: '' }])
+    if (!stopped) return
+    const value = await window.api.debugEvaluate(expr)
+    if (useStore.getState().debug !== debug) return
+    setWatch((w) => w.map((row) => row.id === id ? { ...row, value } : row))
   }
 
   // Debug console: a one-shot REPL over the SAME gdb evaluate the Watch panel
@@ -187,7 +191,9 @@ export default function DebugPanel(): JSX.Element {
   // so React keys never collide across the reset.
   useEffect(() => {
     if (debug.status === 'starting') {
+      setWatch((rows) => rows.map((row) => ({ ...row, value: '' })))
       setConLog([])
+      setConInput('')
       conHist.current = []
       conHistIdx.current = -1
     }

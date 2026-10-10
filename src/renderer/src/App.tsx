@@ -281,12 +281,8 @@ export default function App(): JSX.Element {
             live in those gutters, so a resize handle reads as the seam between
             two islands rather than a third panel. */}
         <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          {sidebarVisible && (
-            <>
-              <SideBar />
-              <Splitter dir="x" title="Resize sidebar" onDelta={(d) => setSidebarWidth(sidebarWidth + d)} />
-            </>
-          )}
+          <SideBar />
+          {sidebarVisible && <Splitter dir="x" title="Resize sidebar" onDelta={(d) => setSidebarWidth(sidebarWidth + d)} />}
           <div className="flex min-w-0 flex-1 flex-col">
             {/* The editor stays MOUNTED across view switches (hidden, not
                 unmounted) so Monaco keeps each file's undo history, scroll and

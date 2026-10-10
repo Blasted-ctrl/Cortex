@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import FileExplorer from './FileExplorer'
 import SearchPanel from './SearchPanel'
 import BoardsManagerPanel from './BoardsManagerPanel'
@@ -12,10 +13,14 @@ import { useStore } from '../store/useStore'
 export default function SideBar(): JSX.Element {
   const view = useStore((s) => s.sidebarView)
   const width = useStore((s) => s.sidebarWidth)
+  const visible = useStore((s) => s.sidebarVisible)
+  const workspaceRoot = useStore((s) => s.workspaceRoot)
+  const [debugMounted, setDebugMounted] = useState(view === 'debug')
+  useEffect(() => { if (view === 'debug') setDebugMounted(true) }, [view])
 
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
+      className={`${visible ? 'flex' : 'hidden'} shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel`}
       style={{ width }}
     >
       {view === 'explorer' && <FileExplorer />}
@@ -24,7 +29,11 @@ export default function SideBar(): JSX.Element {
       {view === 'libraries' && <LibraryManagerPanel />}
       {view === 'hardware' && <HardwarePanel />}
       {view === 'environment' && <EnvironmentPanel />}
-      {view === 'debug' && <DebugPanel />}
+      {(debugMounted || view === 'debug') && (
+        <div className={view === 'debug' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+          <DebugPanel key={workspaceRoot ?? ''} />
+        </div>
+      )}
       {view === 'serial' && <DevicesPanel />}
       {view === 'vcs' && <VcsPanel />}
     </div>
