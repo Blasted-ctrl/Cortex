@@ -23,9 +23,11 @@ shared 2D/3D circuits and four stylized board inspection models. See
 [LSP.md](LSP.md) and [SIMULATION-WORKBENCH.md](SIMULATION-WORKBENCH.md) for their
 actual limits. None establishes arbitrary firmware/board or electrical parity.
 
-The current debugger-output slice reuses the shared recent-tail text budget,
-with actual-store and buffer regressions. It closes the single-giant-chunk
-retention gap, not the backlog's producer/IPC backpressure task. The packaging
+Debugger output uses the shared recent-tail text budget, with actual-store and
+buffer regressions. Build/run console transport additionally bounds queued work
+with acknowledged packets and per-stream omission markers (`e8cd435`); native
+stalled-consumer checks of the final bundle remain pending. Structured compiler
+diagnostics and complete bounded firmware reports are separate paths. The packaging
 config now excludes `.mts`/`.cts` tooling configs; that is a local packaging
 guard, not installer validation. Its actual electron-builder matcher regression
 is in [releaseGuard.test.ts](../test/releaseGuard.test.ts); the fix is checkpoint
@@ -43,8 +45,8 @@ their firmware/local checklist entries are checked. Keyboard navigation, session
 advanced choices and renderer guards are committed and have focused checks, with
 final native verification pending. The [recorded demo](demos/README.md) passed
 full decoding, actual seek/frame checks and visual pass/failure/fix inspection;
-fresh-install full regression passed, and output/panel hardening is still in
-progress. The panel fix is committed as `6b55381`, with six failing-then-passing
+fresh-install full regression passed. Output/panel implementations are committed,
+with final native acceptance pending. The panel fix is `6b55381`, with six failing-then-passing
 actual React geometry cases; native short-window validation remains open.
 Do not infer completion from this inventory's status prose alone.
 
@@ -70,8 +72,9 @@ Implementation evidence for these remaining boundaries:
   prior release evidence explicitly distinguishes installed-tree checks from a
   fresh install and real installer validation.
 - [Console buffer](../src/shared/consoleBuffer.ts) bounds retained display text;
-  [runnerService](../src/main/services/runnerService.ts) still streams chunks to
-  the renderer. Retention is not an IPC queue/throughput guarantee.
+  [runnerService](../src/main/services/runnerService.ts) routes console output
+  through bounded acknowledged delivery. The [measurement ledger](ARCHITECTURE.md#bounded-buildrun-console-delivery)
+  records controlled stalled-consumer evidence and the separate diagnostic limits.
 - [pdfExtractor](../src/main/services/pdfExtractor.ts) now delegates parsing to a
   terminable worker. The real CPU-loop watchdog, page/text limits, lifecycle and
   native built-worker import pass. [DATASHEETS.md](DATASHEETS.md) distinguishes
@@ -98,9 +101,15 @@ Implementation evidence for these remaining boundaries:
 
 ## Security majors requiring individual review/approval
 
-The installed tooling step is electron-vite 4.0.1; Vite 5.4.21, Vitest 2.1.9,
-Electron 33.4.11 and the PDF 4.0.3 compatibility hold remain. The proposed Vite
-7 step is not installed by this inventory. Follow
+The separately approved tooling steps are electron-vite 4.0.1 and root Vite
+7.3.7 with the React plugin floor at 4.7.0. Vitest 2.1.9 keeps its compatible
+nested Vite 5.4.21; Electron 33.4.11 and the PDF 4.0.3 compatibility hold remain.
+The Vite step has focused/type checks and independent graph/native-hash review;
+types and production build pass. The first combined regression was interrupted
+by laptop sleep and stopped by its watchdog, not credited as a pass; an unchanged
+rerun and native checks remain pending.
+The awake rerun then fails two desktop-firmware test deadlines; 96 suites pass.
+That failure remains open and is not credited as a verified upgrade. Follow
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for separate major review,
 peer/engine compatibility, migration scope and approval before each install.
 Do not force test dependencies onto an incompatible Vite or waive findings as

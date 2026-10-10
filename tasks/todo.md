@@ -180,12 +180,14 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [x] Isolate PDF parsing so a CPU-stuck parser cannot block the main-process timeout.
 - [x] Preserve debugger watch/console state when changing sidebar tools.
 - [ ] Complete locally verifiable Explorer/editor keyboard and ARIA follow-ups.
-- [ ] Restore saved workspace tabs/expanded folders without overwriting unsaved data.
-- [ ] Expose persisted advanced optimization choices without losing custom values.
-- [ ] Harden renderer sandbox/navigation and verify native dev/production workflows.
+- [ ] Verify saved workspace tabs/expanded folders without overwriting unsaved data.
+- [ ] Verify persisted advanced optimization choices without losing custom values.
+- [ ] Verify hardened renderer sandbox/navigation in native dev/production workflows.
 - [x] Verify a fresh locked source installation in an owned temporary directory.
-- [ ] Bound producer-to-renderer output delivery and verify stalled consumers.
+- [ ] Verify bounded producer-to-renderer output delivery with stalled consumers.
 - [ ] Verify bottom-panel fitting and dragging in a short native window.
+- [ ] Finish combined verification of separately approved Vite 7.3.7 and its
+  demonstrated Vitest config/typing/packaging migrations; keep Electron unchanged.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
 Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,

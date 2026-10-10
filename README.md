@@ -71,7 +71,7 @@ Native programs and the simulator use tools already on your machine. Board compi
 | C/C++ code intelligence | clangd |
 | Debug C/C++ | gdb |
 | Run Python | python |
-| Run Rust | rustc |
+| Run Rust | Rust toolchain: rustc; Cargo for Cargo.toml projects |
 | Run JavaScript | node |
 | Flash boards, manage libraries | Cortex prepares board tools; install your board core in Boards Manager |
 

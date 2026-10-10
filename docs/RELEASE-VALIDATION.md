@@ -177,6 +177,75 @@ separate owned `cortex-node22-*` Temp directory. No runtime was replaced and no
 user process was terminated. This functional migration does not clear the audit
 or other customer-release gates.
 
+## Markdown task checkpoints and second approved tooling major
+
+The local task pass added the shared desktop firmware runner/results/replay,
+terminable PDF parsing, debugger tool-state preservation, Explorer/tab keyboard
+semantics, bounded workspace-session metadata and advanced optimization choices.
+The recorded [firmware demonstration](demos/README.md) was fully decoded, checked
+with real seek/frame callbacks and visually inspected at the pass, failure and
+fix chapters. Its immutable `f89dce0` production snapshot predates later panel,
+output-delivery and tooling changes; it is not proof of those later changes.
+
+A normal fresh source install of archived `f89dce0` passed `npm ci`, types,
+build, 89 regression suites (1610 passes, five existing explicit skips), the
+firmware suite and negative self-tests using Node 22.20.0/npm 10.9.3. Its genuine
+Electron/native-terminal startup passed in an owned profile. This is source
+installation evidence, not a signed installer or fresh verification of later
+source. Artifact hashes and playback/source details are retained with the demo
+and local receipts; human trials remain open.
+
+Later checkpoints add bottom-panel fitting/dragging (`6b55381`) and acknowledged
+build/run output delivery (`e8cd435`). Six actual React geometry regressions
+failed before the panel fix and passed afterward. The output slice passed 186
+focused cases and independent review. Controlled stalled-consumer workloads bound
+console packets and retain explicit per-stream omitted-byte markers; full
+structured compiler diagnostics and firmware reports remain separate. See the
+[measured transport ledger](ARCHITECTURE.md#bounded-buildrun-console-delivery).
+These measurements are not Chromium memory measurements or host speed claims.
+
+The separately approved Vite 7.3.7 step preserves Electron/native binaries and
+Vitest 2's compatible nested Vite 5. The actual ESM loader/type incompatibilities
+were reproduced before migrating `vitest.config.mts`, covering it in the ordinary
+Node typecheck and excluding both tooling configs from packages. Four focused
+suites/56 cases, types and the production desktop/tools build pass.
+
+The first full post-upgrade regression is **not a pass**. Its independent host
+watchdog stopped the owned test tree, with a reported 3,832,595 ms elapsed and
+an incomplete serial suite. Windows System events record Button/Lid sleep at
+01:30:48 local, then hardware-clock synchronization advancing 3,625,867 ms at
+02:31:16, followed by hibernation. This explains the unusually long elapsed
+durations; it does not turn incomplete tests into passes. Original logs/results
+remain under `.cortex/release-smoke/md-vite7-final-*`. The unchanged isolated
+serial suite rerun passes all eight applicable cases with its normal CI-only
+prerequisite check skipped (33.08 seconds). The full-suite rerun, firmware checks
+and final native checks remain pending.
+No test timeout, assertion, skip policy or dependency guard was weakened.
+
+The subsequent awake four-worker run also exits 1, for a different reason:
+96 suites pass, but two real desktop firmware cases exceed their existing
+90-second and 60-second test deadlines (1684 passes, two failures, five normal
+explicit skips). The serial suite passes in this run. Its complete receipt is
+`.cortex/release-smoke/md-vite7-awake-tests.log` and result JSON; the watchdog
+itself did not fire. This run is not credited as a successful upgrade gate.
+
+The unchanged desktop suite then passes all 11 cases in isolation (187.76
+seconds): default/report preservation 66.498 seconds, failure/replay/fix 37.120,
+cancellation/replay 50.632 and linked-project admission 27.495. Original deadlines
+remain 90/60/90/30 seconds. Independent lifecycle review finds no nonsettling path
+in the reviewed run/Stop/process guards. The contention hypothesis is stronger:
+the four-worker command also permits five concurrent native compiler cases inside
+one worker. A within-file scheduling bound is being validated against the full
+gate; no compiler cache, higher deadlines, user-process termination or antivirus
+changes are used. These observations do not prove that Vite caused a slowdown.
+
+The fresh 2026-10-10 registry audit exits 1: 31 findings (3 critical, 19 high,
+9 moderate). Its Vite findings point only to the retained Vitest/vite-node Vite
+5.4.21 copies, not root 7.3.7. `npm ls --all --json` exits 0. Independent checks
+confirm unchanged manifests, six npm configuration paths, Electron executable
+and renderer bundle before/after those read-only commands. Receipts are in the
+owned `cortex-post-vite-audit-*` Temp directory. The audit remains release-blocking.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,
