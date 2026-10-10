@@ -5,12 +5,16 @@
  * event on stdout that the Simulator view turns into live components.
  *
  * Interaction flows back over stdin: `@in <pin> <value>` (button/pot), `@stop`.
+ * CORTEX_TEST replaces the input thread and wall time with a scheduled virtual clock.
  *
  * Covers the common surface (digital/analog I/O, timing, Serial incl.
  * base-formatted print + F(), tone, map/constrain, bit ops). Not cycle-accurate
  * - see docs/SIMULATOR.md.
  */
 import { ADC_MAX, LOGIC_THRESHOLD, PWM_MAX } from '../../shared/simProtocol'
+
+/** Retained Serial lines, desktop protocol fragments and compiler diagnostics. */
+export const SIM_BUFFER_LIMIT_BYTES = 1024 * 1024
 
 export const ARDUINO_SHIM = String.raw`#pragma once
 #include <cstdint>
@@ -24,6 +28,33 @@ export const ARDUINO_SHIM = String.raw`#pragma once
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#if defined(_WIN32) && !defined(CORTEX_TEST)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+#ifdef CORTEX_TEST
+#include <vector>
+#include <algorithm>
+#endif
+
+// This exits only the disposable firmware process, never the Electron host.
+// MSVCRT _Exit still enters Windows DLL teardown and can race the detached
+// reader's startup. Bypass that teardown after callers explicitly flush output.
+[[noreturn]] inline void __sim_terminate(int code) {
+#if defined(_WIN32) && !defined(CORTEX_TEST)
+  if (!TerminateProcess(GetCurrentProcess(), (UINT)code)) {
+    fprintf(stderr, "Cortex could not terminate the firmware process (Windows error %lu).\n", (unsigned long)GetLastError());
+    fflush(stderr);
+    std::_Exit(2);
+  }
+#endif
+  std::_Exit(code);
+}
 
 typedef uint8_t byte;
 typedef bool boolean;
@@ -51,7 +82,58 @@ typedef bool boolean;
 #define bitWrite(v,b,x) ((x) ? bitSet(v,b) : bitClear(v,b))
 
 inline std::atomic<int> __sim_in[128];
+inline std::atomic<int> __sim_modes[128];
 inline std::atomic<bool> __sim_run{true};
+
+#ifdef CORTEX_TEST
+inline uint64_t __sim_time_us = 0;
+inline uint64_t __sim_limit_us = 0;
+inline uint32_t __sim_random_state = 0;
+inline bool __sim_external_input[128]{};
+struct __SimTestInput { uint64_t at_us; int pin; int value; };
+inline std::vector<__SimTestInput> __sim_test_inputs;
+inline size_t __sim_next_input = 0;
+inline bool __sim_inputs_sorted = true;
+
+inline void __sim_trace_time() {
+  printf("@time %llu\n", (unsigned long long)__sim_time_us);
+}
+inline void __sim_test_init(uint32_t seed, uint64_t duration_us) {
+  __sim_time_us = 0;
+  __sim_limit_us = duration_us;
+  __sim_random_state = seed;
+  __sim_run = true;
+  __sim_test_inputs.clear();
+  __sim_next_input = 0;
+  __sim_inputs_sorted = true;
+  for (int p = 0; p < 128; p++) { __sim_in[p] = 0; __sim_modes[p] = INPUT; __sim_external_input[p] = false; }
+}
+inline void __sim_test_input(uint64_t at_us, int pin, int value) {
+  __sim_test_inputs.push_back({at_us, pin, value});
+  __sim_inputs_sorted = false;
+}
+inline void __sim_test_advance(uint64_t delta_us) {
+  if (!__sim_inputs_sorted) {
+    std::stable_sort(__sim_test_inputs.begin(), __sim_test_inputs.end(),
+        [](const __SimTestInput& a, const __SimTestInput& b) { return a.at_us < b.at_us; });
+    __sim_inputs_sorted = true;
+  }
+  const uint64_t remaining = __sim_limit_us - __sim_time_us;
+  const uint64_t next_us = __sim_time_us + (delta_us > remaining ? remaining : delta_us);
+  while (__sim_next_input < __sim_test_inputs.size() && __sim_test_inputs[__sim_next_input].at_us <= next_us) {
+    const auto& input = __sim_test_inputs[__sim_next_input++];
+    __sim_time_us = input.at_us;
+    __sim_in[input.pin & 127] = input.value;
+    __sim_external_input[input.pin & 127] = true;
+    __sim_trace_time();
+    printf("@input %d %d\n", input.pin, input.value);
+    fflush(stdout);
+  }
+  __sim_time_us = next_us;
+  __sim_run = __sim_time_us < __sim_limit_us;
+}
+#else
+inline void __sim_trace_time() {}
 inline auto __sim_t0 = std::chrono::steady_clock::now();
 
 struct __SimIn {
@@ -67,17 +149,30 @@ struct __SimIn {
   }
 };
 inline __SimIn __sim_in_thread;
+#endif
 
 inline void pinMode(int p, int m) {
+  __sim_modes[p & 127] = m;
+#ifdef CORTEX_TEST
+  if (m == INPUT_PULLUP && !__sim_external_input[p & 127]) __sim_in[p & 127] = ${ADC_MAX};
+#else
   if (m == INPUT_PULLUP) __sim_in[p & 127] = ${ADC_MAX}; // pull-ups idle HIGH until pressed
+#endif
+  __sim_trace_time();
   printf("@mode %d %d\n", p, m);
   fflush(stdout);
+}
+// ArduinoCore-avr 1.8.6 sets OUTPUT in analogWrite() and tone(). Report mode
+// transitions without adding redundant events to every iteration of a PWM loop.
+inline void __sim_ensure_output(int p) {
+  if (__sim_modes[p & 127].load() != OUTPUT) pinMode(p, OUTPUT);
 }
 inline void digitalWrite(int p, int v) {
   // Latch on the ADC scale so digitalRead(p) reads it back AND analogRead(p)
   // reports full scale on a driven-high pin, as it would on real hardware.
   // The emitted @pin event stays 0/1: that is the protocol's contract.
   __sim_in[p & 127] = v ? ${ADC_MAX} : 0;
+  __sim_trace_time();
   printf("@pin %d %d\n", p, v ? 1 : 0);
   fflush(stdout);
 }
@@ -89,7 +184,9 @@ inline int digitalRead(int p) { return __sim_in[p & 127].load() >= ${LOGIC_THRES
 // Emitting v raw let an out-of-range duty cycle drive LED brightness and servo
 // angles past their limits on the canvas.
 inline void analogWrite(int p, int v) {
+  __sim_ensure_output(p);
   int d = v < 0 ? 0 : (v > ${PWM_MAX} ? ${PWM_MAX} : v);
+  __sim_trace_time();
   printf("@pwm %d %d\n", p, d);
   fflush(stdout);
 }
@@ -98,6 +195,12 @@ inline void analogWrite(int p, int v) {
 // Only 0..5 remap: an Uno has exactly six analog inputs, and the wider p < 14
 // test sent analogRead(13) to slot 27, so it could never see pin 13 at all.
 inline int analogRead(int p) { return __sim_in[((p >= 0 && p < 6 ? p + 14 : p)) & 127].load(); }
+#ifdef CORTEX_TEST
+inline unsigned long millis() { return (unsigned long)(__sim_time_us / 1000); }
+inline unsigned long micros() { return (unsigned long)__sim_time_us; }
+inline void delay(unsigned long ms) { __sim_test_advance((uint64_t)ms * 1000); }
+inline void delayMicroseconds(unsigned long us) { __sim_test_advance(us); }
+#else
 inline unsigned long millis() {
   return (unsigned long)std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - __sim_t0).count();
@@ -108,9 +211,10 @@ inline unsigned long micros() {
 }
 inline void delay(unsigned long ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 inline void delayMicroseconds(unsigned long us) { std::this_thread::sleep_for(std::chrono::microseconds(us)); }
-inline void tone(int p, unsigned int f) { printf("@tone %d %u\n", p, f); fflush(stdout); }
+#endif
+inline void tone(int p, unsigned int f) { __sim_ensure_output(p); __sim_trace_time(); printf("@tone %d %u\n", p, f); fflush(stdout); }
 inline void tone(int p, unsigned int f, unsigned long) { tone(p, f); }
-inline void noTone(int p) { printf("@tone %d 0\n", p); fflush(stdout); }
+inline void noTone(int p) { __sim_trace_time(); printf("@tone %d 0\n", p); fflush(stdout); }
 
 // ESP32 LEDC PWM. Enough of the API that a typical ESP32 sketch compiles and
 // drives a pin: ledcWrite emits @pwm on the mapped pin, scaled from the channel
@@ -149,19 +253,26 @@ inline void ledcWrite(int chOrPin, int duty) {
   int scaled = maxv > 0 ? (int)((long)duty * 255 / maxv) : duty;
   if (scaled < 0) scaled = 0;
   if (scaled > 255) scaled = 255;
+  __sim_trace_time();
   printf("@pwm %d %d\n", pin, scaled);
   fflush(stdout);
 }
 inline void ledcWriteTone(int ch, double freq) {
   int pin = (ch >= 0 && ch < 16 && __ledc_pin[ch] >= 0) ? __ledc_pin[ch] : ch;
+  __sim_trace_time();
   printf("@tone %d %u\n", pin, (unsigned)freq);
   fflush(stdout);
 }
 inline void ledcDetachPin(int) {}
 inline void ledcDetach(int) {}
-inline unsigned long pulseIn(int, int, unsigned long = 1000000UL) { return 0; }
-inline byte shiftIn(int, int, int) { return 0; }
-inline void shiftOut(int, int, int, int) {}
+[[noreturn]] inline void __sim_unsupported(const char* api) {
+  fprintf(stderr, "Cortex simulation does not support %s. Use a supported signal workflow or test on hardware.\n", api);
+  fflush(stderr);
+  __sim_terminate(2);
+}
+inline unsigned long pulseIn(int, int, unsigned long = 1000000UL) { __sim_unsupported("pulseIn"); }
+inline byte shiftIn(int, int, int) { __sim_unsupported("shiftIn"); }
+inline void shiftOut(int, int, int, int) { __sim_unsupported("shiftOut"); }
 
 inline long map(long x, long a, long b, long c, long d) {
   return (b - a) == 0 ? c : (x - a) * (d - c) / (b - a) + c;
@@ -169,9 +280,19 @@ inline long map(long x, long a, long b, long c, long d) {
 inline long constrain(long x, long lo, long hi) { return x < lo ? lo : (x > hi ? hi : x); }
 template <class T, class U> constexpr auto min(T a, U b) { return a < b ? a : b; }
 template <class T, class U> constexpr auto max(T a, U b) { return a > b ? a : b; }
+#ifdef CORTEX_TEST
+inline uint32_t __sim_random_next() {
+  __sim_random_state = __sim_random_state * 1664525u + 1013904223u;
+  return __sim_random_state;
+}
+inline long random(long hi) { return hi <= 0 ? 0 : (long)(__sim_random_next() % (unsigned long)hi); }
+inline long random(long lo, long hi) { return hi <= lo ? lo : lo + random(hi - lo); }
+inline void randomSeed(unsigned long s) { __sim_random_state = (uint32_t)s; }
+#else
 inline long random(long hi) { return hi <= 0 ? 0 : (long)(rand() % hi); }
 inline long random(long lo, long hi) { return hi <= lo ? lo : lo + (long)(rand() % (hi - lo)); }
 inline void randomSeed(unsigned long s) { srand((unsigned)s); }
+#endif
 
 // Serial buffers output and emits one "@serial <line>" per newline, so
 // consecutive print()/println() on the same logical line concatenate correctly
@@ -181,18 +302,36 @@ struct SerialClass {
   void __flushLines() {
     size_t nl;
     while ((nl = __buf.find('\n')) != std::string::npos) {
+      __sim_trace_time();
       std::cout << "@serial " << __buf.substr(0, nl) << "\n";
       __buf.erase(0, nl + 1);
     }
     std::cout.flush();
   }
-  void __append(const std::string& s) { __buf += s; __flushLines(); }
+  void __append(const std::string& s) {
+    size_t offset = 0;
+    while (offset < s.size()) {
+      const size_t nl = s.find('\n', offset);
+      const size_t length = (nl == std::string::npos ? s.size() : nl) - offset;
+      if (length > ${SIM_BUFFER_LIMIT_BYTES} - __buf.size()) {
+        fprintf(stderr, "Cortex simulation Serial line exceeded the ${SIM_BUFFER_LIMIT_BYTES}-byte buffer limit. Add newlines or reduce the print payload.\n");
+        fflush(stderr);
+        __sim_terminate(2);
+      }
+      __buf.append(s, offset, length);
+      if (nl == std::string::npos) break;
+      __buf.push_back('\n');
+      __flushLines();
+      offset = nl + 1;
+    }
+  }
   // Serial output is line-buffered so a partial print can never be split across
   // an @serial marker. That means a sketch which only ever prints without a
   // newline (Serial.print("Ready...")) would otherwise show nothing at all for
   // its whole run, so the residue is emitted before the process goes away.
   void __flushResidue() {
     if (!__buf.empty()) {
+      __sim_trace_time();
       std::cout << "@serial " << __buf << "\n";
       __buf.clear();
     }
@@ -328,13 +467,13 @@ inline SerialClass Serial;
  * joined and it outlives main. Returning from main then runs static destructors
  * underneath a live thread that is touching std::cin and __sim_in, which is
  * undefined: in practice the process aborts and reports a nonzero exit that the
- * user reads as "my sketch crashed". _Exit leaves immediately without static
- * teardown, so the race has no window. It also means the residue flush has to
- * be explicit, hence the call here.
+ * user reads as "my sketch crashed". The platform termination helper avoids
+ * static and Windows DLL teardown beneath that reader. It also means the
+ * residue flush has to be explicit, hence the call here.
  */
 inline void __sim_exit(int code) {
   Serial.__flushResidue();
   std::cout.flush();
-  std::_Exit(code);
+  __sim_terminate(code);
 }
 `

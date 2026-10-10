@@ -10,8 +10,7 @@ import type {
   BoardUploadRequest
 } from '../../shared/ipc'
 import * as runner from './runnerService'
-import { safeCommand, needsShell } from './commandResolver'
-import { getWorkspaceRoot } from './fsService'
+import { getArduinoCli } from './arduinoCliService'
 
 const execFileAsync = promisify(execFile)
 
@@ -20,24 +19,30 @@ const CLI = 'arduino-cli'
 /** Is arduino-cli installed and usable? */
 export async function status(): Promise<BoardStatus> {
   try {
-    const { stdout, stderr } = await execFileAsync(CLI, ['version'], {
+    const cli = await getArduinoCli()
+    if (!cli) throw new Error('Board tools are not ready')
+    const { stdout, stderr } = await execFileAsync(cli.command, [...cli.args, 'version'], {
       timeout: 6000,
-      windowsHide: true
+      windowsHide: true,
+      env: cli.env
     })
-    return { available: true, version: (stdout || stderr).toString().trim().split(/\r?\n/)[0] }
+    return { available: true, version: (stdout || stderr).toString().trim().split(/\r?\n/)[0], source: cli.source }
   } catch {
-    // Name the tool, what it unlocks, and the exact command, the way the
-    // simulator's missing-compiler path does. "Install it" with no command
-    // leaves the user to go and find out how.
     return {
       available: false,
       version: '',
       hint:
-        'arduino-cli not found. It is what compiles and uploads to a real board ' +
-        '(Arduino, ESP32, RP2040). Install it with: winget install ArduinoSA.CLI ' +
-        '(or brew install arduino-cli), then press rescan. The Simulator works without it.'
+        'Cortex can set up board tools for you. Select Set up board tools to compile, upload, ' +
+        'and manage libraries without installing Arduino CLI yourself.'
     }
   }
+}
+
+async function readCli(args: string[], timeout: number): Promise<string> {
+  const cli = await getArduinoCli()
+  if (!cli) throw new Error('Board tools are not ready. Use Set up board tools in Cortex and retry.')
+  const { stdout } = await execFileAsync(cli.command, [...cli.args, ...args], { timeout, windowsHide: true, env: cli.env })
+  return stdout.toString()
 }
 
 interface RawBoard {
@@ -56,11 +61,8 @@ interface RawPort {
 /** Physically connected boards (`arduino-cli board list`). */
 export async function listConnected(): Promise<BoardPort[]> {
   try {
-    const { stdout } = await execFileAsync(CLI, ['board', 'list', '--format', 'json'], {
-      timeout: 12000,
-      windowsHide: true
-    })
-    const parsed = JSON.parse(stdout.toString() || '{}')
+    const stdout = await readCli(['board', 'list', '--format', 'json'], 12000)
+    const parsed = JSON.parse(stdout || '{}')
     // Newer CLIs: { detected_ports: [...] }. Older: a bare array of ports.
     const list: RawPort[] = Array.isArray(parsed) ? parsed : parsed.detected_ports ?? []
     return list
@@ -86,11 +88,8 @@ export async function listConnected(): Promise<BoardPort[]> {
 /** Known/installable boards from installed cores (`arduino-cli board listall`). */
 export async function listAll(): Promise<BoardTarget[]> {
   try {
-    const { stdout } = await execFileAsync(CLI, ['board', 'listall', '--format', 'json'], {
-      timeout: 15000,
-      windowsHide: true
-    })
-    const parsed = JSON.parse(stdout.toString() || '{}')
+    const stdout = await readCli(['board', 'listall', '--format', 'json'], 15000)
+    const parsed = JSON.parse(stdout || '{}')
     const boards: { name?: string; fqbn?: string }[] = parsed.boards ?? []
     return boards
       .filter((b) => b.name && b.fqbn)
@@ -116,11 +115,8 @@ export async function boardMcu(fqbn: string): Promise<string | null> {
     // core, ~8s for esp32), and it may run alongside the package-snapshot reads,
     // so the timeout is generous - a tight one returns null under contention and
     // suppresses an otherwise-certain MCU fact.
-    const { stdout } = await execFileAsync(CLI, ['board', 'details', '--fqbn', fqbn, '--format', 'json'], {
-      timeout: 25000,
-      windowsHide: true
-    })
-    const parsed = JSON.parse(stdout.toString() || '{}')
+    const stdout = await readCli(['board', 'details', '--fqbn', fqbn, '--format', 'json'], 25000)
+    const parsed = JSON.parse(stdout || '{}')
     const props: string[] = Array.isArray(parsed.build_properties) ? parsed.build_properties : []
     const mcu = props.find((p) => typeof p === 'string' && p.startsWith('build.mcu='))
     return mcu ? mcu.slice('build.mcu='.length).trim() || null : null
@@ -129,30 +125,36 @@ export async function boardMcu(fqbn: string): Promise<string | null> {
   }
 }
 
-function streamCli(
+async function streamCli(
   win: BrowserWindow,
   id: string,
   args: string[],
   sketchPath: string
-): void {
+): Promise<void> {
+  const cancellation = runner.beginRunStart(id)
+  if (!cancellation) return
   const sketchDir = dirname(sketchPath)
   runner.sendRunOutput(win, id, 'system', `$ ${CLI} ${args.join(' ')}\n`)
   const start = performance.now()
   let proc: ChildProcess
   try {
-    // cwd is the sketch directory, inside the project: resolve CLI from PATH.
-    const cliBin = safeCommand(CLI, getWorkspaceRoot())
-    if (!cliBin) throw new Error('arduino-cli resolved inside the workspace')
-    proc = spawn(cliBin, args, { cwd: sketchDir, windowsHide: true, shell: needsShell(cliBin) })
+    if (runner.runStartCancelled(win, id, cancellation, 'compile')) return
+    const cli = await getArduinoCli()
+    if (runner.runStartCancelled(win, id, cancellation, 'compile')) return
+    if (!cli) throw new Error('Board tools are not ready. Use Set up board tools in Cortex and retry.')
+    proc = spawn(cli.command, [...cli.args, ...args], { cwd: sketchDir, windowsHide: true, env: cli.env })
     // Decode UTF-8 across chunk boundaries (see runnerService).
     proc.stdout?.setEncoding('utf8')
     proc.stderr?.setEncoding('utf8')
+    runner.trackProcess(id, proc)
   } catch (err) {
+    if (runner.runStartCancelled(win, id, cancellation, 'compile')) return
     runner.sendRunOutput(win, id, 'stderr', `Failed to launch ${CLI}: ${String(err)}\n`)
     runner.sendRunExit(win, { id, code: 127, signal: null, durationMs: 0, phase: 'compile' })
     return
+  } finally {
+    runner.finishRunStart(id, cancellation)
   }
-  runner.trackProcess(id, proc)
   proc.stdin?.on('error', () => {})
   let stderrBuf = ''
   proc.stdout?.on('data', (d) => runner.sendRunOutput(win, id, 'stdout', d.toString()))
@@ -173,13 +175,13 @@ function streamCli(
 }
 
 /** Verify (compile) a sketch for the given board. */
-export function compile(win: BrowserWindow, req: BoardCompileRequest): void {
-  streamCli(win, req.id, ['compile', '--fqbn', req.fqbn, req.sketchPath], req.sketchPath)
+export async function compile(win: BrowserWindow, req: BoardCompileRequest): Promise<void> {
+  await streamCli(win, req.id, ['compile', '--fqbn', req.fqbn, req.sketchPath], req.sketchPath)
 }
 
 /** Compile and upload a sketch to a connected board. */
-export function upload(win: BrowserWindow, req: BoardUploadRequest): void {
-  streamCli(
+export async function upload(win: BrowserWindow, req: BoardUploadRequest): Promise<void> {
+  await streamCli(
     win,
     req.id,
     ['compile', '--upload', '--fqbn', req.fqbn, '-p', req.port, req.sketchPath],

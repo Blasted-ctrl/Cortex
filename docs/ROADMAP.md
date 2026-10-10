@@ -34,6 +34,27 @@ The runnable core:
   buzzer, servo; **diagram save/load** to `.cortex/diagram.json`; demo sketches in `examples/sim/`
 - **Testing + CI**: 44 Vitest unit tests; GitHub Actions (typecheck + test + build on Ubuntu + Windows)
 
+## Phase 1.4 - Automated firmware testing and CI benchmarks
+
+The first release covers the headless workflow and quickstart:
+
+- Shared native sketch build path without a desktop window; supported Uno
+  sensor-controller example and explicit simulation limitations.
+- Version 1 JSON scenarios, virtual time, seeded randomness, stable input order,
+  fresh state, behavior/deadline assertions and bounded execution.
+- Normal, stopped-sensor and invalid-input scenarios; broken timeout and hanging
+  fixtures; deterministic repeat checks.
+- Readable/JSON reports with evidence and build/environment fingerprints;
+  saved-configuration replay for investigating a failure and verifying a fix.
+- Pull-request/main GitHub Actions reporting, fixed repeated benchmark workload,
+  explicitly saved baseline and advisory environment-aware comparisons.
+- Complete [quickstart](FIRMWARE-TESTING.md), example contract and feature docs.
+
+Next: desktop Run Tests and results/details/replay using the same runner; record
+a demonstration; have two teammates test fresh installations and one outside
+team try the workflow. User validation drives future board/peripheral coverage.
+See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work.
+
 ## 🔜 Phase 1.5 - Real project builds & distribution
 - **Code signing** + notarization; **auto-update** (electron-updater)
 - **Multi-file** C/C++ builds via CMake + Ninja

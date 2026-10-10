@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Library, AlertTriangle, Download, Trash2, ArrowUpCircle, RefreshCw } from 'lucide-react'
+import { Search, Library, Download, Trash2, ArrowUpCircle, RefreshCw } from 'lucide-react'
 import PanelHeader from './PanelHeader'
+import BoardToolsSetup from './BoardToolsSetup'
 import { useStore } from '../store/useStore'
 import type { LibPackage } from '@shared/ipc'
 
@@ -21,7 +22,7 @@ export default function LibraryManagerPanel(): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [pick, setPick] = useState<Record<string, string>>({})
 
-  const available = !!boardStatus?.available
+  const available = !!boardStatus?.available && !boardStatus.setupRequired
 
   // Installed libraries load once (and after an install/remove finishes).
   const wasRunning = useRef(false)
@@ -87,10 +88,7 @@ export default function LibraryManagerPanel(): JSX.Element {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelHeader icon={<Library size={13} />}>Library Manager</PanelHeader>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <AlertTriangle size={22} className="text-ide-amber" />
-          <div className="text-[12px] text-ide-muted">{boardStatus?.hint || 'arduino-cli is not installed.'}</div>
-        </div>
+        <BoardToolsSetup />
       </div>
     )
   }

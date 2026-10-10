@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { flushCppAutoIncludes } from '../monaco/cppAutoInclude'
 import type {
   FileNode,
   ToolchainInfo,
@@ -20,6 +21,7 @@ import type {
 } from '@shared/ipc'
 import { langFromPath, isHeaderPath, cDriver, cppDriver, type LanguageDef } from '@shared/languages'
 import { normalizeEol, detectEol, withEol } from '@shared/diff'
+import { appendConsoleEntry } from '@shared/consoleBuffer'
 import { extractMissingHeaders, type EnvironmentReport } from '@shared/environment'
 import { restorePlan, type LockCheck } from '@shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta } from '@shared/datasheet'
@@ -29,7 +31,11 @@ import type { DebugState, DebugOutput, FileReadResult } from '@shared/ipc'
 const IDLE_DEBUG: DebugState = { status: 'idle', stack: [], frame: 0, variables: [] }
 import { extractSeries } from '@shared/serialPlot'
 import { isHostCpp, hostCppOrNull } from '@shared/security'
-import { freeSpawnPoint, clampToSpace, W as SIM_W, H as SIM_H, V1_SPACE } from '@shared/simLayout'
+import { freeSpawnPoint, clampToSpace } from '@shared/simLayout'
+import { PART_PINS, decodeSimDiagram, wiresFromParts, resolveCircuitParts, connectedBoardPins, defaultPartProps, updateStepper, advanceActuator,
+  type SimBoardId, type SimPart, type SimPartType, type SimWire, type SimTerminal, type JumperKind, type StepperState, type ActuatorState } from '@shared/simCircuit'
+export { PART_PINS } from '@shared/simCircuit'
+export type { SimPart, SimPartType } from '@shared/simCircuit'
 import {
   resolve as resolveGroups,
   addTab as addTabToGroups,
@@ -58,47 +64,12 @@ export type MainView = 'editor' | 'simulator' | 'settings'
 
 /** Which board the 3D simulator view renders. A view preference, not project
  *  data, so it is not workspace-scoped. The engine still models an Uno. */
-export type Sim3dBoardId = 'uno' | 'esp32' | 'pi'
-
-export type SimPartType =
-  | 'led'
-  | 'rgb'
-  | 'button'
-  | 'buzzer'
-  | 'resistor'
-  | 'potentiometer'
-  | 'servo'
-  | 'ldr'
-  | 'thermistor'
-  | 'sevenseg'
+export type Sim3dBoardId = SimBoardId
 
 /** Parts whose value the user drives to feed analogRead/digitalRead. */
 export const INPUT_PARTS: SimPartType[] = ['potentiometer', 'ldr', 'thermistor']
 
 /** Named pins each part exposes (order matters for connector layout). */
-export const PART_PINS: Record<SimPartType, string[]> = {
-  led: ['sig'],
-  rgb: ['r', 'g', 'b'],
-  button: ['sig'],
-  buzzer: ['sig'],
-  resistor: ['sig'],
-  potentiometer: ['sig'],
-  servo: ['sig'],
-  ldr: ['sig'],
-  thermistor: ['sig'],
-  sevenseg: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp']
-}
-
-export interface SimPart {
-  id: string
-  type: SimPartType
-  x: number
-  y: number
-  rotation: number
-  color?: string
-  /** Named pin -> board pin (null = unconnected). Single-pin parts use 'sig'. */
-  pins: Record<string, number | null>
-}
 
 export interface WiringTarget {
   partId: string
@@ -112,7 +83,7 @@ export interface WiringTarget {
  * lit, and whether it did was a coin flip on where loop() happened to be).
  * Shared because there are three such paths and only startSim used to do it.
  */
-const SIM_PIN_RESET = { simPinStates: {}, simPinPwm: {}, simPinModes: {} } as const
+const SIM_PIN_RESET = { simPinStates: {}, simPinPwm: {}, simPinModes: {}, simStepperStates: {}, simActuatorStates: {} } as const
 
 /**
  * Part ids must be unique across sessions, not just within one. A per-session
@@ -130,8 +101,8 @@ export const mintPartId = (type: string): string => `${type}-${crypto.randomUUID
  * workspace must reset to a new copy rather than share one mutable array.
  */
 export const defaultSimParts = (): SimPart[] => [
-  { id: mintPartId('led'), type: 'led', x: 470, y: 110, rotation: 0, color: '#E05561', pins: { sig: 13 } },
-  { id: mintPartId('button'), type: 'button', x: 175, y: 110, rotation: 0, pins: { sig: 2 } }
+  { id: mintPartId('led'), type: 'led', x: 470, y: 110, rotation: 0, color: '#E05561', pins: { sig: 13, gnd: -1 } },
+  { id: mintPartId('button'), type: 'button', x: 175, y: 110, rotation: 0, pins: { sig: 2, gnd: -1 } }
 ]
 
 /**
@@ -148,6 +119,7 @@ export const defaultSimParts = (): SimPart[] => [
  * test/workspaceReset.test.ts is what makes forgetting it fail loudly.
  */
 export function workspaceScopedReset(): Record<string, unknown> {
+  const parts = defaultSimParts()
   return {
     // tree
     childrenCache: {},
@@ -160,7 +132,12 @@ export function workspaceScopedReset(): Record<string, unknown> {
     groupActive: {},
     reveal: null,
     // simulator
-    simParts: defaultSimParts(),
+    simParts: parts,
+    simWires: wiresFromParts(parts),
+    sim3dBoard: 'uno',
+    simDiagramDirty: false,
+    simDiagramError: null,
+    simDiagramSavedContent: undefined,
     simSerial: [],
     simInputs: {},
     simWiring: null,
@@ -376,13 +353,16 @@ export type ConfirmOptions = ConfirmRequest
 // Latest-wins guard for environment inspects: a slow earlier inspect must not
 // clobber the report of a newer one (e.g. after a board change).
 let envInspectSeq = 0
+let boardStatusSeq = 0
+let boardSetupTask: Promise<void> | null = null
 // Same guard for lock checks, which also re-run on a board change.
 let lockCheckSeq = 0
 // Latest-wins for datasheet queries, so a slow earlier query cannot clobber a
 // newer one's results.
 let datasheetQuerySeq = 0
-/** Set when an upload closed the serial monitor, so we can reopen it after. */
-let reopenSerialAfterUpload = false
+/** Reopen only the monitor belonging to this upload, never a newly chosen port. */
+let reopenSerialAfterUpload: { runId: string; workspaceRoot: string | null; port: string; operation: number } | null = null
+let serialMonitorSeq = 0
 // The file a Run/Verify/Upload targeted, captured at start so the completion
 // notification names the right file even if the user has since switched tabs.
 let runTargetFile = ''
@@ -411,7 +391,7 @@ async function runPackageOp(
   set: (partial: Partial<State>) => void,
   fn: (id: string) => Promise<void>
 ): Promise<void> {
-  if (get().running) return
+  if (get().running || runStartToken) return
   const id = nextRunId()
   set({
     runId: id,
@@ -486,6 +466,13 @@ interface State {
   simPinPwm: Record<number, boolean>
   simPinModes: Record<number, number>
   simParts: SimPart[]
+  simWires: SimWire[]
+  simWireKind: JumperKind
+  simDiagramDirty: boolean
+  simDiagramError: string | null
+  simDiagramSavedContent: string | null | undefined
+  simStepperStates: Record<string, StepperState>
+  simActuatorStates: Record<string, ActuatorState>
   simWiring: WiringTarget | null // (part, pin) awaiting a board-pin click, or null
   simInputs: Record<number, number> // user-driven pin inputs (buttons, pots)
   simSerial: SimLine[]
@@ -529,6 +516,9 @@ interface State {
 
   // embedded boards
   boardStatus: BoardStatus | null
+  boardSetupBusy: boolean
+  boardSetupMessage: string
+  boardSetupError: string | null
   environmentReport: EnvironmentReport | null
   envLoading: boolean
   /** A pending themed confirmation dialog, or null. Driven by confirm(). */
@@ -593,7 +583,7 @@ interface State {
   toggleDir: (node: FileNode) => Promise<void>
   openFile: (path: string) => Promise<void>
   setActive: (path: string) => void
-  closeTab: (path: string) => void
+  closeTab: (path: string) => Promise<void>
   /** Focus a tab within a specific editor group (a tab-strip click). */
   setActiveInGroup: (group: number, path: string) => void
   /** Make an editor group the focused one (a click inside its pane). */
@@ -616,6 +606,7 @@ interface State {
    *  the editor (a branch switch): reload clean tabs, close ones whose file is
    *  gone. The caller must first ensure no tab has UNSAVED edits. */
   reloadOpenTabsFromDisk: () => Promise<void>
+  reloadActiveFromDisk: () => Promise<void>
   saveActive: () => Promise<void>
   saveAll: () => Promise<void>
   renameEntry: (path: string, newName: string) => Promise<void>
@@ -653,18 +644,26 @@ interface State {
   recheckCompiler: () => Promise<void>
   handleSimEvent: (e: SimEvent) => void
   handleSimExit: (e: SimExit) => void
+  advanceSimTime: (elapsedMs: number) => void
   addPart: (type: SimPartType) => void
   movePart: (id: string, x: number, y: number) => void
   rotatePart: (id: string) => void
   setPartColor: (id: string, color: string) => void
+  setPartProps: (id: string, props: NonNullable<SimPart['props']>) => void
+  setWireKind: (kind: JumperKind) => void
+  removeWire: (id: string) => void
+  connectTerminal: (terminal: SimTerminal) => void
   removePart: (id: string) => void
   beginWire: (partId: string, pinName: string) => void
   attachWire: (boardPin: number) => void
   cancelWire: () => void
   detachWire: (partId: string, pinName: string) => void
   setSimInput: (pin: number, value: number) => void
+  setPartInput: (partId: string, value: number) => void
+  setPartButton: (partId: string, pressed: boolean) => void
   saveDiagram: () => Promise<void>
   loadDiagram: () => Promise<void>
+  importDiagram: (data: unknown) => void
 
   detectToolchains: (force?: boolean) => Promise<void>
   refreshProjectModel: () => Promise<void>
@@ -698,6 +697,7 @@ interface State {
 
   // embedded boards
   refreshBoardStatus: () => Promise<void>
+  setupBoardTools: () => Promise<void>
   inspectEnvironment: (refresh?: boolean) => Promise<void>
   /** Load the stored lock and its drift against the current environment. */
   checkLock: () => Promise<void>
@@ -818,18 +818,112 @@ export interface RecentWorkspace {
 }
 const RECENTS_KEY = 'cortex.recents'
 export const LAST_WORKSPACE_KEY = 'cortex.lastWorkspace'
+/** Windows names are case-insensitive; POSIX names need to remain distinct. */
+export const normPath = (p: string): string => /^[a-z]:[\\/]/i.test(p) || /^(\\\\|\/\/)/.test(p)
+  ? p.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')
+  : p.replace(/\/+$/, '')
+
 function loadRecents(): RecentWorkspace[] {
   try {
     const raw = localStorage.getItem(RECENTS_KEY)
     const v = raw ? JSON.parse(raw) : []
-    return Array.isArray(v) ? v : []
+    if (!Array.isArray(v)) return []
+    const seen = new Set<string>()
+    return v.filter((entry): entry is RecentWorkspace => {
+      if (!entry || typeof entry.path !== 'string' || !entry.path.trim() || typeof entry.name !== 'string' ||
+        !Number.isFinite(entry.ts) || entry.ts < 0) return false
+      const key = normPath(entry.path)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 8)
   } catch {
     return []
   }
 }
-/** Normalize a path for cross-source comparison (case + separators on Windows). */
-export const normPath = (p: string): string => p.toLowerCase().replace(/\\/g, '/')
 
+const pendingSaves = new Map<string, Promise<void>>()
+let simStartToken: object | null = null
+let runStartToken: object | null = null
+let treeRefreshToken: object | null = null
+
+/** A save can outlive Stop or a project/target change. Reserve one preparation
+ *  and revalidate its target before issuing any launch request. */
+function beginRunPreparation(get: () => State, path: string): {
+  isSaved: () => boolean
+  ownsRun: (id: string) => boolean
+  finish: () => void
+} {
+  const token = {}
+  const workspaceRoot = get().workspaceRoot
+  runStartToken = token
+  return {
+    isSaved: () => {
+      const state = get()
+      const tab = state.tabs.find((candidate) => candidate.path === path)
+      return runStartToken === token && state.workspaceRoot === workspaceRoot && state.activePath === path &&
+        !!tab && !tab.readOnlyReason && tab.content === tab.savedContent
+    },
+    ownsRun: (id) => runStartToken === token && get().workspaceRoot === workspaceRoot && get().runId === id,
+    finish: () => { if (runStartToken === token) runStartToken = null }
+  }
+}
+
+function queueFileSave(path: string, content: string): Promise<void> {
+  const key = normPath(path)
+  const previous = pendingSaves.get(key) ?? Promise.resolve()
+  const task = previous.catch(() => {}).then(async () => {
+    try {
+      const expected = useStore.getState().tabs.find((tab) => tab.path === path)?.savedContent
+      await window.api.writeFile(path, content, expected)
+      useStore.setState((state) => ({ tabs: state.tabs.map((tab) => tab.path === path ? { ...tab, savedContent: content } : tab) }))
+    } catch (error) {
+      useStore.getState().notify('error', `Could not save ${baseName(path)}`, `${error instanceof Error ? error.message : String(error)} Your changes are still open. Retry saving before closing.`)
+      throw error
+    }
+  }).finally(() => {
+    if (pendingSaves.get(key) === task) pendingSaves.delete(key)
+  })
+  pendingSaves.set(key, task)
+  return task
+}
+
+let workspaceTransition: Promise<void> = Promise.resolve()
+async function beginWorkspaceTransition(): Promise<() => void> {
+  const previous = workspaceTransition
+  let complete!: () => void
+  workspaceTransition = new Promise<void>((resolve) => { complete = resolve })
+  await previous
+  return complete
+}
+
+function assertSavedWorkspace(state: Pick<State, 'tabs' | 'simDiagramDirty'>): void {
+  if (state.simDiagramDirty || state.tabs.some((tab) => !tab.readOnlyReason && tab.content !== tab.savedContent)) {
+    throw new Error('New edits were made while saving. Save your changes and try again.')
+  }
+}
+
+function assertEntryName(name: string, parent: string): void {
+  if (!name.trim() || name === '.' || name === '..' || /[\\/\x00-\x1f\x7f]/.test(name)) {
+    throw new Error('Choose a file or folder name without path separators or control characters.')
+  }
+  const windows = /^[a-z]:[\\/]/i.test(parent) || /^(\\\\|\/\/)/.test(parent)
+  if (windows && (/[<>:"|?*]|[. ]$/.test(name) || /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(name))) {
+    throw new Error('This name is not supported by Windows. Choose another file or folder name.')
+  }
+}
+
+function readTabState(read: FileReadResult): Pick<Tab, 'content' | 'savedContent' | 'readOnlyReason'> {
+  const content = read.kind === 'text' ? read.content : ''
+  const readOnlyReason = read.kind === 'binary'
+    ? 'This file is binary or is not valid UTF-8. Cortex will not edit it as text.'
+    : read.kind === 'too-large'
+      ? `This file is ${(read.size / (1024 * 1024)).toFixed(1)} MB, too large to open in the editor.`
+      : undefined
+  return { content, savedContent: content, readOnlyReason }
+}
+
+const initialSimParts = defaultSimParts()
 export const useStore = create<State>((set, get) => ({
   workspaceRoot: null,
   workspaceName: '',
@@ -873,7 +967,14 @@ export const useStore = create<State>((set, get) => ({
   simPinPwm: {},
   simPinModes: {},
   // Positions live in the SimCanvas design space (see W/H there).
-  simParts: defaultSimParts(),
+  simParts: initialSimParts,
+  simWires: wiresFromParts(initialSimParts),
+  simWireKind: 'male-male',
+  simDiagramDirty: false,
+  simDiagramError: null,
+  simDiagramSavedContent: undefined,
+  simStepperStates: {},
+  simActuatorStates: {},
   simWiring: null,
   simInputs: {},
   simSerial: [],
@@ -915,6 +1016,9 @@ export const useStore = create<State>((set, get) => ({
   breakpoints: {},
 
   boardStatus: null,
+  boardSetupBusy: false,
+  boardSetupMessage: '',
+  boardSetupError: null,
   boards: [],
   boardTargets: [],
   confirmDialog: null,
@@ -953,87 +1057,79 @@ export const useStore = create<State>((set, get) => ({
   settings: null,
 
   async openWorkspace(path) {
-    // Kill anything belonging to the old project first. Both guards return
-    // silently when their flag is set, so a surviving simRunning made the
-    // Simulator's Run button dead in the new project (loop() never ends, so
-    // this is the normal case, not a race).
-    await get().stopRun()
-    await get().stopSim()
-    // A debug session holds a gdb process and the old project's executable, and
-    // nothing else stops it: the state reset alone would leave that gdb running.
-    get().stopDebug()
-    get().cancelAgent() // stop an in-flight agent task bound to the old project
-    await window.api.watchStop()
-    const tree = await window.api.readDir(path)
-    set({
-      ...workspaceScopedReset(),
-      workspaceRoot: path,
-      workspaceName: baseName(path),
-      tree
-    })
-    await window.api.watchStart(path)
-    // The old project's shell is rooted in a folder the user has left, so tear
-    // it down like the other project processes. Done AFTER watchStart (which
-    // sets the main-process workspace root) and the store update above, so when
-    // a visible terminal respawns it does so in the NEW workspace, never racing
-    // ahead of the root switch. No-op if the terminal was never opened.
-    window.__cortexTerminal?.dispose()
-    // Free the previous project's language servers (each holds a background
-    // index in memory); keep only this root's.
-    void window.api.lspDisposeRoot(path)
-
-    // Remember it: reopened on next launch, and listed on Welcome.
-    const entry: RecentWorkspace = { path, name: baseName(path), ts: Date.now() }
-    const recents = [entry, ...get().recents.filter((r) => normPath(r.path) !== normPath(path))].slice(0, 8)
-    set({ recents })
+    const complete = await beginWorkspaceTransition()
     try {
-      localStorage.setItem(RECENTS_KEY, JSON.stringify(recents))
-      localStorage.setItem(LAST_WORKSPACE_KEY, path)
-    } catch {
-      /* storage unavailable */
-    }
+      const tree = await window.api.readDir(path)
+      await get().saveAll()
+      if (get().simDiagramDirty) await get().saveDiagram()
+      assertSavedWorkspace(get())
+      await get().stopRun()
+      await get().stopSim()
+      get().stopDebug()
+      get().cancelAgent()
+      const previousRoot = get().workspaceRoot
+      try {
+        await window.api.watchStop()
+        await window.api.watchStart(path)
+        assertSavedWorkspace(get())
+      } catch (error) {
+        if (previousRoot) await window.api.watchStart(previousRoot)
+        throw error
+      }
+      set({ ...workspaceScopedReset(), workspaceRoot: path, workspaceName: baseName(path), tree })
+      window.__cortexTerminal?.dispose()
+      void window.api.lspDisposeRoot(path)
 
-    await get().loadProjectConfig()
-    await get().loadDiagram()
-    void get().refreshBoardStatus()
-    void get().refreshProjectModel()
-    // Re-probe language servers for the new root. The `true` also clears a
-    // crash lockout in main, so a server that kept dying on the PREVIOUS
-    // project gets a fresh chance in this one rather than staying off.
-    void window.api.lspServers(true).then((a) => set({ lspServers: a }))
+      const entry: RecentWorkspace = { path, name: baseName(path), ts: Date.now() }
+      const recents = [entry, ...get().recents.filter((r) => normPath(r.path) !== normPath(path))].slice(0, 8)
+      set({ recents })
+      try {
+        localStorage.setItem(RECENTS_KEY, JSON.stringify(recents))
+        localStorage.setItem(LAST_WORKSPACE_KEY, path)
+      } catch {
+        /* storage unavailable */
+      }
+
+      await get().loadProjectConfig()
+      await get().loadDiagram()
+      void get().refreshBoardStatus()
+      void get().refreshProjectModel()
+      void window.api.lspServers(true).then((a) => {
+        if (get().workspaceRoot === path) set({ lspServers: a })
+      })
+    } finally {
+      complete()
+    }
   },
   async closeWorkspace() {
-    if (!get().workspaceRoot) return
-    // Save first: closing must never silently drop a dirty tab. saveAll skips
-    // binary/oversized tabs, which cannot be dirty anyway.
-    await get().saveAll()
-    // Same teardown as switching projects (openWorkspace does this before
-    // opening the next one), just with no next one to open.
-    await get().stopRun()
-    await get().stopSim()
-    get().stopDebug()
-    get().cancelAgent()
-    await window.api.watchStop()
-    const root = get().workspaceRoot
-    if (root) void window.api.lspDisposeRoot(root)
-    set({
-      ...workspaceScopedReset(),
-      workspaceRoot: null,
-      workspaceName: '',
-      tree: [],
-      // App shows Welcome only when the main view is not the simulator; a folder
-      // closed from the simulator would otherwise leave a blank canvas.
-      mainView: 'editor'
-    })
-    // Kill the shell AFTER clearing workspaceRoot, so the terminal panel (which
-    // guards respawn on an open workspace) tears down to Welcome without
-    // spawning a stray shell in the home directory.
-    window.__cortexTerminal?.dispose()
-    // Do not reopen this folder on next launch now that it was deliberately closed.
+    const complete = await beginWorkspaceTransition()
     try {
-      localStorage.removeItem(LAST_WORKSPACE_KEY)
-    } catch {
-      /* storage unavailable */
+      const root = get().workspaceRoot
+      if (!root) return
+      await get().saveAll()
+      if (get().simDiagramDirty) await get().saveDiagram()
+      assertSavedWorkspace(get())
+      await get().stopRun()
+      await get().stopSim()
+      get().stopDebug()
+      get().cancelAgent()
+      try {
+        await window.api.watchStop()
+        assertSavedWorkspace(get())
+      } catch (error) {
+        await window.api.watchStart(root)
+        throw error
+      }
+      void window.api.lspDisposeRoot(root)
+      set({ ...workspaceScopedReset(), workspaceRoot: null, workspaceName: '', tree: [], mainView: 'editor' })
+      window.__cortexTerminal?.dispose()
+      try {
+        localStorage.removeItem(LAST_WORKSPACE_KEY)
+      } catch {
+        /* storage unavailable */
+      }
+    } finally {
+      complete()
     }
   },
   removeRecent(path) {
@@ -1047,9 +1143,21 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async refreshTree() {
-    const { workspaceRoot, expanded } = get()
+    const token = {}
+    treeRefreshToken = token
+    const { workspaceRoot, expanded, tree: previousTree } = get()
     if (!workspaceRoot) return
-    const tree = await window.api.readDir(workspaceRoot)
+    const isCurrent = (): boolean => treeRefreshToken === token && get().workspaceRoot === workspaceRoot && get().tree === previousTree
+    let tree: FileNode[]
+    try {
+      tree = await window.api.readDir(workspaceRoot)
+    } catch (error) {
+      if (isCurrent()) {
+        get().notify('error', 'Could not refresh project files', `${error instanceof Error ? error.message : String(error)} Restore the project folder or check its permissions, then refresh. Your open files and last known file list were kept.`)
+      }
+      return
+    }
+    if (!isCurrent()) return
     const cache: Record<string, FileNode[]> = {}
     for (const dir of expanded) {
       try {
@@ -1057,8 +1165,9 @@ export const useStore = create<State>((set, get) => ({
       } catch {
         /* directory may have been removed */
       }
+      if (!isCurrent()) return
     }
-    set({ tree, childrenCache: cache })
+    if (isCurrent()) set({ tree, childrenCache: cache })
   },
 
   async toggleDir(node) {
@@ -1076,7 +1185,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async openFile(path) {
-    const { tabs } = get()
+    const { tabs, workspaceRoot } = get()
     // Match case-insensitively / separator-insensitively so a diagnostic path
     // (forward slashes, from gcc) focuses the existing tab instead of duplicating.
     const existing = tabs.find((t) => normPath(t.path) === normPath(path))
@@ -1086,13 +1195,7 @@ export const useStore = create<State>((set, get) => ({
       return
     }
     const read = await window.api.readFile(path)
-    const content = read.kind === 'text' ? read.content : ''
-    const readOnlyReason =
-      read.kind === 'binary'
-        ? 'This is a binary file, so Cortex will not open it as text.'
-        : read.kind === 'too-large'
-          ? `This file is ${(read.size / (1024 * 1024)).toFixed(1)} MB, too large to open in the editor.`
-          : undefined
+    if (get().workspaceRoot !== workspaceRoot) return
     // Re-read tabs AFTER the await: the captured list is stale if another file
     // was opened while this read was in flight, which would drop that tab.
     const raced = get().tabs.find((t) => normPath(t.path) === normPath(path))
@@ -1107,7 +1210,7 @@ export const useStore = create<State>((set, get) => ({
     // file opened while the right pane has focus opens there.
     set({
       ...groupPatch(
-        addTabToGroups(get(), { path, name: baseName(path), content, savedContent: content, language: langFromPath(path), readOnlyReason })
+        addTabToGroups(get(), { path, name: baseName(path), ...readTabState(read), language: langFromPath(path) })
       ),
       // Opening a file shows it: leave the Settings surface / Simulator.
       mainView: 'editor'
@@ -1144,6 +1247,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async closeTab(path) {
+    const pending = pendingSaves.get(normPath(path))
+    if (pending) await pending.catch(() => {})
     const closing = get().tabs.find((t) => t.path === path)
     // Guard against silent data loss on unsaved edits (themed confirm).
     if (closing && closing.content !== closing.savedContent) {
@@ -1160,7 +1265,9 @@ export const useStore = create<State>((set, get) => ({
   },
 
   updateContent(path, content) {
-    set({ tabs: get().tabs.map((t) => (t.path === path ? { ...t, content } : t)) })
+    set({ tabs: get().tabs.map((t) => t.path === path ? {
+      ...t, content: t.savedContent.startsWith('\ufeff') && !content.startsWith('\ufeff') ? '\ufeff' + content : content
+    } : t) })
   },
 
   applyExternalEdit(path, content) {
@@ -1203,7 +1310,37 @@ export const useStore = create<State>((set, get) => ({
     }
   },
 
+  async reloadActiveFromDisk() {
+    const path = get().activePath
+    if (!path) return
+    const pending = pendingSaves.get(normPath(path))
+    if (pending) await pending.catch(() => {})
+    const tab = get().tabs.find((entry) => entry.path === path)
+    if (!tab) return
+    const root = get().workspaceRoot
+    const read = await window.api.readFile(path)
+    const current = (): Tab | undefined => get().tabs.find((entry) => entry.path === path)
+    const assertUnchanged = (): void => {
+      const live = current()
+      if (!live || get().workspaceRoot !== root || live.content !== tab.content || live.savedContent !== tab.savedContent) {
+        throw new Error('The editor changed while reloading. Your changes were kept. Retry reload when you are ready.')
+      }
+    }
+    assertUnchanged()
+    if (tab.content !== tab.savedContent && !await get().confirm({
+      title: 'Reload from disk?',
+      message: `Discard unsaved edits to "${tab.name}" and load the file currently on disk? This does not change the saved file.`,
+      confirmLabel: 'Discard and reload',
+      cancelLabel: 'Keep editing',
+      danger: true
+    })) return
+    assertUnchanged()
+    set({ tabs: get().tabs.map((entry) => entry.path === path ? { ...entry, ...readTabState(read) } : entry) })
+  },
+
   async saveActive() {
+    const pendingPath = get().activePath
+    if (pendingPath) flushCppAutoIncludes(pendingPath)
     const { tabs, activePath } = get()
     const tab = tabs.find((t) => t.path === activePath)
     if (!tab) return
@@ -1216,25 +1353,23 @@ export const useStore = create<State>((set, get) => ({
     // the await would mark keystrokes made during the write as saved, and the
     // dirty-close guard would then stay silent while they are lost.
     const written = tab.content
-    await window.api.writeFile(tab.path, written)
-    set({ tabs: get().tabs.map((t) => (t.path === tab.path ? { ...t, savedContent: written } : t)) })
+    await queueFileSave(tab.path, written)
   },
 
   async saveAll() {
+    flushCppAutoIncludes()
+    const pending = [...pendingSaves.values()]
     const written = get()
-      .tabs.filter((t) => t.content !== t.savedContent)
+      .tabs.filter((t) => !t.readOnlyReason && t.content !== t.savedContent)
       .map((t) => ({ path: t.path, content: t.content }))
-    await Promise.all(written.map((w) => window.api.writeFile(w.path, w.content)))
-    // Only mark the tabs we actually wrote, against what we wrote.
-    set({
-      tabs: get().tabs.map((t) => {
-        const w = written.find((x) => x.path === t.path)
-        return w ? { ...t, savedContent: w.content } : t
-      })
-    })
+    const results = await Promise.allSettled([...pending, ...written.map((w) => queueFileSave(w.path, w.content))])
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed?.status === 'rejected') throw failed.reason
   },
 
   async renameEntry(path, newName) {
+    assertEntryName(newName, path)
+    await Promise.all([...pendingSaves].filter(([key]) => key === normPath(path) || key.startsWith(normPath(path) + '/')).map(([, save]) => save))
     const sep = path.includes('\\') ? '\\' : '/'
     const dir = path.replace(/[\\/][^\\/]+$/, '')
     const newPath = dir + sep + newName
@@ -1262,6 +1397,7 @@ export const useStore = create<State>((set, get) => ({
     await get().refreshTree()
   },
   async deleteEntry(path) {
+    await Promise.all([...pendingSaves].filter(([key]) => key === normPath(path) || key.startsWith(normPath(path) + '/')).map(([, save]) => save))
     await window.api.deletePath(path)
     const remaining = get().tabs.filter(
       (t) => normPath(t.path) !== normPath(path) && !normPath(t.path).startsWith(normPath(path) + '/')
@@ -1273,6 +1409,7 @@ export const useStore = create<State>((set, get) => ({
     await get().refreshTree()
   },
   async createNewFile(dir, name) {
+    assertEntryName(name, dir)
     const sep = dir.includes('\\') ? '\\' : '/'
     const p = dir + sep + name
     await window.api.createFile(p)
@@ -1280,6 +1417,7 @@ export const useStore = create<State>((set, get) => ({
     await get().openFile(p)
   },
   async createNewFolder(dir, name) {
+    assertEntryName(name, dir)
     const sep = dir.includes('\\') ? '\\' : '/'
     await window.api.createDir(dir + sep + name)
     await get().refreshTree()
@@ -1289,7 +1427,10 @@ export const useStore = create<State>((set, get) => ({
     set({ mainView: v })
   },
   setSim3dBoard(b) {
-    set({ sim3dBoard: b })
+    if (b === get().sim3dBoard) return
+    if (get().simRunning) { get().notify('info', 'Stop the simulation before changing the board model.'); return }
+    if (get().simWires.length && !window.confirm('Changing the board clears circuit wiring because GPIO numbers can mean different physical pins. Continue?')) return
+    set({ sim3dBoard: b, simWires: [], simParts: resolveCircuitParts(get().simParts, []), simWiring: null, simDiagramDirty: true, ...SIM_PIN_RESET })
   },
   setSidebarWidth(w) {
     const v = clamp(Math.round(w), LAYOUT_LIMITS.sidebar.min, LAYOUT_LIMITS.sidebar.max)
@@ -1366,65 +1507,71 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async startSim() {
-    const { tabs, activePath, workspaceRoot, simRunning, compiler } = get()
-    if (simRunning || !activePath) return
+    const { tabs, activePath, workspaceRoot, simRunning } = get()
+    if (simRunning || simStartToken || !activePath) return
     const tab = tabs.find((t) => t.path === activePath)
     if (!tab) return
-    // The simulator compiles on the host, so without a C++ toolchain it would
-    // die as "spawn g++ ENOENT" in the serial pane. detectToolchains already
-    // knows; ask it and give a real remedy instead.
-    // Await detection rather than skipping the check when it has not finished:
-    // Welcome -> New sketch -> folder pick -> startSim beats the on-mount probe
-    // on a cold machine, which is precisely the case this remedy exists for.
-    if (get().toolchains.length === 0) await get().detectToolchains()
-    const cpp = get().toolchains.find((t) => t.available && isHostCpp(t.command))
-    if (!cpp) {
-      // A friendly full-stage state with a per-OS install command and a Recheck
-      // button, not five cryptic lines in the serial pane. This is the single
-      // most common first-run wall: New Sketch -> blinking LED silently needs a
-      // host compiler.
-      set({ mainView: 'simulator', simBlock: { reason: 'compiler', path: activePath }, simSerial: [] })
-      return
-    }
-    // The simulator appends its own main(), so a plain C++ file that already has
-    // one fails with "multiple definition of main". Only run real sketches.
-    const hasMain = /^\s*(int|void)\s+main\s*\(/m.test(tab.content)
-    const hasSetupLoop = /\bvoid\s+setup\s*\(/.test(tab.content) && /\bvoid\s+loop\s*\(/.test(tab.content)
-    if (!isSketch(activePath) && (hasMain || !hasSetupLoop)) {
-      set({
-        mainView: 'simulator',
-        simSerial: [],
-        simBlock: {
-          reason: 'not-sketch',
-          path: activePath,
-          lines: [
-            `Cannot simulate ${tab.name}.`,
-            'The simulator runs Arduino sketches: a file with setup() and loop() and no main().',
-            // Points at a control the user can reach. The old text named
-            // examples/blink/blink.ino, a path that exists in the Cortex repo and
-            // not in the workspace they have open.
-            'Open a .ino sketch and press Run, or use New sketch on the Welcome screen to get one.'
-          ]
-        }
-      })
-      return
-    }
-    await get().saveActive()
-    const id = `sim-${crypto.randomUUID()}`
-    const cwd = workspaceRoot || activePath.replace(/[\\/][^\\/]+$/, '')
-    set({
-      simRunId: id,
-      simRunning: true,
-      ...SIM_PIN_RESET,
-      simInputs: {},
-      simSerial: [],
-      simBlock: null,
-      mainView: 'simulator'
-    })
+    const token = {}
+    simStartToken = token
+    const isCurrent = (): boolean => simStartToken === token && get().workspaceRoot === workspaceRoot &&
+      get().activePath === activePath && get().tabs.some((entry) => entry.path === activePath)
     try {
-      await window.api.simStart({ id, filePath: activePath, cwd, compiler })
-    } catch (err) {
-      set({ simRunning: false, simSerial: [{ text: `Failed to start simulation: ${String(err)}`, kind: 'system' }] })
+      // Detection and saving can finish after the user closes this project or
+      // selects another file. A cancelled start must not launch its old target.
+      if (get().toolchains.length === 0) await get().detectToolchains()
+      if (!isCurrent()) return
+      const cpp = get().toolchains.find((t) => t.available && isHostCpp(t.command))
+      if (!cpp) {
+        set({ mainView: 'simulator', simBlock: { reason: 'compiler', path: activePath }, simSerial: [] })
+        return
+      }
+      const currentTab = get().tabs.find((entry) => entry.path === activePath)
+      if (!currentTab) return
+      const hasMain = /^\s*(int|void)\s+main\s*\(/m.test(currentTab.content)
+      const hasSetupLoop = /\bvoid\s+setup\s*\(/.test(currentTab.content) && /\bvoid\s+loop\s*\(/.test(currentTab.content)
+      if (!isSketch(activePath) && (hasMain || !hasSetupLoop)) {
+        set({
+          mainView: 'simulator',
+          simSerial: [],
+          simBlock: {
+            reason: 'not-sketch',
+            path: activePath,
+            lines: [
+              `Cannot simulate ${currentTab.name}.`,
+              'The simulator runs Arduino sketches: a file with setup() and loop() and no main().',
+              'Open a .ino sketch and press Run, or use New sketch on the Welcome screen to get one.'
+            ]
+          }
+        })
+        return
+      }
+      await get().saveActive()
+      if (!isCurrent()) return
+      const savedTab = get().tabs.find((entry) => entry.path === activePath)
+      // A save can finish while the user is typing or the file becomes
+      // read-only. Do not run an older disk snapshot under newer editor text.
+      if (!savedTab || savedTab.readOnlyReason || savedTab.content !== savedTab.savedContent) return
+      const id = `sim-${crypto.randomUUID()}`
+      const cwd = workspaceRoot || activePath.replace(/[\\/][^\\/]+$/, '')
+      set({
+        simRunId: id,
+        simRunning: true,
+        ...SIM_PIN_RESET,
+        simInputs: {},
+        simSerial: [],
+        simBlock: null,
+        mainView: 'simulator'
+      })
+      try {
+        await window.api.simStart({ id, filePath: activePath, cwd, compiler: get().compiler })
+        if (simStartToken !== token || get().workspaceRoot !== workspaceRoot || get().simRunId !== id) await window.api.simStop(id)
+      } catch (err) {
+        if (simStartToken === token && get().workspaceRoot === workspaceRoot && get().simRunId === id) {
+          set({ simRunning: false, simRunId: null, ...SIM_PIN_RESET, simSerial: [{ text: `Failed to start simulation: ${String(err)}`, kind: 'system' }] })
+        }
+      }
+    } finally {
+      if (simStartToken === token) simStartToken = null
     }
   },
   async recheckCompiler() {
@@ -1441,18 +1588,20 @@ export const useStore = create<State>((set, get) => ({
     }
   },
   async stopSim() {
+    simStartToken = null
     const { simRunId } = get()
     if (simRunId) await window.api.simStop(simRunId)
     // simRunId deliberately survives: the sketch is still flushing its last
     // Serial output in response to @stop, and handleSimEvent/handleSimExit both
     // drop events whose id does not match, so clearing it here threw that
     // output away. handleSimExit clears it when the process is actually gone.
-    set({ simRunning: false, ...SIM_PIN_RESET })
+    if (get().simRunId === simRunId) set({ simRunning: false, ...SIM_PIN_RESET })
   },
   handleSimEvent(e) {
     if (e.id !== get().simRunId) return
     if (e.kind === 'mode') {
-      set({ simPinModes: { ...get().simPinModes, [e.pin]: e.value } })
+      const modes = { ...get().simPinModes, [e.pin]: e.value }
+      set({ simPinModes: modes, simParts: resolveCircuitParts(get().simParts, get().simWires, modes) })
     } else if (e.kind === 'pin') {
       set({
         simPinStates: { ...get().simPinStates, [e.pin]: e.value },
@@ -1465,10 +1614,21 @@ export const useStore = create<State>((set, get) => ({
       })
     } else if (e.kind === 'tone') {
       // Buzzer: nonzero frequency = sounding.
-      set({ simPinStates: { ...get().simPinStates, [e.pin]: e.value > 0 ? 1 : 0 } })
+      set({ simPinStates: { ...get().simPinStates, [e.pin]: e.value > 0 ? 1 : 0 }, simPinPwm: { ...get().simPinPwm, [e.pin]: false } })
     } else if (e.kind === 'serial' || e.kind === 'system') {
-      set({ simSerial: [...get().simSerial, { text: e.text, kind: e.kind }].slice(-500) })
+      set({ simSerial: appendConsoleEntry(get().simSerial, { text: e.text, kind: e.kind }, 500) })
     }
+    if (e.kind === 'pin') {
+      const states = { ...get().simStepperStates }
+      for (const part of get().simParts) if (part.type === 'stepper') states[part.id] = updateStepper(part, states[part.id] ?? { steps: 0, lastStep: 0 }, e, get().simPinStates)
+      set({ simStepperStates: states })
+    }
+  },
+  advanceSimTime(elapsedMs) {
+    if (!get().simRunning || !Number.isFinite(elapsedMs) || elapsedMs < 0) return
+    const states = { ...get().simActuatorStates }
+    for (const part of get().simParts) if (part.type === 'actuator') states[part.id] = advanceActuator(part, states[part.id] ?? { positionMm: 0, atMin: true, atMax: false }, elapsedMs, get().simPinStates, get().simPinPwm)
+    set({ simActuatorStates: states })
   },
   handleSimExit(e) {
     if (e.id !== get().simRunId) return
@@ -1477,14 +1637,17 @@ export const useStore = create<State>((set, get) => ({
     set({ simRunning: false, simRunId: null, ...SIM_PIN_RESET })
   },
   addPart(type) {
+    if (!PART_PINS[type]) return
+    if (get().simParts.length >= 256) { get().notify('error', 'Circuit limit reached', 'A circuit can contain at most 256 parts.'); return }
     const id = mintPartId(type)
     const color = type === 'led' ? '#6FB65A' : type === 'rgb' ? '#C58BE6' : undefined
     const pins = Object.fromEntries(PART_PINS[type].map((name) => [name, null]))
     set({
       simParts: [
         ...get().simParts,
-        { id, type, ...freeSpawnPoint(get().simParts), rotation: 0, color, pins }
-      ]
+        { id, type, ...freeSpawnPoint(get().simParts), rotation: 0, color, pins, props: defaultPartProps(type) }
+      ],
+      simDiagramDirty: true
     })
   },
   movePart(id, x, y) {
@@ -1493,58 +1656,130 @@ export const useStore = create<State>((set, get) => ({
     // part where it is invisible and unclickable, and saveDiagram would then
     // write that to disk.
     const at = clampToSpace({ x, y })
-    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, ...at } : p)) })
+    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, ...at } : p)), simDiagramDirty: true })
   },
   rotatePart(id) {
-    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, rotation: (p.rotation + 90) % 360 } : p)) })
+    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, rotation: (p.rotation + 90) % 360 } : p)), simDiagramDirty: true })
   },
   setPartColor(id, color) {
-    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, color } : p)) })
+    set({ simParts: get().simParts.map((p) => (p.id === id ? { ...p, color } : p)), simDiagramDirty: true })
+  },
+  setPartProps(id, props) {
+    try {
+      const diagram = decodeSimDiagram({ version: 3, board: get().sim3dBoard, parts: get().simParts.map((p) => p.id === id ? { ...p, props: { ...p.props, ...props } } : p), wires: get().simWires })
+      set({ simParts: resolveCircuitParts(diagram.parts, diagram.wires, get().simPinModes), simDiagramDirty: true })
+    } catch (err) { get().notify('error', 'Invalid part setting', String(err)) }
+  },
+  setWireKind(kind) { set({ simWireKind: kind }) },
+  removeWire(id) {
+    const wires = get().simWires.filter((w) => w.id !== id)
+    set({ simWires: wires, simParts: resolveCircuitParts(get().simParts, wires, get().simPinModes), simDiagramDirty: true })
   },
   removePart(id) {
+    const wires = get().simWires.filter((w) => !(w.from.kind === 'part' && w.from.partId === id) && !(w.to.kind === 'part' && w.to.partId === id))
     set({
-      simParts: get().simParts.filter((p) => p.id !== id),
+      simParts: resolveCircuitParts(get().simParts.filter((p) => p.id !== id), wires, get().simPinModes),
+      simWires: wires,
+      simDiagramDirty: true,
       simWiring: get().simWiring?.partId === id ? null : get().simWiring
     })
   },
   beginWire(partId, pinName) {
+    const part = get().simParts.find((p) => p.id === partId)
+    if (!part || !PART_PINS[part.type].includes(pinName)) return
     const w = get().simWiring
+    if (w && !(w.partId === partId && w.pinName === pinName)) { get().connectTerminal({ kind: 'part', partId, pin: pinName }); return }
     set({ simWiring: w && w.partId === partId && w.pinName === pinName ? null : { partId, pinName } })
   },
   attachWire(boardPin) {
+    get().connectTerminal({ kind: 'board', pin: boardPin })
+  },
+  connectTerminal(terminal) {
     const w = get().simWiring
     if (!w) return
-    set({
-      simParts: get().simParts.map((p) =>
-        p.id === w.partId ? { ...p, pins: { ...p.pins, [w.pinName]: boardPin } } : p
-      ),
-      simWiring: null
-    })
+    const from: SimTerminal = { kind: 'part', partId: w.partId, pin: w.pinName }
+    if (JSON.stringify(from) === JSON.stringify(terminal)) { get().cancelWire(); return }
+    const wires = [...get().simWires, { id: crypto.randomUUID(), from, to: terminal, kind: get().simWireKind }]
+    try {
+      const diagram = decodeSimDiagram({ version: 3, board: get().sim3dBoard, parts: get().simParts, wires })
+      set({ simParts: resolveCircuitParts(diagram.parts, diagram.wires, get().simPinModes), simWires: diagram.wires, simWiring: null, simDiagramDirty: true })
+    } catch (err) { get().notify('error', 'Cannot connect', String(err)) }
   },
   cancelWire() {
     set({ simWiring: null })
   },
   detachWire(partId, pinName) {
+    const wires = get().simWires.filter((w) => !(w.from.kind === 'part' && w.from.partId === partId && w.from.pin === pinName) && !(w.to.kind === 'part' && w.to.partId === partId && w.to.pin === pinName))
     set({
-      simParts: get().simParts.map((p) =>
-        p.id === partId ? { ...p, pins: { ...p.pins, [pinName]: null } } : p
-      )
+      simWires: wires, simParts: resolveCircuitParts(get().simParts, wires, get().simPinModes), simDiagramDirty: true
     })
   },
   setSimInput(pin, value) {
+    if (!Number.isInteger(pin) || pin < 0 || pin > 63 || !Number.isFinite(value)) return
+    value = Math.max(0, Math.min(1023, Math.round(value)))
     set({ simInputs: { ...get().simInputs, [pin]: value } })
     const { simRunId, simRunning } = get()
     if (simRunning && simRunId) void window.api.simInput(simRunId, pin, value)
   },
+  setPartInput(partId, value) {
+    const part = get().simParts.find((p) => p.id === partId)
+    if (!part || (!INPUT_PARTS.includes(part.type) && part.type !== 'button')) return
+    for (const pin of connectedBoardPins(get().simParts, get().simWires, { kind: 'part', partId, pin: 'sig' })) get().setSimInput(pin, value)
+  },
+  setPartButton(partId, pressed) {
+    const part = get().simParts.find((p) => p.id === partId && p.type === 'button')
+    if (!part) return
+    // A grounded switch closes to LOW independently of the input mode.
+    // Released plain INPUT is floating: do not manufacture a HIGH reading.
+    if (part.pins.gnd !== -1) {
+      get().notify('info', 'Button needs GND', 'Connect the button ground terminal to board GND. Use INPUT_PULLUP for a defined released state.')
+      return
+    }
+    for (const pin of connectedBoardPins(get().simParts, get().simWires, { kind: 'part', partId, pin: 'sig' })) {
+      if (get().simPinModes[pin] === 1) continue
+      if (pressed) get().setSimInput(pin, 0)
+      else if (get().simPinModes[pin] === 2) get().setSimInput(pin, 1023)
+    }
+  },
   async saveDiagram() {
     const root = get().workspaceRoot
-    if (!root) return
+    if (!root) throw new Error('Open a folder to save your circuit.')
+    if (get().simDiagramError && !window.confirm('The saved circuit could not be loaded. Replace that file with the current circuit?')) throw new Error('Circuit save cancelled; the original file was preserved.')
     const sep = root.includes('\\') ? '\\' : '/'
     const dir = `${root}${sep}.cortex`
-    await window.api.createDir(dir)
-    // version 2 = the 660x520 design space. v1 files used 920x640 and must be
-    // scaled on load, so the version MUST be written or they are indistinguishable.
-    await window.api.writeFile(`${dir}${sep}diagram.json`, JSON.stringify({ version: 2, parts: get().simParts }, null, 2))
+    const file = `${dir}${sep}diagram.json`
+    const key = normPath(file)
+    // Derived runtime GPIO bindings are not layout edits. Persist canonical
+    // graph bindings so pinMode events cannot turn a successful save dirty.
+    const snapshot = JSON.stringify({ version: 3, board: get().sim3dBoard, parts: resolveCircuitParts(get().simParts, get().simWires), wires: get().simWires }, null, 2)
+    const previous = pendingSaves.get(key) ?? Promise.resolve()
+    const task = previous.catch(() => {}).then(async () => {
+      try {
+        if (get().workspaceRoot !== root) throw new Error('The project changed before the circuit could be saved.')
+        decodeSimDiagram(JSON.parse(snapshot))
+        let expected = get().simDiagramSavedContent
+        if (expected === undefined) {
+          if (!await window.api.exists(file)) expected = null
+          else {
+            const read = await window.api.readFile(file)
+            if (read.kind !== 'text') throw new Error('The saved circuit is not readable UTF-8 text. Its file was preserved.')
+            expected = read.content
+          }
+        }
+        if (get().workspaceRoot !== root) throw new Error('The project changed before the circuit could be saved.')
+        await window.api.createDir(dir)
+        await window.api.writeFile(file, snapshot, expected)
+        if (get().workspaceRoot === root) {
+          const current = JSON.stringify({ version: 3, board: get().sim3dBoard, parts: resolveCircuitParts(get().simParts, get().simWires), wires: get().simWires }, null, 2)
+          set({ simDiagramDirty: current !== snapshot, simDiagramError: null, simDiagramSavedContent: snapshot })
+          if (current !== snapshot) throw new Error('The circuit changed while saving. Save again before closing.')
+        }
+      } catch (err) { get().notify('error', 'Circuit save failed', String(err)); throw err }
+    }).finally(() => {
+      if (pendingSaves.get(key) === task) pendingSaves.delete(key)
+    })
+    pendingSaves.set(key, task)
+    await task
   },
   async loadDiagram() {
     const root = get().workspaceRoot
@@ -1556,32 +1791,34 @@ export const useStore = create<State>((set, get) => ({
     // saveDiagram would then write those parts into this project's file.
     // A workspace with no diagram is the common case, not an error. Probing
     // first keeps it off the throw path (and out of the main process log).
-    if (!(await window.api.exists(file))) return set({ simParts: defaultSimParts() })
     try {
-      const read = await window.api.readFile(file)
-      if (read.kind !== 'text') return set({ simParts: defaultSimParts() })
-      const data = JSON.parse(read.content)
-      if (!Array.isArray(data.parts)) return set({ simParts: defaultSimParts() })
-      {
-        // v1 coordinates were authored in the old 920x640 space. Applying them
-        // verbatim in the 660x520 space strands parts outside the viewBox, where
-        // they are invisible AND unclickable, so they can never be dragged back.
-        const oldSpace = !data.version || data.version < 2
-        const sx = SIM_W / V1_SPACE.w
-        const sy = SIM_H / V1_SPACE.h
-        const parts: SimPart[] = data.parts.map((p: SimPart & { pin?: number | null }) => {
-          const withPins = p.pins ? p : { ...p, pins: { sig: p.pin ?? null } }
-          return oldSpace
-            ? { ...withPins, ...clampToSpace({ x: Math.round(withPins.x * sx), y: Math.round(withPins.y * sy) }) }
-            : withPins
-        })
-        set({ simParts: parts })
+      const exists = await window.api.exists(file)
+      if (get().workspaceRoot !== root) return
+      if (!exists) {
+        const parts = defaultSimParts()
+        set({ simParts: parts, simWires: wiresFromParts(parts), sim3dBoard: 'uno', simDiagramDirty: false, simDiagramError: null, simDiagramSavedContent: null })
+        return
       }
-    } catch {
-      // Corrupt or unreadable: a definite empty canvas beats the last
-      // project's parts silently masquerading as this one's.
-      set({ simParts: defaultSimParts() })
+      const read = await window.api.readFile(file)
+      if (get().workspaceRoot !== root) return
+      if (read.kind !== 'text') throw new Error('Circuit file must be UTF-8 JSON text.')
+      set({ simDiagramSavedContent: read.content })
+      if (read.content.length > 2_000_000) throw new Error('Circuit file exceeds 2 MB.')
+      const data = decodeSimDiagram(JSON.parse(read.content))
+      if (get().workspaceRoot !== root) return
+      set({ simParts: resolveCircuitParts(data.parts, data.wires), simWires: data.wires, sim3dBoard: data.board, simDiagramDirty: false, simDiagramError: null })
+    } catch (err) {
+      if (get().workspaceRoot !== root) return
+      const message = `Circuit not loaded: ${String(err)}. The saved file was not changed.`
+      set({ simParts: [], simWires: [], sim3dBoard: 'uno', simDiagramDirty: false, simDiagramError: message })
+      get().notify('error', 'Circuit not loaded', message)
     }
+  },
+  importDiagram(raw) {
+    if (!get().workspaceRoot || get().simRunning) throw new Error('Open a folder and stop simulation before importing a circuit.')
+    const data = decodeSimDiagram(raw)
+    if (get().simDiagramDirty && !window.confirm('Replace unsaved circuit edits with the imported circuit?')) return
+    set({ simParts: data.parts, simWires: data.wires, sim3dBoard: data.board, simWiring: null, simDiagramDirty: true, ...SIM_PIN_RESET })
   },
 
   async detectToolchains(force) {
@@ -1628,8 +1865,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async runActive() {
-    const { tabs, activePath, workspaceRoot, running, compiler, std, optimization, settings } = get()
-    if (running) return
+    const { tabs, activePath, workspaceRoot, running } = get()
+    if (running || runStartToken) return
     const tab = tabs.find((t) => t.path === activePath)
     if (!tab) return
     // F5, the Monaco keybinding, the palette and the Sketch menu all reach here
@@ -1661,78 +1898,75 @@ export const useStore = create<State>((set, get) => ({
     // path even though the toolbar hides Run for sketches, so route them properly.
     if (isSketch(activePath)) {
       const { boardStatus, selectedFqbn } = get()
-      if (boardStatus?.available && selectedFqbn) return get().verifyBoard()
+      if (boardStatus?.available && !boardStatus.setupRequired && selectedFqbn) return get().verifyBoard()
       return get().startSim()
     }
-    await get().saveActive()
-    runTargetFile = baseName(tab.path)
-    const id = nextRunId()
-    const cwd = workspaceRoot || tab.path.replace(/[\\/][^\\/]+$/, '')
-    set({
-      runId: id,
-      running: true,
-      runAction: 'run',
-      // Languages that build before they run. Rust was missing, so the status
-      // bar claimed "Running..." for the whole rustc/cargo compile.
-      runPhase: COMPILED_LANGS.has(tab.language.id) ? 'compile' : 'run',
-      lastExitCode: null,
-      output: [],
-      diagnostics: [],
-      bottomView: 'output',
-      bottomVisible: true
-    })
+    const preparation = beginRunPreparation(get, tab.path)
     try {
-      await window.api.runStart({
-        id,
-        filePath: tab.path,
-        language: tab.language.id,
-        cwd,
-        // A .c file must go to the C driver. runnerService has an `isC ? 'gcc'`
-        // fallback, but it is dead code because this field is always populated,
-        // so g++ silently compiled C as C++ (rejecting valid void* conversions).
-        compiler: tab.language.id === 'c' ? cDriver(compiler) : compiler,
-        std: tab.language.id === 'c' ? get().cStd : std,
-        optimization,
-        rustEdition: get().rustEdition,
-        // Per-project extra compiler flags. Parsed from .cortex/config.json into
-        // the store but never forwarded, so setting them did nothing.
-        extraArgs: get().extraArgs,
-        // Fall back to whichever interpreter was actually probed. `python` does
-        // not exist on most macOS/Linux hosts, where only `python3` is on PATH,
-        // and Settings would show a green check while Run failed with ENOENT.
-        // A repo's venv beats the app-wide interpreter, but it is sent in its
-        // own field: main trusts these two differently.
-        projectPython: get().projectPython,
-        pythonPath:
-          settings?.pythonPath ||
-          get().toolchains.find((t) => t.id === 'python' && t.available)?.command ||
-          get().toolchains.find((t) => t.id === 'python3' && t.available)?.command ||
-          'python'
-      })
-    } catch (err) {
+      await get().saveActive()
+      const state = get()
+      if (!preparation.isSaved() || state.running || (state.debug.status !== 'idle' && state.debug.status !== 'exited')) return
+      runTargetFile = baseName(tab.path)
+      const id = nextRunId()
       set({
-        running: false,
-        runPhase: 'idle',
-        runAction: null,
-        output: [{ stream: 'stderr', text: `Failed to start run: ${String(err)}\n` }]
+        runId: id,
+        running: true,
+        runAction: 'run',
+        runPhase: COMPILED_LANGS.has(tab.language.id) ? 'compile' : 'run',
+        lastExitCode: null,
+        output: [],
+        diagnostics: [],
+        bottomView: 'output',
+        bottomVisible: true
       })
+      try {
+        await window.api.runStart({
+          id,
+          filePath: tab.path,
+          language: tab.language.id,
+          cwd: workspaceRoot || tab.path.replace(/[\\/][^\\/]+$/, ''),
+          // C uses its C driver/standard, not the C++ configuration.
+          compiler: tab.language.id === 'c' ? cDriver(state.compiler) : state.compiler,
+          std: tab.language.id === 'c' ? state.cStd : state.std,
+          optimization: state.optimization,
+          rustEdition: state.rustEdition,
+          extraArgs: state.extraArgs,
+          projectPython: state.projectPython,
+          pythonPath:
+            state.settings?.pythonPath ||
+            state.toolchains.find((t) => t.id === 'python' && t.available)?.command ||
+            state.toolchains.find((t) => t.id === 'python3' && t.available)?.command ||
+            'python'
+        })
+        if (!preparation.ownsRun(id)) await window.api.runStop(id)
+      } catch (err) {
+        if (preparation.ownsRun(id)) set({
+          running: false,
+          runPhase: 'idle',
+          runAction: null,
+          runId: null,
+          output: [{ stream: 'stderr', text: `Failed to start run: ${String(err)}\n` }]
+        })
+      }
+    } finally {
+      preparation.finish()
     }
   },
   async stopRun() {
+    runStartToken = null
+    reopenSerialAfterUpload = null
     const { runId } = get()
     if (runId) await window.api.runStop(runId)
     // Clear runId so late output/exit/diagnostics for the stopped run are ignored.
-    set({ running: false, runPhase: 'idle', runAction: null, runId: null })
+    if (get().runId === runId) set({ running: false, runPhase: 'idle', runAction: null, runId: null })
   },
   clearOutput() {
     set({ output: [] })
   },
   appendOutput(c) {
     if (c.id !== get().runId) return
-    // Cap the buffer so a runaway program (e.g. while(1) printf) can't grow it
-    // without bound and exhaust memory.
-    const next = [...get().output, { stream: c.stream, text: c.data }]
-    set({ output: next.length > 5000 ? next.slice(-5000) : next })
+    // Bound retained text too: a few huge chunks can overwhelm a count-only cap.
+    set({ output: appendConsoleEntry(get().output, { stream: c.stream, text: c.data }, 5000) })
   },
   handleRunExit(e) {
     // Resolve a package-op sequencing waiter for this run id first, independent
@@ -1752,8 +1986,12 @@ export const useStore = create<State>((set, get) => ({
       if (e.code === 0) get().notify('success', `${verb} complete`, file)
       else get().notify('error', `${verb} failed`, cause)
       if (runAction === 'upload' && reopenSerialAfterUpload) {
-        reopenSerialAfterUpload = false
-        void get().toggleSerial() // reopen the monitor we closed for the flash
+        const monitor = reopenSerialAfterUpload
+        reopenSerialAfterUpload = null
+        if (monitor.runId === e.id && monitor.workspaceRoot === get().workspaceRoot &&
+          monitor.port === get().serialPath && monitor.operation === serialMonitorSeq && !get().serialOpen) {
+          void get().toggleSerial().catch((error) => get().notify('error', 'Could not reopen serial monitor', String(error)))
+        }
       }
       return
     }
@@ -1811,30 +2049,37 @@ export const useStore = create<State>((set, get) => ({
     if (!get().serialPath && ports.length) set({ serialPath: ports[0].path })
   },
   async toggleSerial() {
-    const { serialOpen, serialPath, serialBaud } = get()
+    const { workspaceRoot, serialOpen, serialPath, serialBaud } = get()
+    const operation = ++serialMonitorSeq
+    const isCurrent = (): boolean => operation === serialMonitorSeq && get().workspaceRoot === workspaceRoot && get().serialPath === serialPath
     if (serialOpen) {
       await window.api.serialClose()
       // The carry is a partial line from this session. Left behind, it gets
       // glued onto the first line of the next one and plotted as a fused value.
-      set({ serialOpen: false, serialCarry: '' })
+      if (isCurrent()) set({ serialOpen: false, serialCarry: '' })
     } else if (serialPath) {
       const ok = await window.api.serialOpen({ path: serialPath, baudRate: serialBaud })
-      set({ serialOpen: ok, serialCarry: '' })
+      if (isCurrent()) set({ serialOpen: ok, serialCarry: '' })
     }
   },
   setSerialPath(p) {
+    if (p !== get().serialPath) ++serialMonitorSeq
     set({ serialPath: p })
   },
   async setSerialBaud(b) {
+    const operation = ++serialMonitorSeq
+    const { workspaceRoot, serialPath, serialOpen } = get()
+    const isCurrent = (): boolean => operation === serialMonitorSeq && get().workspaceRoot === workspaceRoot && get().serialPath === serialPath
     set({ serialBaud: b })
     // The rate is read only when the port opens, so changing it mid-session
     // used to move the dropdown and nothing else: the SerialPort kept its
     // constructor-time rate and the user watched the garbage that produces.
     void get().updateSettings({ serial: { baudRate: b } })
-    if (get().serialOpen && get().serialPath) {
+    if (serialOpen && serialPath) {
       await window.api.serialClose()
-      const ok = await window.api.serialOpen({ path: get().serialPath, baudRate: b })
-      set({ serialOpen: ok, serialCarry: '' })
+      if (!isCurrent()) return
+      const ok = await window.api.serialOpen({ path: serialPath, baudRate: b })
+      if (isCurrent()) set({ serialOpen: ok, serialCarry: '' })
     }
   },
   appendSerial(data) {
@@ -2081,18 +2326,60 @@ export const useStore = create<State>((set, get) => ({
   async persistProjectConfig(patch) {
     const { workspaceRoot } = get()
     if (!workspaceRoot) return
-    await window.api.setProjectConfig(workspaceRoot, patch)
+    try {
+      await window.api.setProjectConfig(workspaceRoot, patch)
+    } catch (error) {
+      get().notify('error', 'Could not save project settings',
+        `${workspaceRoot}: ${String(error)}. The selection is active for this session but was not saved.`)
+    }
   },
 
   async refreshBoardStatus() {
-    const status = await window.api.boardStatus()
-    set({ boardStatus: status })
-    if (status.available) {
-      void get().refreshBoards()
-      // Without this the dropdown never lists installed cores and always falls
-      // back to the small hardcoded COMMON_BOARDS list.
-      void get().refreshBoardTargets()
+    if (boardSetupTask) return boardSetupTask
+    const seq = ++boardStatusSeq
+    try {
+      const status = await window.api.boardStatus()
+      if (seq !== boardStatusSeq) return
+      set({ boardStatus: status })
+      if (!status.available || status.setupRequired) {
+        if (!get().boardSetupError) await get().setupBoardTools()
+      } else {
+        set({ boardSetupError: null })
+        await Promise.allSettled([get().refreshBoards(), get().refreshBoardTargets()])
+      }
+    } catch (err) {
+      if (seq === boardStatusSeq) set({ boardSetupError: `Could not check board tools: ${String(err)}` })
     }
+  },
+
+  setupBoardTools() {
+    if (boardSetupTask) return boardSetupTask
+    ++boardStatusSeq
+    set({ boardSetupBusy: true, boardSetupMessage: 'Preparing board tools...', boardSetupError: null })
+    let unsubscribe = (): void => {}
+    boardSetupTask = (async () => {
+      try {
+        unsubscribe = window.api.onBoardSetupProgress((message) => set({ boardSetupMessage: message }))
+        const status = await window.api.setupBoardTools()
+        set({ boardStatus: status })
+        if (!status.available || status.setupRequired) throw new Error(status.hint || 'Board tools are not ready yet.')
+        set({ boardSetupMessage: 'Board tools are ready.' })
+        await Promise.allSettled([
+          get().refreshBoards(),
+          get().refreshBoardTargets(),
+          get().detectToolchains(true),
+          get().inspectEnvironment(true)
+        ])
+      } catch (err) {
+        set({ boardSetupError: `Board tools setup failed: ${String(err)}` })
+        get().notify('error', 'Board tools setup failed', 'Open Boards Manager to review the error and retry. The simulator is still available.')
+      }
+    })().finally(() => {
+      unsubscribe()
+      boardSetupTask = null
+      set({ boardSetupBusy: false })
+    })
+    return boardSetupTask
   },
 
   async inspectEnvironment(refresh = false) {
@@ -2269,42 +2556,50 @@ export const useStore = create<State>((set, get) => ({
       set(changed ? { selectedFqbn: fqbn, diagnostics: [] } : { selectedFqbn: fqbn })
       void get().persistProjectConfig({ boardFqbn: fqbn })
     }
-    if (port) set({ serialPath: port })
+    if (port) get().setSerialPath(port)
   },
 
   async verifyBoard() {
     const { tabs, activePath, running, selectedFqbn } = get()
-    if (running || !activePath || !selectedFqbn) return
+    if (running || runStartToken || !activePath || !selectedFqbn) return
     const tab = tabs.find((t) => t.path === activePath)
     if (!tab) return
-    await get().saveActive()
-    runTargetFile = baseName(activePath)
-    const id = nextRunId()
-    set({
-      runId: id,
-      running: true,
-      runAction: 'verify',
-      runPhase: 'compile',
-      lastExitCode: null,
-      output: [],
-      diagnostics: [],
-      bottomView: 'output',
-      bottomVisible: true
-    })
+    const preparation = beginRunPreparation(get, activePath)
     try {
-      await window.api.boardCompile({ id, sketchPath: activePath, fqbn: selectedFqbn })
-    } catch (err) {
-      set({ running: false, runPhase: 'idle', runAction: null, output: [{ stream: 'stderr', text: `Verify failed: ${String(err)}\n` }] })
+      await get().saveActive()
+      if (!preparation.isSaved() || get().running || get().selectedFqbn !== selectedFqbn) return
+      runTargetFile = baseName(activePath)
+      const id = nextRunId()
+      set({
+        runId: id,
+        running: true,
+        runAction: 'verify',
+        runPhase: 'compile',
+        lastExitCode: null,
+        output: [],
+        diagnostics: [],
+        bottomView: 'output',
+        bottomVisible: true
+      })
+      try {
+        await window.api.boardCompile({ id, sketchPath: activePath, fqbn: selectedFqbn })
+        if (!preparation.ownsRun(id)) await window.api.runStop(id)
+      } catch (err) {
+        if (preparation.ownsRun(id)) set({ running: false, runPhase: 'idle', runAction: null, runId: null, output: [{ stream: 'stderr', text: `Verify failed: ${String(err)}\n` }] })
+      }
+    } finally {
+      preparation.finish()
     }
   },
   async uploadBoard() {
-    const { tabs, activePath, running, selectedFqbn, serialPath, boards, serialOpen } = get()
-    if (running || !activePath || !selectedFqbn) return
+    const { tabs, activePath, workspaceRoot, running, selectedFqbn, serialPath, boards } = get()
+    if (running || runStartToken || !activePath || !selectedFqbn) return
     const tab = tabs.find((t) => t.path === activePath)
     if (!tab) return
     // Never fall back to boards[0]: with two boards plugged in that silently
     // flashes whichever enumerated first. Require an explicit or unambiguous port.
-    const port = serialPath || boards.find((b) => b.fqbn === selectedFqbn)?.address
+    const matching = boards.filter((board) => board.fqbn === selectedFqbn)
+    const port = serialPath || (matching.length === 1 ? matching[0].address : undefined)
     if (!port) {
       set({
         output: [
@@ -2321,31 +2616,61 @@ export const useStore = create<State>((set, get) => ({
       })
       return
     }
-    // arduino-cli needs the port; our own monitor holding it open fails the
-    // upload with "Access is denied". Close it first and reopen afterwards.
-    if (serialOpen) {
-      await window.api.serialClose()
-      set({ serialOpen: false })
-      reopenSerialAfterUpload = true
+    const preparation = beginRunPreparation(get, activePath)
+    const isReady = (): boolean => {
+      const state = get()
+      const currentMatches = state.boards.filter((board) => board.fqbn === selectedFqbn)
+      return preparation.isSaved() && !state.running && state.selectedFqbn === selectedFqbn &&
+        state.serialPath === serialPath && (!!serialPath || (currentMatches.length === 1 && currentMatches[0].address === port))
     }
-    await get().saveActive()
-    runTargetFile = baseName(activePath)
-    const id = nextRunId()
-    set({
-      runId: id,
-      running: true,
-      runAction: 'upload',
-      runPhase: 'compile',
-      lastExitCode: null,
-      output: [],
-      diagnostics: [],
-      bottomView: 'output',
-      bottomVisible: true
-    })
+    let closedMonitor = false
+    let launched = false
+    let uploadId: string | null = null
+    let monitorOperation: number | null = null
     try {
-      await window.api.boardUpload({ id, sketchPath: activePath, fqbn: selectedFqbn, port })
-    } catch (err) {
-      set({ running: false, runPhase: 'idle', runAction: null, output: [{ stream: 'stderr', text: `Upload failed: ${String(err)}\n` }] })
+      // A save failure must not interrupt a working monitor.
+      await get().saveActive()
+      if (!isReady()) return
+      // arduino-cli needs the port; close our monitor only after saving and
+      // recheck after that await, before admitting any physical-board upload.
+      if (get().serialOpen) {
+        monitorOperation = ++serialMonitorSeq
+        await window.api.serialClose()
+        if (monitorOperation !== serialMonitorSeq || get().workspaceRoot !== workspaceRoot || get().serialPath !== serialPath) return
+        set({ serialOpen: false, serialCarry: '' })
+        closedMonitor = true
+      }
+      if (!isReady()) return
+      runTargetFile = baseName(activePath)
+      const id = nextRunId()
+      uploadId = id
+      if (closedMonitor && monitorOperation !== null) reopenSerialAfterUpload = { runId: id, workspaceRoot, port, operation: monitorOperation }
+      set({
+        runId: id,
+        running: true,
+        runAction: 'upload',
+        runPhase: 'compile',
+        lastExitCode: null,
+        output: [],
+        diagnostics: [],
+        bottomView: 'output',
+        bottomVisible: true
+      })
+      try {
+        await window.api.boardUpload({ id, sketchPath: activePath, fqbn: selectedFqbn, port })
+        if (!preparation.ownsRun(id)) await window.api.runStop(id)
+        else launched = true
+      } catch (err) {
+        if (preparation.ownsRun(id)) set({ running: false, runPhase: 'idle', runAction: null, runId: null, output: [{ stream: 'stderr', text: `Upload failed: ${String(err)}\n` }] })
+      }
+    } finally {
+      preparation.finish()
+      if (closedMonitor && !launched) {
+        if (reopenSerialAfterUpload?.runId === uploadId) reopenSerialAfterUpload = null
+        if (monitorOperation === serialMonitorSeq && get().workspaceRoot === workspaceRoot && get().serialPath === port && !get().serialOpen && !get().running) {
+          void get().toggleSerial().catch((error) => get().notify('error', 'Could not reopen serial monitor', String(error)))
+        }
+      }
     }
   },
 
@@ -2360,6 +2685,7 @@ export const useStore = create<State>((set, get) => ({
   },
   async updateCoreIndex() {
     await runPackageOp(get, set, (id) => window.api.coreUpdateIndex(id))
+    if (get().lastExitCode === 0) await get().refreshBoardStatus()
   },
   async installLib(name, version) {
     await runPackageOp(get, set, (id) => window.api.libInstall({ id, name, version }))

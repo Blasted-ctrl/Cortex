@@ -83,8 +83,9 @@ export default function CommandPalette({ mode, onClose }: { mode: PaletteMode; o
       },
       { key: 'sim', label: 'Simulator: Open', run: () => s.setMainView('simulator') },
       { key: 'editor', label: 'View: Editor', run: () => s.setMainView('editor') },
-      { key: 'save', label: 'File: Save', hint: 'Ctrl+S', run: () => void s.saveActive() },
-      { key: 'saveAll', label: 'File: Save All', run: () => void s.saveAll() },
+      { key: 'save', label: 'File: Save', hint: 'Ctrl+S', run: () => void s.saveActive().catch(() => {}) },
+      { key: 'saveAll', label: 'File: Save All', run: () => void s.saveAll().catch(() => {}) },
+      { key: 'reload', label: 'File: Reload from disk', run: () => void s.reloadActiveFromDisk().catch((error) => s.notify('error', 'Could not reload file', String(error))) },
       {
         key: 'open',
         label: 'File: Open Folder...',
@@ -92,9 +93,9 @@ export default function CommandPalette({ mode, onClose }: { mode: PaletteMode; o
           void window.api.openFolder().then((d) => {
             if (d) return s.openWorkspace(d)
             return undefined
-          })
+          }).catch((error) => s.notify('error', 'Could not open project', String(error)))
       },
-      { key: 'closeFolder', label: 'File: Close Folder', run: () => void s.closeWorkspace() },
+      { key: 'closeFolder', label: 'File: Close Folder', run: () => void s.closeWorkspace().catch((error) => s.notify('error', 'Project stayed open', String(error))) },
       { key: 'explorer', label: 'View: Explorer', run: () => s.setSidebar('explorer') },
       { key: 'search', label: 'View: Search', run: () => s.setSidebar('search') },
       { key: 'boards', label: 'View: Boards Manager', run: () => s.setSidebar('boards') },

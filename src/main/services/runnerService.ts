@@ -40,6 +40,26 @@ interface ActiveRun {
 }
 
 const active = new Map<string, ActiveRun>()
+// Reserve an ID before any async preparation. Stop/quit must still work while
+// no child exists, and a duplicate start must not replace the first child.
+const pending = new Map<string, AbortController>()
+
+export function beginRunStart(id: string): AbortSignal | null {
+  if (active.has(id) || pending.has(id)) return null
+  const controller = new AbortController()
+  pending.set(id, controller)
+  return controller.signal
+}
+
+export function finishRunStart(id: string, signal: AbortSignal): void {
+  if (pending.get(id)?.signal === signal) pending.delete(id)
+}
+
+export function runStartCancelled(win: BrowserWindow, id: string, signal: AbortSignal, phase: RunExit['phase']): boolean {
+  if (!signal.aborted && !win.isDestroyed()) return false
+  exit(win, { id, code: null, signal: null, durationMs: 0, phase })
+  return true
+}
 
 function send(win: BrowserWindow, channel: string, payload: unknown): void {
   if (!win.isDestroyed()) win.webContents.send(channel, payload)
@@ -120,7 +140,7 @@ function spawnErrorText(cmd: string, err: unknown): string {
 }
 
 /** Compile a C/C++ program, returning the output executable path, or null on failure. */
-async function compileNative(win: BrowserWindow, req: RunRequest): Promise<string | null> {
+async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: AbortSignal): Promise<string | null> {
   // Branch on the language BEFORE consulting req: the renderer always sends a
   // std (default 'c++23'), so `req.std || ...` made both C fallbacks dead code
   // and every .c file was built by g++ with a C++ standard - which silently
@@ -130,6 +150,7 @@ async function compileNative(win: BrowserWindow, req: RunRequest): Promise<strin
   const std = isC ? (req.std && !req.std.startsWith('c++') ? req.std : undefined) : req.std || 'c++23'
   const buildDir = join(req.cwd, '.cortex', 'build')
   await fs.mkdir(buildDir, { recursive: true })
+  if (runStartCancelled(win, req.id, cancellation, 'compile')) return null
 
   const base = basename(req.filePath, extname(req.filePath))
   const exePath = join(buildDir, IS_WIN ? `${base}.exe` : base)
@@ -201,7 +222,10 @@ async function compileNative(win: BrowserWindow, req: RunRequest): Promise<strin
       const durationMs = elapsed(start)
       // Parse diagnostics on both success (warnings) and failure (errors).
       emitDiagnostics(win, req.id, stderrBuf, req.cwd)
-      if (code === 0) {
+      if (cancellation.aborted || win.isDestroyed()) {
+        exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
+        resolve(null)
+      } else if (code === 0) {
         out(win, req.id, 'system', `Compiled in ${durationMs}ms\n`)
         // The renderer advances runPhase compile -> run on this event. Without it
         // the phase stays 'compile' for the whole run, so anything gated on the
@@ -240,9 +264,10 @@ export async function findCargoRoot(startDir: string, stopAt?: string): Promise<
 }
 
 /** Compile a single-file Rust program with rustc, returning the exe path or null. */
-async function compileRust(win: BrowserWindow, req: RunRequest): Promise<string | null> {
+async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: AbortSignal): Promise<string | null> {
   const buildDir = join(req.cwd, '.cortex', 'build')
   await fs.mkdir(buildDir, { recursive: true })
+  if (runStartCancelled(win, req.id, cancellation, 'compile')) return null
   const base = basename(req.filePath, extname(req.filePath))
   const exePath = join(buildDir, IS_WIN ? `${base}.exe` : base)
   const args = [req.filePath, '-o', exePath, '--edition', req.rustEdition || '2021']
@@ -308,7 +333,10 @@ async function compileRust(win: BrowserWindow, req: RunRequest): Promise<string 
         if (tail) out(win, req.id, 'stderr', tail)
       }
       emitRustDiagnostics(win, req.id, stderrBuf, req.cwd)
-      if (code === 0) {
+      if (cancellation.aborted || win.isDestroyed()) {
+        exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
+        resolve(null)
+      } else if (code === 0) {
         out(win, req.id, 'system', `Compiled in ${durationMs}ms\n`)
         exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: 'compile' })
         resolve(exePath)
@@ -443,21 +471,34 @@ function reject(win: BrowserWindow, id: string, msg: string): void {
 }
 
 export async function startRun(win: BrowserWindow, req: RunRequest): Promise<void> {
-  if (active.has(req.id)) return
+  const cancellation = beginRunStart(req.id)
+  if (!cancellation) return
+  try {
+    await startReservedRun(win, req, cancellation)
+  } catch (err) {
+    if (!runStartCancelled(win, req.id, cancellation, 'compile')) throw err
+  } finally {
+    finishRunStart(req.id, cancellation)
+  }
+}
+
+async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellation: AbortSignal): Promise<void> {
+  if (runStartCancelled(win, req.id, cancellation, 'compile')) return
 
   switch (req.language) {
     case 'c':
     case 'cpp': {
       const compiler = req.compiler || (req.language === 'c' ? 'gcc' : 'g++')
       if (!isAllowedCommand(compiler)) return reject(win, req.id, `Compiler not allowed: ${compiler}`)
-      const exe = await compileNative(win, req)
-      if (exe) runProcess(win, req, exe, [], req.cwd)
+      const exe = await compileNative(win, req, cancellation)
+      if (exe && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
       break
     }
     case 'rust': {
       // A Cargo project must be built by cargo: rustc alone cannot resolve the
       // dependencies in Cargo.toml, nor apply its profiles/features.
       const cargoRoot = await findCargoRoot(dirname(req.filePath), req.cwd)
+      if (runStartCancelled(win, req.id, cancellation, 'compile')) return
       if (cargoRoot) {
         // Plain `json`, not `json-render-diagnostics`: the latter renders
         // diagnostics to stderr as text and emits NO compiler-message records,
@@ -541,8 +582,8 @@ export async function startRun(win: BrowserWindow, req: RunRequest): Promise<voi
         })
         break
       }
-      const exe = await compileRust(win, req)
-      if (exe) runProcess(win, req, exe, [], req.cwd)
+      const exe = await compileRust(win, req, cancellation)
+      if (exe && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
       break
     }
     case 'python': {
@@ -595,6 +636,7 @@ export async function startRun(win: BrowserWindow, req: RunRequest): Promise<voi
 }
 
 export function stopRun(id: string): void {
+  pending.get(id)?.abort()
   const run = active.get(id)
   if (!run) return
   killTree(run.child)
@@ -673,6 +715,7 @@ export function sendInput(id: string, data: string): void {
 }
 
 export function killAll(): void {
+  for (const controller of pending.values()) controller.abort()
   // Tree kill here too: quitting the app must not leave a `cargo run` child
   // running on the user's machine.
   for (const [, run] of active) killTree(run.child)

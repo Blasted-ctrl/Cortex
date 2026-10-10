@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Usb, Plug, PlugZap, CircuitBoard, CheckCircle2, XCircle } from 'lucide-react'
+import { RefreshCw, Usb, Plug, PlugZap, CircuitBoard, CheckCircle2 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import PanelHeader from './PanelHeader'
 import EmptyState from './EmptyState'
+import BoardToolsSetup from './BoardToolsSetup'
 
 export default function DevicesPanel(): JSX.Element {
   const {
@@ -19,6 +20,7 @@ export default function DevicesPanel(): JSX.Element {
     serialError
   } = useStore()
   const [busy, setBusy] = useState(false)
+  const boardsReady = !!boardStatus?.available && !boardStatus.setupRequired
 
   useEffect(() => {
     void refreshPorts()
@@ -27,8 +29,11 @@ export default function DevicesPanel(): JSX.Element {
 
   const rescan = async (): Promise<void> => {
     setBusy(true)
-    await Promise.all([refreshPorts(), refreshBoardStatus()])
-    setBusy(false)
+    try {
+      await Promise.allSettled([refreshPorts(), refreshBoardStatus()])
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -45,16 +50,14 @@ export default function DevicesPanel(): JSX.Element {
 
       {/* Board toolchain (arduino-cli) status */}
       <div className="mx-2 mb-1 rounded bg-ide-bg/60 px-2 py-1.5 text-[11px]">
-        <div className="row gap-1.5">
-          {boardStatus?.available ? (
+        {boardsReady ? (
+          <div className="row gap-1.5">
             <CheckCircle2 size={14} className="text-ide-green" />
-          ) : (
-            <XCircle size={14} className="text-ide-faint" />
-          )}
-          <span className="text-ide-muted">
-            {boardStatus?.available ? `arduino-cli ready` : 'arduino-cli not found'}
-          </span>
-        </div>
+            <span className="text-ide-muted">Board tools ready</span>
+          </div>
+        ) : (
+          <BoardToolsSetup />
+        )}
         {boards.length > 0 && (
           <div className="mt-1 space-y-0.5">
             {boards.map((b) => (
@@ -65,9 +68,6 @@ export default function DevicesPanel(): JSX.Element {
               </div>
             ))}
           </div>
-        )}
-        {boardStatus && !boardStatus.available && boardStatus.hint && (
-          <div className="mt-1 text-[10px] leading-snug text-ide-faint">{boardStatus.hint}</div>
         )}
       </div>
 

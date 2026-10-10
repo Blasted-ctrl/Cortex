@@ -6,6 +6,12 @@ diagnostics a desktop IDE has. This is the largest capability gap Cortex had
 against CLion/PyCharm, and it is closed with a lightweight in-house bridge
 rather than `monaco-languageclient` (which is heavy and fights the strict CSP).
 
+C++ completions preserve the server's additional text edits, including missing
+header insertions returned immediately or during completion resolution. Local
+[automatic includes](CPP-AUTO-INCLUDES.md) also work while typing or pasting
+known standard-library symbols without clangd; arbitrary library owners still
+require the server's knowledge of the project.
+
 ## Shape
 
 ```

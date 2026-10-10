@@ -8,7 +8,8 @@
 /** The vendor index URLs an embedded IDE should know about out of the box. */
 export const DEFAULT_BOARD_URLS = [
   'https://espressif.github.io/arduino-esp32/package_esp32_index.json',
-  'https://arduino.esp8266.com/stable/package_esp8266com_index.json'
+  'https://arduino.esp8266.com/stable/package_esp8266com_index.json',
+  'https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json'
 ]
 
 /** A well-formed http(s) URL, so a garbage entry cannot break arduino-cli. */

@@ -63,6 +63,13 @@ const WORKSPACE_SCOPED = [
   'groupActive',
   'reveal',
   'simParts',
+  'simWires',
+  'sim3dBoard',
+  'simDiagramDirty',
+  'simDiagramError',
+  'simDiagramSavedContent',
+  'simStepperStates',
+  'simActuatorStates',
   'simSerial',
   'simInputs',
   'simWiring',
@@ -125,14 +132,14 @@ describe('workspaceScopedReset', () => {
   })
 
   it('is applied by openWorkspace', () => {
-    const open = SRC.slice(SRC.indexOf('async openWorkspace('), SRC.indexOf('await window.api.watchStart'))
+    const open = SRC.slice(SRC.indexOf('async openWorkspace('), SRC.indexOf('async closeWorkspace()'))
     expect(open).toContain('...workspaceScopedReset()')
   })
 
   // Both entry guards return silently when their flag is set, so a run carried
   // in from the old project makes the new project's Run button do nothing.
   it('stops the previous project processes before switching', () => {
-    const open = SRC.slice(SRC.indexOf('async openWorkspace('), SRC.indexOf('await window.api.watchStart'))
+    const open = SRC.slice(SRC.indexOf('async openWorkspace('), SRC.indexOf('async closeWorkspace()'))
     expect(open).toContain('stopRun()')
     expect(open).toContain('stopSim()')
   })
@@ -144,11 +151,13 @@ describe('workspaceScopedReset', () => {
     const load = SRC.slice(SRC.indexOf('async loadDiagram()'), SRC.indexOf('async detectToolchains'))
 
     it('assigns parts when the file is missing', () => {
-      expect(load).toMatch(/exists\(file\)\)\) return set\(\{ simParts:/)
+      expect(load).toContain('const exists = await window.api.exists(file)')
+      expect(load).toMatch(/if \(!exists\) \{[\s\S]*?set\(\{ simParts: parts, simWires: wiresFromParts\(parts\)/)
     })
 
     it('assigns parts when the file is not a diagram', () => {
-      expect(load).toMatch(/isArray\(data\.parts\)\) return set\(\{ simParts:/)
+      expect(load).toContain('decodeSimDiagram(JSON.parse(read.content))')
+      expect(load).toContain("set({ simParts: [], simWires: [], sim3dBoard: 'uno'")
     })
 
     it('assigns parts when the file is unreadable', () => {
@@ -162,22 +171,10 @@ describe('workspaceScopedReset', () => {
     // indentation and filtered on the same properties it then asserted, so it
     // compared [] to [] and could not fail. Depth is also the wrong signal:
     // loadDiagram has its own control flow nested inside the try.
-    it('has no early return that leaves simParts unassigned', () => {
-      const ALLOWED = [
-        /^if \(!root\) return$/, // no workspace: no project to be definite about
-        /return set\(\{ simParts:/, // assigns
-        /^return oldSpace$/ // the v1 rescale map callback's value, not an exit
-      ]
-      // Whole lines. Matching from the `return` keyword onward threw away the
-      // guard that precedes it, so `if (!root) return` arrived as bare
-      // 'return' and matched nothing.
-      const returns = load
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => /\breturn\b/.test(l))
-      expect(returns.length, 'the scan must actually find returns').toBeGreaterThan(2)
-      const unaccounted = returns.filter((r) => !ALLOWED.some((a) => a.test(r)))
-      expect(unaccounted, 'every exit from loadDiagram must assign simParts').toEqual([])
+    it('guards every asynchronous load result from replacing a different project', () => {
+      expect(load.match(/if \(get\(\)\.workspaceRoot !== root\) return/g)).toHaveLength(4)
+      expect(load).toContain('simDiagramError: message')
+      expect(load).toContain("get().notify('error', 'Circuit not loaded', message)")
     })
 
     it('is awaited by openWorkspace, so the canvas never paints stale parts', () => {

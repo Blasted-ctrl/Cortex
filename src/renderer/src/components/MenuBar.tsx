@@ -57,6 +57,7 @@ void loop() {
 interface Item {
   label?: string
   hint?: string
+  title?: string
   onClick?: () => void
   disabled?: boolean
   sep?: boolean
@@ -97,13 +98,15 @@ export default function MenuBar(): JSX.Element {
     const sep = dir.includes('\\') ? '\\' : '/'
     const sketchDir = `${dir}${sep}blink`
     const path = `${sketchDir}${sep}blink.ino`
+    await window.api.createDir(sketchDir)
+    let created = false
     try {
-      await window.api.createDir(sketchDir)
       await window.api.createFile(path)
-      await window.api.writeFile(path, BLINK)
-    } catch {
-      /* already exists: keep the user's work and just open it */
+      created = true
+    } catch (error) {
+      if (!(await window.api.exists(path))) throw error
     }
+    if (created) await window.api.writeFile(path, BLINK)
     await s.refreshTree()
     await s.openFile(path)
     s.setMainView('simulator')
@@ -111,8 +114,12 @@ export default function MenuBar(): JSX.Element {
   }
 
   const openFolder = async (): Promise<void> => {
-    const dir = await window.api.openFolder()
-    if (dir) await s.openWorkspace(dir)
+    try {
+      const dir = await window.api.openFolder()
+      if (dir) await s.openWorkspace(dir)
+    } catch (error) {
+      s.notify('error', 'Could not open project', String(error))
+    }
   }
 
   const showAbout = async (): Promise<void> => {
@@ -120,7 +127,7 @@ export default function MenuBar(): JSX.Element {
     setAbout({ version: info.version, electron: info.electron, node: info.node })
   }
 
-  const boardReady = !!s.boardStatus?.available && !!s.selectedFqbn
+  const boardReady = !!s.boardStatus?.available && !s.boardStatus.setupRequired && !!s.selectedFqbn
   const hasFile = !!s.activePath
   const sketch = isSketch(s.activePath)
   const activeTab = s.tabs.find((t) => t.path === s.activePath)
@@ -131,12 +138,21 @@ export default function MenuBar(): JSX.Element {
     {
       label: 'File',
       items: [
-        { label: 'New Sketch', hint: 'blink', onClick: () => void newSketch() },
+        { label: 'New Sketch', hint: 'blink', onClick: () => void newSketch().catch((error) => s.notify('error', 'Could not create sketch', String(error))) },
         { label: 'Open Folder...', hint: 'Ctrl+O', onClick: () => void openFolder() },
-        { label: 'Close Folder', disabled: !s.workspaceRoot, onClick: () => void s.closeWorkspace() },
+        { label: 'Close Folder', disabled: !s.workspaceRoot, onClick: () => void s.closeWorkspace().catch((error) => s.notify('error', 'Project stayed open', String(error))) },
         { sep: true },
-        { label: 'Save', hint: 'Ctrl+S', disabled: !hasFile, onClick: () => void s.saveActive() },
-        { label: 'Save All', disabled: s.tabs.length === 0, onClick: () => void s.saveAll() },
+        { label: 'Save', hint: 'Ctrl+S', disabled: !hasFile, onClick: () => void s.saveActive().catch(() => {}) },
+        { label: 'Save All', disabled: s.tabs.length === 0, onClick: () => void s.saveAll().catch(() => {}) },
+        { label: 'Reload from disk', disabled: !hasFile, onClick: () => void s.reloadActiveFromDisk().catch((error) => s.notify('error', 'Could not reload file', String(error))) },
+        ...(s.recents.length ? [
+          { sep: true },
+          ...s.recents.map((recent) => ({
+            label: `Open Recent: ${recent.name}`,
+            title: recent.path,
+            onClick: () => void s.openWorkspace(recent.path).catch((error) => s.notify('error', 'Could not open recent project', `${recent.path}: ${String(error)}`))
+          }))
+        ] : []),
         { sep: true },
         { label: 'Settings', hint: 'Ctrl+,', onClick: () => s.setMainView('settings') },
         { sep: true },
@@ -226,6 +242,7 @@ export default function MenuBar(): JSX.Element {
                   ) : (
                     <button
                       key={i}
+                      title={it.title}
                       disabled={it.disabled}
                       onClick={() => {
                         setOpen(null)
@@ -233,7 +250,7 @@ export default function MenuBar(): JSX.Element {
                       }}
                       className="row w-full justify-between gap-8 px-3 py-1 text-left text-ide-text hover:bg-ide-hover disabled:opacity-40 disabled:hover:bg-transparent"
                     >
-                      <span>{it.label}</span>
+                      <span className="min-w-0 truncate">{it.label}</span>
                       {it.hint && <span className="text-[10px] text-ide-faint">{it.hint}</span>}
                     </button>
                   )

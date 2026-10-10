@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react'
-import { Plane, Vector3 } from 'three'
-import { Canvas, type ThreeEvent } from '@react-three/fiber'
-import { OrbitControls, Grid, ContactShadows, Html, QuadraticBezierLine } from '@react-three/drei'
+import { useEffect, useRef, useState } from 'react'
+import { PerspectiveCamera, Plane, Vector3 } from 'three'
+import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
+import { OrbitControls, Grid, Html, QuadraticBezierLine } from '@react-three/drei'
+import { motorDrive, connectedBoardPins, type SimWire, type SimTerminal } from '@shared/simCircuit'
+import CircuitInspector from './CircuitInspector'
 import { useStore, type SimPart, INPUT_PARTS, PART_PINS } from '../store/useStore'
 import { ADC_MAX, PWM_MAX } from '@shared/simProtocol'
 import {
@@ -11,6 +13,7 @@ import {
   type Pin3D,
   DESIGN_CENTER,
   toWorld,
+  frameWorkbench,
   pinTopY,
   PART_TOP_Y
 } from './sim3d/board3d'
@@ -41,10 +44,12 @@ const WIRE_COLOR: Record<string, string> = { r: '#E05561', g: '#6FB65A', b: '#5B
 function makeRead(
   simPinStates: Record<number, number>,
   simPinPwm: Record<number, boolean>,
-  simInputs: Record<number, number>
+  simInputs: Record<number, number>,
+  parts: SimPart[],
+  wires: SimWire[]
 ) {
   return (part: SimPart, name: string): Reading => {
-    const bp = part.pins[name]
+    const bp = INPUT_PARTS.includes(part.type) ? connectedBoardPins(parts, wires, { kind: 'part', partId: part.id, pin: name })[0] : part.pins[name]
     if (bp == null) return { value: 0, pwm: false }
     if (INPUT_PARTS.includes(part.type)) return { value: simInputs[bp] ?? 0, pwm: false }
     return { value: simPinStates[bp] ?? 0, pwm: simPinPwm[bp] ?? false }
@@ -123,25 +128,30 @@ function Socket({
   p,
   topY,
   armed,
-  onPick
+  onPick,
+  onInspect,
+  labels
 }: {
   p: Pin3D
   topY: number
   armed: boolean
   onPick: (pin: number) => void
+  onInspect: (p: Pin3D) => void
+  labels: boolean
 }): JSX.Element {
   const [hover, setHover] = useState(false)
-  const wireable = p.pin >= 0
-  const lit = wireable && (armed || hover)
-  const y = topY - 5
+  const wireable = !p.inspectOnly
+  const lit = hover || (wireable && armed)
+  const bottom = p.face === 'bottom'
+  const y = bottom ? -5 : topY - 5
   return (
     <group position={[p.x, 0, p.z]}>
-      {wireable && (
         <mesh
           position={[0, y + 2, 0]}
           onClick={(e) => {
             e.stopPropagation()
-            onPick(p.pin)
+            onInspect(p)
+            if (wireable) onPick(p.pin)
           }}
           onPointerOver={(e) => {
             e.stopPropagation()
@@ -152,7 +162,6 @@ function Socket({
           <cylinderGeometry args={[4, 4, 10, 8]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-      )}
       <mesh position={[0, y + 1, 0]}>
         <cylinderGeometry args={[1.5, 1.5, 8, 12]} />
         <meshStandardMaterial
@@ -163,8 +172,8 @@ function Socket({
           roughness={0.3}
         />
       </mesh>
-      {(armed || hover) && (
-        <Html position={[0, topY + 6, 0]} center style={{ pointerEvents: 'none' }}>
+      {(labels || hover || (armed && wireable)) && (
+        <Html position={[0, bottom ? -16 : topY + 6, 0]} center style={{ pointerEvents: 'none' }}>
           <span className="mono select-none rounded bg-ide-bar/90 px-1 text-[8px] text-ide-text">{p.label}</span>
         </Html>
       )}
@@ -182,7 +191,7 @@ function Part3D({
   onArmPin,
   onDrag,
   onDragState,
-  onInput
+  onButton
 }: {
   part: SimPart
   pos: [number, number]
@@ -193,7 +202,7 @@ function Part3D({
   onArmPin: (name: string) => void
   onDrag: (worldX: number, worldZ: number) => void
   onDragState: (active: boolean) => void
-  onInput: (v: number) => void
+  onButton: (pressed: boolean) => void
 }): JSX.Element {
   const [wx, wz] = pos
   const sig = read(part, 'sig')
@@ -207,6 +216,23 @@ function Part3D({
   const showNubs = !single || part.type === 'button'
   const dragging = useRef(false)
   const moved = useRef(false)
+  const buttonCallback = useRef(onButton)
+  const buttonPressed = useRef(false)
+  buttonCallback.current = onButton
+  const releaseButton = (): void => {
+    if (!buttonPressed.current) return
+    buttonPressed.current = false
+    buttonCallback.current(false)
+  }
+  useEffect(() => {
+    if (part.type !== 'button') return
+    const release = (): void => releaseButton()
+    // Fiber's mesh props do not expose DOM lostpointercapture. Listen on the
+    // real window as well so cancelled captures/alt-tab cannot latch a switch.
+    const events = ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'] as const
+    for (const event of events) window.addEventListener(event, release)
+    return () => { for (const event of events) window.removeEventListener(event, release); release() }
+  }, [part.id, part.type])
 
   // A body click selects; only a plain single-pin part also arms its wire. A
   // click that was really a drag arms nothing.
@@ -229,6 +255,18 @@ function Part3D({
     // (alt-tab mid-drag) would freeze orbit forever.
     onDragState(false)
   }
+  const dragStateCallback = useRef(onDragState)
+  dragStateCallback.current = onDragState
+  useEffect(() => {
+    const release = (): void => {
+      if (!dragging.current) return
+      dragging.current = false
+      dragStateCallback.current(false)
+    }
+    const events = ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'] as const
+    for (const event of events) window.addEventListener(event, release)
+    return () => { for (const event of events) window.removeEventListener(event, release); release() }
+  }, [part.id])
   const drag = draggable
     ? {
         onPointerDown: (e: ThreeEvent<PointerEvent>) => {
@@ -250,7 +288,7 @@ function Part3D({
           ;(e.target as Element).releasePointerCapture(e.pointerId)
           endDrag()
         },
-        onLostPointerCapture: () => endDrag()
+        onPointerCancel: () => endDrag()
       }
     : {}
 
@@ -291,14 +329,17 @@ function Part3D({
           onClick={click}
           onPointerDown={(e) => {
             e.stopPropagation()
-            const pullup = part.pins.sig != null && useStore.getState().simPinModes[part.pins.sig] === 2
-            onInput(pullup ? 0 : ADC_MAX)
+            ;(e.target as Element).setPointerCapture(e.pointerId)
+            onSelect()
+            buttonPressed.current = true
+            onButton(true)
           }}
           onPointerUp={(e) => {
             e.stopPropagation()
-            const pullup = part.pins.sig != null && useStore.getState().simPinModes[part.pins.sig] === 2
-            onInput(pullup ? ADC_MAX : 0)
+            ;(e.target as Element).releasePointerCapture(e.pointerId)
+            releaseButton()
           }}
+          onPointerCancel={releaseButton}
         >
           <mesh position={[0, 4, 0]} castShadow>
             <boxGeometry args={[14, 8, 14]} />
@@ -306,7 +347,7 @@ function Part3D({
           </mesh>
           <mesh position={[0, 9, 0]} castShadow>
             <cylinderGeometry args={[5, 5, 3, 20]} />
-            <meshStandardMaterial color="#232b38" metalness={0.4} roughness={0.5} />
+            <meshStandardMaterial color={part.color ?? '#232b38'} metalness={0.4} roughness={0.5} />
           </mesh>
         </group>
       )
@@ -353,6 +394,25 @@ function Part3D({
       )
       break
     }
+    case 'motor':
+    case 'stepper':
+    case 'actuator': {
+      const state = useStore.getState()
+      const drive = motorDrive(part, state.simPinStates, state.simPinPwm)
+      const angle = part.type === 'stepper' ? (state.simStepperStates[part.id]?.steps ?? 0) / (part.props?.stepsPerRevolution ?? 200) * Math.PI * 2 : drive * Math.PI
+      const extension = part.type === 'actuator' ? (state.simActuatorStates[part.id]?.positionMm ?? 0) / (part.props?.travelMm ?? 100) * 24 : 0
+      body = <group onClick={click}>
+        <mesh position={[0, 10, 0]} castShadow><boxGeometry args={[28, 20, 24]} /><meshStandardMaterial color={part.type === 'stepper' ? '#39424f' : '#9aa4b2'} /></mesh>
+        <mesh position={[0, 22 + extension, 0]} rotation={[0, angle, 0]}><boxGeometry args={[20, 4, 4]} /><meshStandardMaterial color="#E8952B" /></mesh>
+      </group>
+      break
+    }
+    case 'power':
+      body = <group onClick={click}>
+        <mesh position={[0, 10, 0]} castShadow><boxGeometry args={[38, 20, 26]} /><meshStandardMaterial color="#232b38" /></mesh>
+        <Html position={[0, 24, 0]} center style={{ pointerEvents: 'none' }}><span className="mono text-[9px] text-ide-moss">{part.props?.volts ?? 5} V</span></Html>
+      </group>
+      break
     default:
       body = (
         <mesh position={[0, 6, 0]} onClick={click} castShadow>
@@ -363,7 +423,7 @@ function Part3D({
   }
 
   return (
-    <group position={[wx, 0, wz]} {...drag}>
+    <group position={[wx, 0, wz]} rotation={[0, -part.rotation * Math.PI / 180, 0]} {...drag}>
       {body}
       {/* Connector nubs: click one to wire that pin. Multi-pin parts show one
           per pin; the button shows one so its body stays a press target. */}
@@ -414,24 +474,33 @@ function Wires({
   read: (part: SimPart, name: string) => Reading
 }): JSX.Element {
   const topY = pinTopY(def)
-  const lines: JSX.Element[] = []
-  parts.forEach((part, idx) => {
+  const wires = useStore((s) => s.simWires)
+  const point = (t: SimTerminal): [number, number, number] | null => {
+    if (t.kind === 'board') {
+      const p = def.pins.find((p) => p.pin === t.pin && !p.inspectOnly)
+      return p ? [p.x, p.face === 'bottom' ? -5 : topY, p.z] : null
+    }
+    const idx = parts.findIndex((p) => p.id === t.partId)
+    if (idx < 0) return null
     const [wx, wz] = positions[idx]
-    for (const name of PART_PINS[part.type]) {
-      const bp = part.pins[name]
-      if (bp == null) continue
-      const dest = def.pins.find((p) => p.pin === bp)
-      // A wire to a pin the current board does not expose is simply not drawn.
-      if (!dest) continue
-      const [lx, ly, lz] = partPinLocal(part.type, name)
-      const start: [number, number, number] = [wx + lx, ly, wz + lz]
-      const end: [number, number, number] = [dest.x, topY, dest.z]
-      const mid: [number, number, number] = [(start[0] + end[0]) / 2, Math.max(ly, topY) + 46, (start[2] + end[2]) / 2]
-      const on = brightness(read(part, name)) > 0.05
-      const color = WIRE_COLOR[name] ?? part.color ?? '#E8952B'
+    const [lx, ly, lz] = partPinLocal(parts[idx].type, t.pin)
+    const angle = parts[idx].rotation * Math.PI / 180
+    return [wx + lx * Math.cos(angle) - lz * Math.sin(angle), ly, wz + lx * Math.sin(angle) + lz * Math.cos(angle)]
+  }
+  const lines: JSX.Element[] = []
+  wires.forEach((wire) => {
+      const start = point(wire.from)
+      const end = point(wire.to)
+      if (!start || !end) return
+      const from = wire.from
+      const part = from.kind === 'part' ? parts.find((p) => p.id === from.partId) : undefined
+      const name = wire.from.kind === 'part' ? wire.from.pin : ''
+      const mid: [number, number, number] = [(start[0] + end[0]) / 2, Math.max(start[1], end[1]) + 46, (start[2] + end[2]) / 2]
+      const on = part ? brightness(read(part, name)) > 0.05 : false
+      const color = wire.color ?? WIRE_COLOR[name] ?? part?.color ?? '#E8952B'
       lines.push(
         <QuadraticBezierLine
-          key={`${part.id}-${name}`}
+          key={wire.id}
           start={start}
           end={end}
           mid={mid}
@@ -441,15 +510,38 @@ function Wires({
           opacity={on ? 1 : 0.7}
         />
       )
-    }
   })
   return <>{lines}</>
+}
+
+function CameraControls({ def, parts, view, enabled }: { def: BoardDef; parts: SimPart[]; view: 'orbit' | 'top' | 'bottom'; enabled: boolean }): JSX.Element {
+  const { camera, size } = useThree()
+  // A drag must not reframe the camera. Reset/top/underside remount this scene;
+  // capture placement once, then re-fit only when its viewport changes size.
+  const initialParts = useRef(parts.map(({ x, y }) => ({ x, y })))
+  const frame = frameWorkbench(def, initialParts.current, size.width / Math.max(1, size.height))
+  const [x, y, z] = frame.target
+  const distance = frame.distance
+  useEffect(() => {
+    if (camera instanceof PerspectiveCamera) {
+      camera.far = frame.far
+      camera.updateProjectionMatrix()
+    }
+    if (view === 'top' || view === 'bottom') camera.position.set(x, (view === 'top' ? 1 : -1) * distance, z + 0.01)
+    else {
+      const direction = new Vector3(...def.camera).normalize().multiplyScalar(distance * 1.2)
+      camera.position.set(x + direction.x, y + direction.y, z + direction.z)
+    }
+    camera.lookAt(x, y, z)
+  }, [camera, def, view, x, y, z, distance, frame.far])
+  return <OrbitControls makeDefault enabled={enabled} enableDamping dampingFactor={0.12} minDistance={100} maxDistance={Math.max(1100, distance * 2.5)} maxPolarAngle={Math.PI - 0.01} minPolarAngle={0.01} target={frame.target} />
 }
 
 export default function SimCanvas3D(): JSX.Element {
   const {
     sim3dBoard,
     simParts,
+    simWires,
     simWiring,
     simPinStates,
     simPinPwm,
@@ -457,10 +549,13 @@ export default function SimCanvas3D(): JSX.Element {
     beginWire,
     attachWire,
     cancelWire,
-    movePart,
-    setSimInput
+    movePart
   } = useStore()
   const [selected, setSelected] = useState<string | null>(null)
+  const [inspected, setInspected] = useState<Pin3D | null>(null)
+  const [cameraView, setCameraView] = useState<'orbit' | 'top' | 'bottom'>('orbit')
+  const [cameraRevision, setCameraRevision] = useState(0)
+  const [labels, setLabels] = useState(false)
   // While a part is dragged, OrbitControls is suspended so the same gesture does
   // not also orbit the camera.
   const [dragActive, setDragActive] = useState(false)
@@ -468,25 +563,33 @@ export default function SimCanvas3D(): JSX.Element {
   // was really an orbit (moved far) does not cancel an armed wire.
   const backdropDown = useRef<[number, number] | null>(null)
   const def = BOARDS[sim3dBoard]
-  const read = makeRead(simPinStates, simPinPwm, simInputs)
+  useEffect(() => { setInspected(null); setSelected(null) }, [sim3dBoard])
+  const read = makeRead(simPinStates, simPinPwm, simInputs, simParts, simWires)
   const topY = pinTopY(def)
 
-  // Part placement. The Uno keeps its 1:1 mapping from the 2D canvas, so moving
-  // a part in 2D moves it here. Other boards have no 2D layout, so parts sit in
-  // a tidy row just in front of the board rather than floating at Uno offsets.
-  const partXZ = (part: SimPart, i: number): [number, number] => {
-    if (def.id === 'uno') return toWorld(part.x, part.y)
-    const n = simParts.length
-    const spread = Math.min(def.size.w * 0.95, 440)
-    const x = n > 1 ? -spread / 2 + (spread * i) / (n - 1) : 0
-    return [x, def.size.d / 2 + 55]
+  // Shared bounded design coordinates scale to each board footprint.
+  const partXZ = (part: SimPart): [number, number] => {
+    const [x, z] = toWorld(part.x, part.y)
+    return [x * def.size.w / 400, z * def.size.d / 195]
   }
   const positions = simParts.map(partXZ)
+  const camera: [number, number, number] = cameraView === 'top' ? [0, 480, 1] : cameraView === 'bottom' ? [0, -480, 1] : def.camera
 
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
+      <div className="absolute right-3 top-3 z-10 flex gap-1 rounded border border-ide-border bg-ide-bar/95 p-1">
+        {(['orbit', 'top', 'bottom'] as const).map((v) => <button key={v} className={`btn text-[11px] ${cameraView === v ? 'bg-ide-active' : ''}`} onClick={() => { setCameraView(v); setCameraRevision((n) => n + 1) }}>{v === 'orbit' ? 'Reset view' : v === 'top' ? 'Top' : 'Underside'}</button>)}
+        <button className="btn text-[11px]" aria-pressed={labels} onClick={() => setLabels(!labels)}>Pin labels</button>
+      </div>
+      <CircuitInspector selectedId={selected} onSelect={setSelected} />
+      {inspected && <div role="status" className="absolute bottom-3 left-3 z-10 max-w-[22rem] rounded border border-ide-border bg-ide-bar/95 p-2 text-[11px]">
+        <button className="float-right btn px-1 py-0" aria-label="Close pin details" onClick={() => setInspected(null)}>x</button>
+        <div className="mono font-semibold">{inspected.label}{inspected.face === 'bottom' ? ' (underside)' : ''}</div>
+        <div>{inspected.functions?.join(', ') || (inspected.kind === 'gnd' ? 'Ground reference' : inspected.kind === 'power' ? 'Power rail' : 'Digital I/O')}</div>
+        <div className="text-ide-muted">{def.id === 'uno' ? '5 V' : '3.3 V'} GPIO logic. See board details for limits.</div>
+      </div>}
       {/* Remount on board switch so the camera reframes for the new footprint. */}
-      <Canvas key={def.id} shadows camera={{ position: def.camera, fov: 38 }} dpr={[1, 2]}>
+      <Canvas key={`${def.id}-${cameraView}-${cameraRevision}`} shadows camera={{ position: camera, fov: 38 }} dpr={[1, 2]}>
         <color attach="background" args={['#0C1017']} />
         <ambientLight intensity={0.9} />
         <hemisphereLight args={['#dce6ff', '#0a0f16', 0.55]} />
@@ -495,7 +598,7 @@ export default function SimCanvas3D(): JSX.Element {
 
         <Grid
           args={[2400, 2400]}
-          position={[0, 0.02, 0]}
+          position={[0, -24, 0]}
           cellSize={20}
           cellThickness={0.6}
           sectionSize={100}
@@ -506,7 +609,6 @@ export default function SimCanvas3D(): JSX.Element {
           fadeStrength={1}
           infiniteGrid
         />
-        <ContactShadows position={[0, 0.05, 0]} opacity={0.5} scale={1000} blur={2.6} far={80} color="#000000" />
 
         <mesh
           position={[0, -0.5, 0]}
@@ -523,7 +625,7 @@ export default function SimCanvas3D(): JSX.Element {
           }}
         >
           <planeGeometry args={[5000, 5000]} />
-          <meshBasicMaterial transparent opacity={0} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
 
         <Board def={def} led={simPinStates[def.ledPin ?? -1] ?? 0} />
@@ -534,6 +636,8 @@ export default function SimCanvas3D(): JSX.Element {
             p={p}
             topY={topY}
             armed={simWiring != null}
+            labels={labels}
+            onInspect={setInspected}
             onPick={(pin) => {
               if (simWiring) attachWire(pin)
             }}
@@ -549,25 +653,16 @@ export default function SimCanvas3D(): JSX.Element {
             pos={positions[i]}
             read={read}
             selected={selected === part.id}
-            draggable={def.id === 'uno'}
+            draggable
             onSelect={() => setSelected(part.id)}
             onArmPin={(name) => beginWire(part.id, name)}
-            onDrag={(x, z) => movePart(part.id, x + DESIGN_CENTER.x, z + DESIGN_CENTER.y)}
+            onDrag={(x, z) => movePart(part.id, x * 400 / def.size.w + DESIGN_CENTER.x, z * 195 / def.size.d + DESIGN_CENTER.y)}
             onDragState={setDragActive}
-            onInput={(v) => part.pins.sig != null && setSimInput(part.pins.sig, v)}
+            onButton={(pressed) => useStore.getState().setPartButton(part.id, pressed)}
           />
         ))}
 
-        <OrbitControls
-          makeDefault
-          enabled={!dragActive}
-          enableDamping
-          dampingFactor={0.12}
-          minDistance={140}
-          maxDistance={1100}
-          maxPolarAngle={Math.PI / 2.15}
-          target={[0, 0, 0]}
-        />
+        <CameraControls def={def} parts={simParts} view={cameraView} enabled={!dragActive} />
       </Canvas>
     </div>
   )

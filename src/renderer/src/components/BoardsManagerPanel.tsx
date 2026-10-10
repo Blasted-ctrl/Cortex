@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Cpu, RefreshCw, AlertTriangle, Download, Trash2, ArrowUpCircle } from 'lucide-react'
 import PanelHeader from './PanelHeader'
+import BoardToolsSetup from './BoardToolsSetup'
 import { useStore } from '../store/useStore'
 import type { CorePlatform } from '@shared/ipc'
 
@@ -24,7 +25,7 @@ export default function BoardsManagerPanel(): JSX.Element {
   // Chosen (not-yet-installed) version per core id; defaults to latest.
   const [pick, setPick] = useState<Record<string, string>>({})
 
-  const available = !!boardStatus?.available
+  const available = !!boardStatus?.available && !boardStatus.setupRequired
 
   // Installed cores load once (and after an install/remove finishes). Kept apart
   // from search so typing costs a single arduino-cli call, not two.
@@ -88,10 +89,7 @@ export default function BoardsManagerPanel(): JSX.Element {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelHeader icon={<Cpu size={13} />}>Boards Manager</PanelHeader>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-          <AlertTriangle size={22} className="text-ide-amber" />
-          <div className="text-[12px] text-ide-muted">{boardStatus?.hint || 'arduino-cli is not installed.'}</div>
-        </div>
+        <BoardToolsSetup />
       </div>
     )
   }
@@ -103,7 +101,8 @@ export default function BoardsManagerPanel(): JSX.Element {
         actions={
           <button
             className="rounded p-1 hover:bg-ide-hover hover:text-ide-text disabled:opacity-40"
-            title="Update the board index"
+            title="Refresh board index"
+            aria-label="Refresh board index"
             disabled={running}
             onClick={() => void updateCoreIndex()}
           >
@@ -113,6 +112,14 @@ export default function BoardsManagerPanel(): JSX.Element {
       >
         Boards Manager
       </PanelHeader>
+      {boardStatus?.hint && (
+        <div className="mx-2 mt-2 rounded border border-ide-border bg-ide-bg/60 px-2 py-1.5 text-[11px] text-ide-muted" role="status">
+          <div className="row items-start gap-1.5">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0 text-ide-amber" />
+            <span>{boardStatus.hint} Use Refresh board index to retry.</span>
+          </div>
+        </div>
+      )}
       <div className="p-2">
         <div className="row gap-1.5 rounded border border-ide-border bg-ide-bg px-2">
           <Search size={13} className="shrink-0 text-ide-faint" />

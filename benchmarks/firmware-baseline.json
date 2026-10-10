@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-09T23:47:31.452Z",
+  "status": "passed",
+  "scenarioPath": "examples/firmware-testing/benchmark.json",
+  "scenarioId": "controller-benchmark",
+  "workloadSha256": "777bd627d56c1a9311d120ddf40abf22b1e34505326d47f16557666c2c130775",
+  "runs": 10,
+  "warmup": 2,
+  "build": {
+    "compiler": "g++",
+    "compilerVersion": "g++.exe (Rev2, Built by MSYS2 project) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "args": [
+      "/cortex-baseline/build/sketch.cpp",
+      "/cortex-baseline/build/sim_main.cpp",
+      "-o",
+      "/cortex-baseline/build/sim.exe",
+      "-std=c++23",
+      "-I",
+      "/cortex-baseline/build",
+      "-I",
+      "/cortex-baseline/firmware",
+      "-pthread",
+      "-O1",
+      "-DCORTEX_TEST=1"
+    ],
+    "sourcePath": "/cortex-baseline/firmware/controller.ino",
+    "sourceSha256": "61ab5f8197aaf120c25eece685b2740d5b9cd11cf700f5b33df815d13864780e",
+    "shimSha256": "e8c75f5ebaacecf4fb9159837434db8eb4307d49200e715bbc450e1dfd9f6708",
+    "runnerSha256": "06ea5aff9972e974cedbed1b428c03c165ac1b17f492c77260f1efa484521873",
+    "host": {
+      "platform": "win32",
+      "arch": "x64",
+      "release": "10.0.26200",
+      "cpu": "Intel(R) Core(TM) i5-1035G1 CPU @ 1.00GHz",
+      "node": "v24.12.0"
+    },
+    "revision": "f211be317875e7107188390fe0909246fbb67422",
+    "dirty": true,
+    "buildWallMs": 5612.3188
+  },
+  "samples": [
+    {
+      "run": 1,
+      "status": "passed",
+      "hostWallMs": 42.20259999999962,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1421713.3541535484,
+      "outputEventsPerHostSecond": 450.2092288152903,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 2,
+      "status": "passed",
+      "hostWallMs": 39.36080000000038,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1524359.2609906155,
+      "outputEventsPerHostSecond": 482.7137659803616,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 3,
+      "status": "passed",
+      "hostWallMs": 40.63329999999951,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1476621.391814121,
+      "outputEventsPerHostSecond": 467.5967740744717,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 4,
+      "status": "passed",
+      "hostWallMs": 42.931399999999485,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1397578.4623841925,
+      "outputEventsPerHostSecond": 442.5665130883276,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 5,
+      "status": "passed",
+      "hostWallMs": 45.03479999999945,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1332303.0189986574,
+      "outputEventsPerHostSecond": 421.8959560162415,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 6,
+      "status": "passed",
+      "hostWallMs": 47.356800000000476,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1266977.4984796143,
+      "outputEventsPerHostSecond": 401.2095411852112,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 7,
+      "status": "passed",
+      "hostWallMs": 44.10900000000038,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1360266.6122559905,
+      "outputEventsPerHostSecond": 430.75109388106364,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 8,
+      "status": "passed",
+      "hostWallMs": 41.39599999999973,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1449415.402454353,
+      "outputEventsPerHostSecond": 458.9815441105451,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 9,
+      "status": "passed",
+      "hostWallMs": 41.4357,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1448026.7016123778,
+      "outputEventsPerHostSecond": 458.5417888439196,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    },
+    {
+      "run": 10,
+      "status": "passed",
+      "hostWallMs": 41.64759999999933,
+      "virtualDurationMs": 60000,
+      "outputEvents": 19,
+      "virtualMsPerHostSecond": 1440659.2456708422,
+      "outputEventsPerHostSecond": 456.2087611291,
+      "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75"
+    }
+  ],
+  "metrics": {
+    "hostWallMs": {
+      "min": 39.36080000000038,
+      "median": 41.925099999999475,
+      "p95": 47.356800000000476,
+      "max": 47.356800000000476,
+      "mean": 42.610799999999834
+    },
+    "virtualMsPerHostSecond": {
+      "min": 1266977.4984796143,
+      "median": 1431186.2999121952,
+      "p95": 1524359.2609906155,
+      "max": 1524359.2609906155,
+      "mean": 1411792.094881431
+    },
+    "outputEventsPerHostSecond": {
+      "min": 401.2095411852112,
+      "median": 453.20899497219517,
+      "p95": 482.7137659803616,
+      "max": 482.7137659803616,
+      "mean": 447.06749671245325
+    }
+  },
+  "reproducible": true,
+  "traceSha256": "aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75",
+  "failures": [],
+  "comparison": {
+    "status": "not-requested",
+    "advisory": true,
+    "thresholdPercent": 20,
+    "regression": false,
+    "measurements": [],
+    "reason": "No baseline requested; save this report after establishing normal host variability."
+  },
+  "measurementScope": "Host wall time includes simulator process startup, execution and output collection. Compilation and warmups are excluded. Virtual time is a model quantity, not hardware timing or host performance."
+}

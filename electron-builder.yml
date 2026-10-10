@@ -4,12 +4,15 @@ directories:
   buildResources: build
   output: release/${version}
 files:
+  - '!.cortex/**'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!out/tools/**'
+afterPack: scripts/bundle-arduino-cli.cjs
 asarUnpack:
   - resources/**
   - '**/*.node'
@@ -36,6 +39,6 @@ linux:
 npmRebuild: false
 publish:
   provider: github
-  owner: Vexaile
+  owner: Blasted-ctrl
   repo: Cortex
   releaseType: release

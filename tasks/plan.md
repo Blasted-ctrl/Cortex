@@ -1,0 +1,64 @@
+# Automated firmware testing and CI benchmarks
+
+First release: sections 1-3 of the requested feature and a complete quickstart.
+The actual Uno sketch runs as a host C++ executable against Cortex's existing
+Arduino shim; this is firmware logic testing, not AVR instruction emulation.
+
+## Design
+
+- Share Electron-free simulation build preparation between the desktop and CLI.
+- Use a test-only virtual microsecond clock, deterministic input ordering, a
+  seeded random generator, and a fresh firmware process for each scenario.
+- Start with a Uno sensor controller: A0 reading, D2 sample-ready toggle,
+  D9 PWM actuator, D13 fault indicator, and Serial state logs.
+- Define and strictly validate version 1 JSON scenarios. Check event deadlines,
+  sampled output state, continuous actuator limits, and ordered state logs.
+- Independently bound build/run wall time and output volume. Runner errors
+  differ from failed firmware assertions and cannot count as expected failures.
+- Save full scenario configuration, source/build fingerprints, input/output
+  timeline, logs, and assertion evidence in JSON and readable summaries.
+- Benchmark repeated executions of a fixed workload without compilation inside
+  the measured interval. Save host and virtual-time metrics separately and make
+  environment-aware baseline comparisons advisory.
+- Run CI on pull requests and main pushes, pin tooling, upload reports even
+  after failure, and publish summaries without writing PR comments.
+
+## Ordered work
+
+1. Confirm capabilities; extract build preparation and add deterministic mode.
+2. Implement scenario validation, headless runner, assertions, reports and CLI.
+3. Add documented normal, timeout and invalid-input scenarios plus broken and
+   hanging fixtures; prove failure detection and reproducibility.
+4. Add repeatable benchmark and advisory baseline comparison; wire GitHub CI.
+5. Publish quickstart, capability/feature documentation, and deferred tasks.
+
+## Verification
+
+- Real host compilation and execution, not mocked outputs.
+- Correct sketch passes three scenarios; broken timeout sketch fails the
+  specific safety assertion; runner/hang errors have exit code 2.
+- Repeated identical inputs yield identical virtual timelines/assertions.
+- Malformed scenarios and unsupported boards are rejected before compilation.
+- Existing desktop shim/stop tests, full Vitest, type checks and build pass.
+- Run CLI failure/fix/replay workflow and benchmark locally; document which
+  parts have and have not been exercised in GitHub Actions or by real users.
+
+## Later release
+
+Desktop Run Tests/results/replay UI, a recorded demonstration, two fresh-install
+teammate trials and one external-team trial remain tracked in tasks/todo.md.
+Human validation cannot be marked complete based on local agent tests.
+# Customer release hardening follow-up
+
+Preserve the firmware first-release plan above. Current implementation extends it
+with verified vertical slices rather than replacing unfinished human-validation work.
+
+1. Repair data-loss boundaries: disk saves, external edits, project switching/close,
+   rename/delete, recent-project corruption and failed operations.
+2. Repair Git boundaries and add initialization, branch creation, fetch/FF-only pull.
+3. Introduce circuit schema v3/real terminal graph; validate old layouts and exchange.
+4. Add driver-controlled signal parts, configured supplies/jumpers and conservative checks.
+5. Repair board inspection/underside access and move clutter into contextual details.
+6. Run focused regression cases, full typechecks/tests/build and isolated desktop smoke.
+7. Hold customer release until audit, all-platform installers, hardware and human trials
+   pass; no claim of electrical safety, full MCU/provider parity or zero edge cases.

@@ -88,15 +88,18 @@ export default function App(): JSX.Element {
       window.api.onSimExit(handleSimExit),
       window.api.onDebugState((s) => useStore.getState().setDebug(s)),
       window.api.onDebugOutput((o) => useStore.getState().appendDebugOutput(o)),
-      window.api.onSerialData((d) => appendSerial(d.data)),
+      window.api.onSerialData((d) => {
+        if (d.path === useStore.getState().serialPath) appendSerial(d.data)
+      }),
       // Keep s.message: "Access is denied" / "port not found" is the whole
       // explanation, and discarding it left the user with a toggle that did nothing.
-      window.api.onSerialStatus((s) =>
+      window.api.onSerialStatus((s) => {
+        if (s.path !== useStore.getState().serialPath) return
         useStore.setState({
           serialOpen: s.open,
           serialError: s.open ? null : (s.message ?? null)
         })
-      ),
+      }),
       window.api.onAiStream((s) => {
         if (s.delta) appendAiDelta(s.delta)
         if (s.done) finishAi(s.error)
@@ -170,7 +173,7 @@ export default function App(): JSX.Element {
         setPalette('files')
       } else if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        void saveActive()
+        void saveActive().catch(() => {})
       } else if (mod && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         toggleSidebar()
@@ -197,7 +200,7 @@ export default function App(): JSX.Element {
         void window.api.openFolder().then((d) => {
           if (d) return openWorkspace(d)
           return undefined
-        })
+        }).catch((error) => useStore.getState().notify('error', 'Could not open project', String(error)))
       } else if (mod && e.key === ',') {
         // Settings (advertised in the File menu): a full editor-area surface.
         e.preventDefault()
@@ -224,8 +227,26 @@ export default function App(): JSX.Element {
   // close once and waits here instead of dropping the window immediately, so
   // there's time to flush every dirty tab to disk before it actually goes.
   useEffect(() => {
+    let closing = false
     return window.api.onCloseRequested(() => {
-      void saveAll().finally(() => void window.api.readyToClose())
+      if (closing) return
+      closing = true
+      void (async () => {
+        try {
+          await saveAll()
+          const store = useStore.getState()
+          if (store.simDiagramDirty) await store.saveDiagram()
+          const current = useStore.getState()
+          if (current.simDiagramDirty || current.tabs.some((tab) => !tab.readOnlyReason && tab.content !== tab.savedContent)) {
+            throw new Error('New changes were made while saving. Save and try closing again.')
+          }
+          await window.api.readyToClose()
+        } catch (error) {
+          useStore.getState().notify('error', 'Cortex stayed open to protect your changes', `${error instanceof Error ? error.message : String(error)} Retry saving, then close again.`)
+        } finally {
+          closing = false
+        }
+      })()
     })
   }, [saveAll])
 

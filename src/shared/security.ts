@@ -221,7 +221,11 @@ export function hostCppOrNull(cmd: string | undefined): string | undefined {
  * process pairs it with path.resolve for the real check.
  */
 export function isWithin(root: string, target: string): boolean {
-  const norm = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const windows = /^[a-z]:[\\/]/i.test(root) || /^(\\\\|\/\/)/.test(root)
+  const norm = (p: string): string => {
+    const path = (windows ? p.replace(/\\/g, '/') : p).replace(/\/+$/, '')
+    return windows ? path.toLowerCase() : path
+  }
   const r = norm(root)
   const t = norm(target)
   return t === r || t.startsWith(r + '/')

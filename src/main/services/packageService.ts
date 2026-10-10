@@ -5,9 +5,17 @@ import type { CorePlatform, LibPackage, PackageInstallRequest } from '../../shar
 import * as runner from './runnerService'
 import { getSettings } from './settingsService'
 import { buildAdditionalUrlArgs } from '../../shared/boardUrls'
+import { getArduinoCli, clearArduinoCliSetupHint } from './arduinoCliService'
 
 const execFileAsync = promisify(execFile)
 const CLI = 'arduino-cli'
+
+async function readCli(args: string[], timeout: number, maxBuffer = 1 << 24): Promise<string> {
+  const cli = await getArduinoCli()
+  if (!cli) throw new Error('Board tools are not ready. Use Set up board tools in Cortex and retry.')
+  const { stdout } = await execFileAsync(cli.command, [...cli.args, ...args], { timeout, windowsHide: true, maxBuffer, env: cli.env })
+  return stdout.toString()
+}
 
 async function additionalUrlArgs(): Promise<string[]> {
   try {
@@ -130,12 +138,8 @@ export async function coreSearch(query: string): Promise<CorePlatform[]> {
   const base = ['core', 'search', ...(query ? [query] : [])]
   const extra = await additionalUrlArgs()
   const run = async (args: string[]): Promise<CorePlatform[]> => {
-    const { stdout } = await execFileAsync(CLI, [...args, '--format', 'json'], {
-      timeout: SEARCH_TIMEOUT,
-      windowsHide: true,
-      maxBuffer: 1 << 24
-    })
-    return readPlatforms(stdout.toString())
+    const stdout = await readCli([...args, '--format', 'json'], SEARCH_TIMEOUT)
+    return readPlatforms(stdout)
   }
   try {
     return await run([...base, ...extra])
@@ -157,12 +161,8 @@ export async function coreSearch(query: string): Promise<CorePlatform[]> {
 export async function coreInstalled(): Promise<CorePlatform[]> {
   try {
     const args = ['core', 'list', ...(await additionalUrlArgs()), '--format', 'json']
-    const { stdout } = await execFileAsync(CLI, args, {
-      timeout: LIST_TIMEOUT,
-      windowsHide: true,
-      maxBuffer: 1 << 24
-    })
-    return readPlatforms(stdout.toString())
+    const stdout = await readCli(args, LIST_TIMEOUT)
+    return readPlatforms(stdout)
   } catch {
     return []
   }
@@ -228,8 +228,8 @@ function normalizeLib(l: RawLib): LibPackage | null {
 export async function libSearch(query: string): Promise<LibPackage[]> {
   try {
     const args = ['lib', 'search', ...(query ? [query] : []), '--format', 'json']
-    const { stdout } = await execFileAsync(CLI, args, { timeout: SEARCH_TIMEOUT, windowsHide: true, maxBuffer: 1 << 25 })
-    const parsed = JSON.parse(stdout.toString() || '{}')
+    const stdout = await readCli(args, SEARCH_TIMEOUT, 1 << 25)
+    const parsed = JSON.parse(stdout || '{}')
     const list: RawLib[] = parsed.libraries ?? (Array.isArray(parsed) ? parsed : [])
     return safeMap(list, normalizeLib)
   } catch {
@@ -239,12 +239,8 @@ export async function libSearch(query: string): Promise<LibPackage[]> {
 
 export async function libInstalled(): Promise<LibPackage[]> {
   try {
-    const { stdout } = await execFileAsync(CLI, ['lib', 'list', '--format', 'json'], {
-      timeout: LIST_TIMEOUT,
-      windowsHide: true,
-      maxBuffer: 1 << 24
-    })
-    const parsed = JSON.parse(stdout.toString() || '{}')
+    const stdout = await readCli(['lib', 'list', '--format', 'json'], LIST_TIMEOUT)
+    const parsed = JSON.parse(stdout || '{}')
     const list: RawLib[] = parsed.installed_libraries ?? []
     return safeMap(list, normalizeLib)
   } catch {
@@ -265,21 +261,33 @@ export function setOnPackagesChanged(cb: () => void): void {
 }
 
 /** Run an arduino-cli command, streaming its output to the Output panel. */
-function stream(win: BrowserWindow, id: string, args: string[]): void {
-  runner.sendRunOutput(win, id, 'system', `$ ${CLI} ${args.join(' ')}\n`)
+async function stream(win: BrowserWindow, id: string, argsSource: string[] | (() => Promise<string[]>)): Promise<void> {
+  const cancellation = runner.beginRunStart(id)
+  if (!cancellation) return
   const start = performance.now()
+  let args: string[]
   let proc: ChildProcess
   try {
-    proc = spawn(CLI, args, { windowsHide: true })
+    if (runner.runStartCancelled(win, id, cancellation, 'run')) return
+    args = typeof argsSource === 'function' ? await argsSource() : argsSource
+    if (runner.runStartCancelled(win, id, cancellation, 'run')) return
+    runner.sendRunOutput(win, id, 'system', `$ ${CLI} ${args.join(' ')}\n`)
+    const cli = await getArduinoCli()
+    if (runner.runStartCancelled(win, id, cancellation, 'run')) return
+    if (!cli) throw new Error('Board tools are not ready. Use Set up board tools in Cortex and retry.')
+    proc = spawn(cli.command, [...cli.args, ...args], { windowsHide: true, env: cli.env })
     // Decode UTF-8 across chunk boundaries (see runnerService).
     proc.stdout?.setEncoding('utf8')
     proc.stderr?.setEncoding('utf8')
+    runner.trackProcess(id, proc)
   } catch (err) {
+    if (runner.runStartCancelled(win, id, cancellation, 'run')) return
     runner.sendRunOutput(win, id, 'stderr', `Failed to launch ${CLI}: ${String(err)}\n`)
     runner.sendRunExit(win, { id, code: 127, signal: null, durationMs: 0, phase: 'run' })
     return
+  } finally {
+    runner.finishRunStart(id, cancellation)
   }
-  runner.trackProcess(id, proc)
   proc.stdin?.on('error', () => {})
   proc.stdout?.on('data', (d) => runner.sendRunOutput(win, id, 'stdout', d.toString()))
   // arduino-cli reports download/compile progress on stderr; it is normal output.
@@ -288,7 +296,10 @@ function stream(win: BrowserWindow, id: string, args: string[]): void {
   proc.on('close', (code, signal) => {
     runner.untrackProcess(id)
     const durationMs = Math.round(performance.now() - start)
-    if (code === 0) runner.sendRunOutput(win, id, 'system', `Done in ${durationMs}ms\n`)
+    if (code === 0) {
+      if (args[0] === 'core' && args[1] === 'update-index') clearArduinoCliSetupHint()
+      runner.sendRunOutput(win, id, 'system', `Done in ${durationMs}ms\n`)
+    }
     runner.sendRunExit(win, { id, code, signal, durationMs, phase: 'run' })
     // The installed package set may have changed; let the environment cache know.
     onPackagesChanged?.()
@@ -299,20 +310,20 @@ export async function coreInstall(win: BrowserWindow, req: PackageInstallRequest
   const target = req.version ? `${req.name}@${req.version}` : req.name
   // The vendor URLs must be present here too, or installing esp32:esp32 fails
   // with "platform not found" even after it appeared in search.
-  stream(win, req.id, ['core', 'install', ...(await additionalUrlArgs()), '--', target])
+  await stream(win, req.id, async () => ['core', 'install', ...(await additionalUrlArgs()), '--', target])
 }
-export function coreUninstall(win: BrowserWindow, id: string, coreId: string): void {
-  stream(win, id, ['core', 'uninstall', '--', coreId])
+export async function coreUninstall(win: BrowserWindow, id: string, coreId: string): Promise<void> {
+  await stream(win, id, ['core', 'uninstall', '--', coreId])
 }
 export async function coreUpdateIndex(win: BrowserWindow, id: string): Promise<void> {
   // This is the call that actually fetches the espressif/esp8266 indexes named
   // by the additional URLs, so those cores become searchable and installable.
-  stream(win, id, ['core', 'update-index', ...(await additionalUrlArgs())])
+  await stream(win, id, async () => ['core', 'update-index', ...(await additionalUrlArgs())])
 }
-export function libInstall(win: BrowserWindow, req: PackageInstallRequest): void {
+export async function libInstall(win: BrowserWindow, req: PackageInstallRequest): Promise<void> {
   const target = req.version ? `${req.name}@${req.version}` : req.name
-  stream(win, req.id, ['lib', 'install', '--', target])
+  await stream(win, req.id, ['lib', 'install', '--', target])
 }
-export function libUninstall(win: BrowserWindow, id: string, name: string): void {
-  stream(win, id, ['lib', 'uninstall', '--', name])
+export async function libUninstall(win: BrowserWindow, id: string, name: string): Promise<void> {
+  await stream(win, id, ['lib', 'uninstall', '--', name])
 }

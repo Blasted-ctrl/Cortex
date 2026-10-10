@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "id": "normal",
+  "description": "Fresh valid samples switch between heating and idle without a fault.",
+  "firmware": { "board": "uno", "source": "../controller.ino" },
+  "seed": 12345,
+  "initialState": [{ "pin": 14, "value": 300 }, { "pin": 2, "value": 0 }],
+  "inputs": [
+    { "atMs": 20, "pin": 14, "value": 300 },
+    { "atMs": 20, "pin": 2, "value": 1023 },
+    { "atMs": 120, "pin": 14, "value": 650 },
+    { "atMs": 120, "pin": 2, "value": 0 },
+    { "atMs": 220, "pin": 14, "value": 300 },
+    { "atMs": 220, "pin": 2, "value": 1023 },
+    { "atMs": 320, "pin": 14, "value": 700 },
+    { "atMs": 320, "pin": 2, "value": 0 },
+    { "atMs": 420, "pin": 14, "value": 300 },
+    { "atMs": 420, "pin": 2, "value": 1023 },
+    { "atMs": 520, "pin": 14, "value": 650 },
+    { "atMs": 520, "pin": 2, "value": 0 }
+  ],
+  "limits": { "durationMs": 700, "stepMs": 10, "wallTimeoutMs": 3000, "maxEvents": 1000 },
+  "assertions": [
+    { "id": "boot-log", "kind": "event", "event": "serial", "text": "BOOT", "fromMs": 0, "toMs": 0 },
+    { "id": "heat-on-fresh-low", "kind": "event", "event": "pwm", "pin": 9, "value": 180, "fromMs": 20, "toMs": 30 },
+    { "id": "idle-on-fresh-high", "kind": "state", "event": "pwm", "pin": 9, "value": 0, "atMs": 130 },
+    { "id": "heating-recovery", "kind": "state", "event": "pwm", "pin": 9, "value": 180, "atMs": 230 },
+    { "id": "final-idle", "kind": "state", "event": "pwm", "pin": 9, "value": 0, "atMs": 530 },
+    { "id": "actuator-safety-limit", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 180, "fromMs": 0, "toMs": 700 },
+    { "id": "no-fault", "kind": "range", "event": "pin", "pin": 13, "min": 0, "max": 0, "fromMs": 0, "toMs": 700 },
+    { "id": "normal-state-transitions", "kind": "sequence", "texts": ["BOOT", "HEATING", "IDLE", "HEATING", "IDLE", "HEATING", "IDLE"], "fromMs": 0, "toMs": 700 }
+  ]
+}

@@ -47,6 +47,6 @@ describe('SimulatorView shows the block only over its own file', () => {
     // ...the "add a part" hint does not sit on top of it...
     expect(VIEW).toContain('!blocked && simParts.length === 0')
     // ...and the palette cannot add parts onto a hidden canvas.
-    expect(VIEW).toContain('disabled={blocked}')
+    expect(VIEW).toContain('disabled={blocked || !workspaceRoot}')
   })
 })

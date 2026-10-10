@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "id": "invalid-input",
+  "description": "Out-of-policy ADC samples fail safe; changing A0 alone cannot clear the fault, but a fresh valid sample recovers.",
+  "firmware": { "board": "uno", "source": "../controller.ino" },
+  "seed": 12345,
+  "initialState": [{ "pin": 14, "value": 300 }, { "pin": 2, "value": 0 }],
+  "inputs": [
+    { "atMs": 20, "pin": 14, "value": 300 },
+    { "atMs": 20, "pin": 2, "value": 1023 },
+    { "atMs": 120, "pin": 14, "value": 1023 },
+    { "atMs": 120, "pin": 2, "value": 0 },
+    { "atMs": 200, "pin": 14, "value": 300 },
+    { "atMs": 220, "pin": 14, "value": 650 },
+    { "atMs": 220, "pin": 2, "value": 1023 },
+    { "atMs": 320, "pin": 14, "value": 300 },
+    { "atMs": 320, "pin": 2, "value": 0 },
+    { "atMs": 420, "pin": 14, "value": 0 },
+    { "atMs": 420, "pin": 2, "value": 1023 },
+    { "atMs": 520, "pin": 14, "value": 650 },
+    { "atMs": 520, "pin": 2, "value": 0 }
+  ],
+  "limits": { "durationMs": 700, "stepMs": 10, "wallTimeoutMs": 3000, "maxEvents": 1000 },
+  "assertions": [
+    { "id": "invalid-high-log", "kind": "event", "event": "serial", "text": "INVALID", "fromMs": 120, "toMs": 130 },
+    { "id": "invalid-shutdown", "kind": "event", "event": "pwm", "pin": 9, "value": 0, "fromMs": 120, "toMs": 130 },
+    { "id": "invalid-fault", "kind": "state", "event": "pin", "pin": 13, "value": 1, "atMs": 130 },
+    { "id": "no-recovery-without-freshness", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 0, "fromMs": 130, "toMs": 210 },
+    { "id": "no-fault-clear-without-freshness", "kind": "range", "event": "pin", "pin": 13, "min": 1, "max": 1, "fromMs": 130, "toMs": 210 },
+    { "id": "valid-recovery-log", "kind": "event", "event": "serial", "text": "IDLE", "fromMs": 220, "toMs": 230 },
+    { "id": "valid-recovery-clears-fault", "kind": "state", "event": "pin", "pin": 13, "value": 0, "atMs": 230 },
+    { "id": "heating-after-recovery", "kind": "state", "event": "pwm", "pin": 9, "value": 180, "atMs": 330 },
+    { "id": "invalid-low-log", "kind": "event", "event": "serial", "text": "INVALID", "fromMs": 420, "toMs": 430 },
+    { "id": "invalid-low-shutdown", "kind": "state", "event": "pwm", "pin": 9, "value": 0, "atMs": 430 },
+    { "id": "invalid-low-fault", "kind": "state", "event": "pin", "pin": 13, "value": 1, "atMs": 430 },
+    { "id": "final-recovery", "kind": "state", "event": "pin", "pin": 13, "value": 0, "atMs": 530 },
+    { "id": "actuator-safety-limit", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 180, "fromMs": 0, "toMs": 700 },
+    { "id": "invalid-state-transitions", "kind": "sequence", "texts": ["BOOT", "HEATING", "INVALID", "IDLE", "HEATING", "INVALID", "IDLE"], "fromMs": 0, "toMs": 700 }
+  ]
+}

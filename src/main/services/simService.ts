@@ -1,17 +1,18 @@
 import { spawn, ChildProcess } from 'child_process'
-import { promises as fs } from 'fs'
 import { join, dirname } from 'path'
 import type { BrowserWindow } from 'electron'
 import type { SimStartRequest, SimEvent } from '../../shared/ipc'
 import { IPC } from '../../shared/ipc'
-import { ARDUINO_SHIM } from './arduinoShim'
+import { prepareSimulation, SIM_MAIN } from './simBuild'
 import { parseSimLine } from '../../shared/simProtocol'
 import { isHostCpp, commandBaseName } from '../../shared/security'
 import * as runner from './runnerService'
 import { safeCommand } from './commandResolver'
 import { getWorkspaceRoot } from './fsService'
+import { SIM_BUFFER_LIMIT_BYTES } from './arduinoShim'
 
 const active = new Map<string, ChildProcess>()
+const pending = new Set<string>()
 const cancelled = new Set<string>()
 
 function emit(win: BrowserWindow, ev: SimEvent): void {
@@ -24,41 +25,31 @@ function exit(win: BrowserWindow, id: string, code: number | null): void {
   if (!win.isDestroyed()) win.webContents.send(IPC.SIM_EXIT, { id, code })
 }
 
-const SIM_MAIN = `#include "Arduino.h"
-extern void setup();
-extern void loop();
-int main() {
-  setup();
-  while (__sim_run) {
-    loop();
-    std::this_thread::sleep_for(std::chrono::microseconds(200));
-  }
-  // Not "return 0": see __sim_exit. Returning races the detached stdin reader
-  // against static destruction and can abort with a nonzero code that looks
-  // like the user's sketch crashed.
-  __sim_exit(0);
+function stopOverflow(win: BrowserWindow, id: string, child: ChildProcess, label: string): void {
+  system(win, id, `${label} exceeded the ${SIM_BUFFER_LIMIT_BYTES}-byte buffer limit. Stopping simulation; reduce the output or add newlines.\n`)
+  exit(win, id, 2)
+  // Retain the handle until close, so quit can retry if termination is delayed.
+  try { child.kill('SIGKILL') } catch { /* already gone; close still drains */ }
 }
-`
 
 export async function start(win: BrowserWindow, req: SimStartRequest): Promise<void> {
-  if (active.has(req.id)) return
+  if (active.has(req.id) || pending.has(req.id)) return
+  pending.add(req.id)
   cancelled.delete(req.id)
+  try {
+    await prepareAndStart(win, req)
+  } catch (err) {
+    if (!cancelled.has(req.id) && !win.isDestroyed()) throw err
+    cancelled.delete(req.id)
+    exit(win, req.id, null)
+  } finally {
+    pending.delete(req.id)
+  }
+}
+
+async function prepareAndStart(win: BrowserWindow, req: SimStartRequest): Promise<void> {
+  if (win.isDestroyed()) return
   const simDir = join(req.cwd, '.cortex', 'sim')
-  await fs.mkdir(simDir, { recursive: true })
-
-  const source = await fs.readFile(req.filePath, 'utf8')
-  const needsInclude = !/#include\s*[<"]Arduino\.h[>"]/.test(source)
-  // #line makes the compiler report the user's real file and line numbers.
-  // Without it every diagnostic points at .cortex/sim/sketch.cpp (a file the
-  // user never wrote, hidden from the Explorer) and is off by one because of
-  // the injected include.
-  const escaped = req.filePath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  const header = (needsInclude ? '#include "Arduino.h"\n' : '') + `#line 1 "${escaped}"\n`
-  const sketch = header + source
-
-  await fs.writeFile(join(simDir, 'Arduino.h'), ARDUINO_SHIM, 'utf8')
-  await fs.writeFile(join(simDir, 'sketch.cpp'), sketch, 'utf8')
-  await fs.writeFile(join(simDir, 'sim_main.cpp'), SIM_MAIN, 'utf8')
 
   // Only host C++ compilers may run the sim: a cross-compiler emits firmware
   // for a chip and cannot produce something this machine can execute.
@@ -69,18 +60,14 @@ export async function start(win: BrowserWindow, req: SimStartRequest): Promise<v
     // surfaced as a bare "spawn g++ ENOENT" with nothing connecting the two.
     system(win, req.id, `${commandBaseName(wanted)} builds firmware, not host programs. Using ${compiler} instead.\n`)
   }
-  const exePath = join(simDir, 'sim.exe')
-  const compileArgs = [
-    join(simDir, 'sketch.cpp'),
-    join(simDir, 'sim_main.cpp'),
-    '-o',
-    exePath,
-    '-std=c++23',
-    '-I',
-    simDir,
-    '-pthread',
-    '-O1'
-  ]
+  const { exePath, args: compileArgs } = await prepareSimulation({
+    filePath: req.filePath, simDir, mainSource: SIM_MAIN, compiler
+  })
+  if (cancelled.has(req.id) || win.isDestroyed()) {
+    cancelled.delete(req.id)
+    exit(win, req.id, null)
+    return
+  }
 
   system(win, req.id, `Compiling simulation with ${compiler}...\n`)
   let cc: ChildProcess
@@ -99,11 +86,27 @@ export async function start(win: BrowserWindow, req: SimStartRequest): Promise<v
   // Track the compiler child so a Stop during compilation actually cancels it.
   active.set(req.id, cc)
   let cerr = ''
+  let cerrBytes = 0
+  let overflow = false
   cc.stdin?.on('error', () => {})
-  cc.stderr?.on('data', (d) => (cerr += d.toString()))
+  cc.stderr?.on('data', (d) => {
+    if (overflow) return
+    const text = d.toString()
+    const bytes = Buffer.byteLength(text)
+    if (bytes > SIM_BUFFER_LIMIT_BYTES - cerrBytes) {
+      overflow = true
+      runner.emitDiagnostics(win, req.id, cerr, dirname(req.filePath))
+      cerr = ''
+      stopOverflow(win, req.id, cc, 'Compiler diagnostics')
+      return
+    }
+    cerr += text
+    cerrBytes += bytes
+  })
   cc.on('error', (err) => system(win, req.id, `Failed to launch ${compiler}: ${String(err)}\n`))
   cc.on('close', (code) => {
     active.delete(req.id)
+    if (overflow) { cancelled.delete(req.id); return }
     if (cancelled.has(req.id)) {
       cancelled.delete(req.id)
       exit(win, req.id, code)
@@ -124,7 +127,7 @@ export async function start(win: BrowserWindow, req: SimStartRequest): Promise<v
 }
 
 function launch(win: BrowserWindow, req: SimStartRequest, exePath: string, cwd: string): void {
-  if (cancelled.has(req.id)) {
+  if (cancelled.has(req.id) || win.isDestroyed()) {
     cancelled.delete(req.id)
     exit(win, req.id, null)
     return
@@ -149,18 +152,34 @@ function launch(win: BrowserWindow, req: SimStartRequest, exePath: string, cwd: 
     exit(win, req.id, 1)
   })
   let buf = ''
+  let bufBytes = 0
+  let overflow = false
   child.stdout?.on('data', (d) => {
-    buf += d.toString()
-    const lines = buf.split(/\r?\n/)
-    buf = lines.pop() || ''
-    for (const line of lines) {
-      const parsed = parseSimLine(line)
+    if (overflow) return
+    const fragments = d.toString().split('\n')
+    for (let i = 0; i < fragments.length; i++) {
+      const fragment = fragments[i]
+      const bytes = Buffer.byteLength(fragment)
+      if (bytes > SIM_BUFFER_LIMIT_BYTES - bufBytes) {
+        overflow = true
+        buf = ''
+        stopOverflow(win, req.id, child, 'Simulation protocol line')
+        return
+      }
+      buf += fragment
+      bufBytes += bytes
+      if (i === fragments.length - 1) break
+      const parsed = parseSimLine(buf.endsWith('\r') ? buf.slice(0, -1) : buf)
       if (parsed) emit(win, { id: req.id, ...parsed } as SimEvent)
+      buf = ''
+      bufBytes = 0
     }
   })
-  child.stderr?.on('data', (d) => system(win, req.id, d.toString()))
+  child.stderr?.on('data', (d) => { if (!overflow) system(win, req.id, d.toString()) })
   child.on('close', (code) => {
     active.delete(req.id)
+    cancelled.delete(req.id)
+    if (overflow) return
     // Drain whatever never got its newline. The shim flushes its own residue at
     // exit, but a killed process cannot, and dropping the tail here would lose
     // the last thing the sketch said.
@@ -185,6 +204,7 @@ const STOP_GRACE_MS = 250
 
 export function stop(id: string): void {
   const child = active.get(id)
+  if (!child && !pending.has(id)) return
   cancelled.add(id) // guard the compile->launch handoff even if we kill mid-compile
   if (!child) return
   child.stdin?.write('@stop\n', () => {})
@@ -205,6 +225,7 @@ export function input(id: string, pin: number, value: number): void {
  * feel slow.
  */
 export function killAll(): void {
+  for (const id of pending) cancelled.add(id)
   for (const [id, child] of active) {
     cancelled.add(id)
     child.kill()

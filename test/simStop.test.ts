@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ARDUINO_SHIM } from '../src/main/services/arduinoShim'
+import { SIM_MAIN } from '../src/main/services/simBuild'
 
 const run = promisify(execFile)
 const hasGpp = (await run('g++', ['--version']).then(() => true, () => false)) as boolean
@@ -22,14 +23,6 @@ const hasGpp = (await run('g++', ['--version']).then(() => true, () => false)) a
 const ROOT = join(__dirname, '..')
 const SVC = readFileSync(join(ROOT, 'src', 'main', 'services', 'simService.ts'), 'utf8')
 const PROTO = readFileSync(join(ROOT, 'src', 'shared', 'simProtocol.ts'), 'utf8')
-
-/** The product's SIM_MAIN, read from source so this cannot drift from it. */
-function simMain(): string {
-  const open = 'const SIM_MAIN = `'
-  const start = SVC.indexOf(open)
-  expect(start, 'SIM_MAIN must exist in simService').toBeGreaterThan(-1)
-  return SVC.slice(start + open.length, SVC.indexOf('`\n', start + open.length))
-}
 
 /** The product's grace window, read from source for the same reason. */
 function stopGraceMs(): number {
@@ -57,7 +50,7 @@ async function buildSim(sketch: string): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'cortex-stop-'))
   writeFileSync(join(dir, 'Arduino.h'), shimSource())
   writeFileSync(join(dir, 'sketch.cpp'), `#include "Arduino.h"\n${sketch}`)
-  writeFileSync(join(dir, 'sim_main.cpp'), simMain())
+  writeFileSync(join(dir, 'sim_main.cpp'), SIM_MAIN)
   const exe = join(dir, 'sim.exe')
   await run('g++', [
     join(dir, 'sketch.cpp'),

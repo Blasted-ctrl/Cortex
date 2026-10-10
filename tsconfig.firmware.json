@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "src",
+    "outDir": "out/firmware",
+    "noEmit": false
+  },
+  "include": ["src/main/firmwareTesting/**/*.ts"]
+}

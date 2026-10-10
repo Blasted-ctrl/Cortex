@@ -39,6 +39,19 @@ describe('readFile binary guard', () => {
     if (r.kind === 'text') expect(r.content).toBe('')
   })
 
+  it('refuses invalid UTF-8 instead of replacing bytes on the next save', async () => {
+    const p = join(dir, 'legacy.cpp')
+    writeFileSync(p, Buffer.from([0x2f, 0x2f, 0x20, 0xe9, 0x0a]))
+    expect((await readFile(p)).kind).toBe('binary')
+  })
+
+  it('preserves a UTF-8 BOM and a literal replacement character', async () => {
+    const p = join(dir, 'unicode.cpp')
+    const content = '\ufeff// \ufffd is intentional\n'
+    writeFileSync(p, content)
+    expect(await readFile(p)).toEqual({ kind: 'text', content })
+  })
+
   it('reads a .hex file, which is ASCII despite being firmware', async () => {
     const p = join(dir, 'blink.hex')
     writeFileSync(p, ':100000000C9434000C943E000C943E000C943E0082\n:00000001FF\n')

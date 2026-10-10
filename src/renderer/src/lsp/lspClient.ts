@@ -474,6 +474,9 @@ function registerProviders(m: Mon): void {
               documentation: enriched.trim() ? { value: enriched } : undefined,
               sortText: it.sortText,
               filterText: it.filterText,
+              additionalTextEdits: it.additionalTextEdits?.map((edit) => ({
+                range: toMonacoRange(edit.range), text: edit.newText
+              })),
               range
             }
             // Servers send full documentation lazily (resolveCompletionItem
@@ -513,6 +516,11 @@ function registerProviders(m: Mon): void {
         const enriched = enrichDocumentation(lang, origin.raw.label, rawDoc)
         if (enriched.trim()) item.documentation = { value: enriched }
         if (resolved?.detail) item.detail = friendlyDetail(m, { ...origin.raw, detail: resolved.detail }, lang)
+        if (resolved?.additionalTextEdits) {
+          item.additionalTextEdits = resolved.additionalTextEdits.map((edit) => ({
+            range: toMonacoRange(edit.range), text: edit.newText
+          }))
+        }
         return item
       }
     })
@@ -842,6 +850,7 @@ interface LspCompletion {
   insertText?: string
   insertTextFormat?: number
   textEdit?: { newText: string }
+  additionalTextEdits?: LspTextEdit[]
   detail?: string
   documentation?: unknown
   sortText?: string

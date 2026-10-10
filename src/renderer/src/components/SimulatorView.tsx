@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
-import { Play, Square, CircuitBoard, Plus, Save, AlertTriangle, Radio } from 'lucide-react'
+import { Play, Square, CircuitBoard, Plus, Save, AlertTriangle, Radio, Info } from 'lucide-react'
+import { inspectCircuit, type JumperKind } from '@shared/simCircuit'
+import { BOARDS } from './sim3d/board3d'
 import { useStore, type SimPartType, type Sim3dBoardId } from '../store/useStore'
 import SimCanvas, { PartGlyph } from './SimCanvas'
 import SimBlockedPanel from './SimBlockedPanel'
 import PanelHeader from './PanelHeader'
 import EmptyState from './EmptyState'
+import SimulatorExchange from './SimulatorExchange'
 
 // three.js is heavy, so the 3D view is only fetched when the user opens it.
 const SimCanvas3D = lazy(() => import('./SimCanvas3D'))
 
 // Labels only; the icon is the real part symbol (see PartGlyph).
-// Every part here is driven by the engine. A resistor was removed deliberately:
-// this engine models logic, not current, so a resistor could only ever be a
-// sticker that changes nothing, teaching beginners that resistors are optional.
-// Shipping no resistor beats shipping a fake one.
+// These are signal/ideal-motion parts. No resistor solver is exposed; legacy
+// layouts can retain a resistor, with explicit current-model limitations.
 const PALETTE: { type: SimPartType; label: string }[] = [
   { type: 'led', label: 'LED' },
   { type: 'rgb', label: 'RGB' },
@@ -23,7 +24,11 @@ const PALETTE: { type: SimPartType; label: string }[] = [
   { type: 'servo', label: 'Servo' },
   { type: 'ldr', label: 'LDR' },
   { type: 'thermistor', label: 'Temp' },
-  { type: 'sevenseg', label: '7-seg' }
+  { type: 'sevenseg', label: '7-seg' },
+  { type: 'motor', label: 'Motor + driver' },
+  { type: 'stepper', label: 'Stepper + driver' },
+  { type: 'actuator', label: 'Actuator + driver' },
+  { type: 'power', label: 'Power supply' }
 ]
 
 export default function SimulatorView(): JSX.Element {
@@ -31,6 +36,15 @@ export default function SimulatorView(): JSX.Element {
     simRunning,
     simSerial,
     simParts,
+    simWires,
+    simWireKind,
+    setWireKind,
+    simPinStates,
+    simPinPwm,
+    simPinModes,
+    simDiagramDirty,
+    simDiagramError,
+    advanceSimTime,
     startSim,
     stopSim,
     addPart,
@@ -48,6 +62,9 @@ export default function SimulatorView(): JSX.Element {
   const endRef = useRef<HTMLDivElement>(null)
   const activeTab = tabs.find((t) => t.path === activePath)
   const [view, setView] = useState<'2d' | '3d'>('2d')
+  const [details, setDetails] = useState<'model' | 'warnings' | null>(null)
+  const findings = inspectCircuit({ version: 3, board: sim3dBoard, parts: simParts, wires: simWires }, simPinStates, simPinModes, simPinPwm)
+  const board = BOARDS[sim3dBoard]
   // The block belongs to the file that raised it. Show it only over that file,
   // so switching tabs reveals the canvas instead of leaving a stale panel (and a
   // message that may name a file you already closed) plastered over a valid one.
@@ -56,6 +73,14 @@ export default function SimulatorView(): JSX.Element {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [simSerial])
+
+  // Interactive actuator preview uses host elapsed time, not MCU cycle timing.
+  useEffect(() => {
+    if (!simRunning) return
+    let last = performance.now()
+    const timer = window.setInterval(() => { const now = performance.now(); advanceSimTime(now - last); last = now }, 50)
+    return () => window.clearInterval(timer)
+  }, [simRunning, advanceSimTime])
 
   // Esc cancels an in-progress wire.
   useEffect(() => {
@@ -109,16 +134,19 @@ export default function SimulatorView(): JSX.Element {
         </div>
         {/* Board model for the 3D view. The engine still runs Uno-core, so a
             non-Uno board drives pins at the digital level only. */}
-        {view === '3d' && (
+        {(
           <select
             className="shrink-0 rounded border border-ide-border bg-ide-panel px-1.5 py-0.5 text-[11px] text-ide-text outline-none hover:bg-ide-hover"
             value={sim3dBoard}
+            aria-label="Circuit board model"
+            disabled={simRunning || !workspaceRoot}
             onChange={(e) => setSim3dBoard(e.target.value as Sim3dBoardId)}
             title="3D board model"
           >
             <option value="uno">Arduino Uno</option>
             <option value="esp32">ESP32 DevKit</option>
             <option value="pi">Raspberry Pi</option>
+            <option value="teensy41">Teensy 4.1</option>
           </select>
         )}
         {/* The label yields, the controls do not. This was shrink-0, so at a
@@ -132,23 +160,25 @@ export default function SimulatorView(): JSX.Element {
         <span className="flex-1" />
         {/* The canvas and the shim are an Uno. Selecting another board in the
             toolbar does not change that, so say it rather than imply otherwise. */}
-        {selectedFqbn && !/arduino:avr:(uno|nano|mega)/.test(selectedFqbn) && (
+        {(sim3dBoard !== 'uno' || (selectedFqbn && selectedFqbn !== 'arduino:avr:uno')) && (
           <span
             className="row shrink-0 gap-1 rounded border border-ide-amber/40 px-1.5 py-0.5 text-[10px] text-ide-amber"
             title="The simulator models an Arduino Uno regardless of the selected board"
           >
-            <AlertTriangle size={11} /> simulating an Uno
+            <AlertTriangle size={11} /> Uno runtime
           </span>
         )}
 
         <button
           className="btn shrink-0 whitespace-nowrap text-[11px] disabled:opacity-40"
-          onClick={() => void saveDiagram()}
+          onClick={() => { void saveDiagram().catch((err) => console.warn('Circuit save did not complete:', String(err))) }}
           disabled={!workspaceRoot}
           title="Save circuit layout to .cortex/diagram.json"
         >
-          <Save size={14} /> <span className="cq-label">Save layout</span>
+          <Save size={14} /> <span className="cq-label">Save circuit{simDiagramDirty ? ' *' : ''}</span>
         </button>
+        <button className="btn shrink-0" aria-label="Simulation capabilities and board details" aria-expanded={details === 'model'} onClick={() => setDetails(details === 'model' ? null : 'model')} title="Simulation capabilities and board details"><Info size={14} /></button>
+        <button className="btn shrink-0 text-ide-amber" aria-label={`Circuit checks: ${findings.length} findings`} aria-expanded={details === 'warnings'} onClick={() => setDetails(details === 'warnings' ? null : 'warnings')} title="Circuit checks"><AlertTriangle size={14} />{findings.length}</button>
       </div>
 
       {/* Parts get their own wrapping row. Sharing the toolbar meant 6 of 9 were
@@ -165,7 +195,7 @@ export default function SimulatorView(): JSX.Element {
             title={blocked ? 'Run a sketch first' : `Add ${label}`}
             // Parts would land on a canvas the blocked panel is covering, so the
             // palette is inert while blocked rather than silently adding hidden parts.
-            disabled={blocked}
+            disabled={blocked || !workspaceRoot}
             className="row shrink-0 gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-ide-muted hover:bg-ide-hover hover:text-ide-text disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ide-muted"
           >
             <PartGlyph type={type} size={16} />
@@ -173,7 +203,13 @@ export default function SimulatorView(): JSX.Element {
             <Plus size={9} className="text-ide-faint" />
           </button>
         ))}
+        <label className="ml-auto text-[11px] text-ide-muted">Wire <select aria-label="Jumper connector type" value={simWireKind} onChange={(e) => setWireKind(e.target.value as JumperKind)} className="rounded border border-ide-border bg-ide-panel px-1 py-0.5"><option value="male-male">Male to male</option><option value="female-female">Female to female</option><option value="alligator">Alligator</option></select></label>
       </div>
+
+      {simDiagramError && <div role="alert" className="shrink-0 border-b border-ide-border px-3 py-2 text-[11px] text-ide-danger">{simDiagramError}</div>}
+      {details && <div className="max-h-44 shrink-0 overflow-auto border-b border-ide-border bg-ide-panel px-3 py-2 text-[11px]">
+        {details === 'model' ? <><p>Runs supported Arduino sketches against Cortex's Uno signal runtime. No MCU, current, thermal, torque, WiFi, USB or chip-specific peripheral emulation.</p><p className="mt-1">{board.name}: {board.notes.join(' ')}</p><p className="mt-1 text-ide-muted">Circuit checks cover known wiring/voltage hazards. An empty findings list does not mean the physical circuit is safe. Servo is a legacy PWM indicator, not Servo.h support. Actuator travel is an ideal host-time preview.</p><SimulatorExchange /></> : <><p className="text-ide-muted">Known topology and voltage checks only; this is not an electrical safety certification.</p>{findings.length === 0 ? <p className="mt-1">No supported check found a problem. Current, resistors, power ratings and mechanical loads have not been solved.</p> : findings.map((f) => <div key={f.id} className="mt-2"><p className={f.severity === 'error' ? 'text-ide-danger' : 'text-ide-amber'}>{f.severity === 'error' ? 'Error' : 'Warning'}: {f.title}</p><p className="text-ide-muted">{f.detail}</p></div>)}</>}
+      </div>}
 
       {/* stage: canvas gets the full width, serial sits underneath (Wokwi-style) */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -201,14 +237,6 @@ export default function SimulatorView(): JSX.Element {
                 Add a part above, then click it and a board pin to wire it.
               </div>
             )}
-          </div>
-          {/* Honest context about the model, so it belongs on the canvas it
-              describes. It is a layout strip rather than an absolute overlay:
-              the SVG scales to its box, so any overlay eventually collides with
-              the board at some window size. Reserving the space cannot. */}
-          <div className="shrink-0 px-3 pb-1.5 text-[10px] leading-snug text-ide-faint">
-            <span className="text-ide-on-amber">Logic view</span>: this runs your real code and shows pin signals. It
-            does not model current, so a real circuit still needs GND and a resistor per LED.
           </div>
         </div>
 

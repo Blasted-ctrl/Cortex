@@ -59,6 +59,8 @@ export const IPC = {
 
   // Embedded boards (arduino-cli / PlatformIO): ESP32, RP2040, AVR/Arduino, ...
   BOARD_STATUS: 'board:status', // is arduino-cli available?
+  BOARD_SETUP: 'board:setup',
+  BOARD_SETUP_PROGRESS: 'board:setupProgress',
   BOARD_LIST_CONNECTED: 'board:listConnected',
   BOARD_LIST_ALL: 'board:listAll',
   BOARD_COMPILE: 'board:compile',
@@ -98,6 +100,10 @@ export const IPC = {
   GIT_PUSH: 'git:push',
   GIT_BRANCHES: 'git:branches',
   GIT_SWITCH: 'git:switch',
+  GIT_INIT: 'git:init',
+  GIT_CREATE_BRANCH: 'git:createBranch',
+  GIT_FETCH: 'git:fetch',
+  GIT_PULL: 'git:pull',
 
   // Simulator (Wokwi/Tinkercad-style native simulation)
   SIM_START: 'sim:start',
@@ -355,6 +361,9 @@ export interface ProjectModel {
 export interface BoardStatus {
   available: boolean
   version: string
+  source?: 'bundled' | 'managed' | 'path'
+  /** Cortex-owned package indexes must be initialized before package searches. */
+  setupRequired?: boolean
   /** true when the ESP32/RP2040/etc core is likely needed but not installed */
   hint?: string
 }

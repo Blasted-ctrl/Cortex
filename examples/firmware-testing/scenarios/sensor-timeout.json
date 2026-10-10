@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "sensor-timeout",
+  "description": "A sensor stops sending readiness changes after 220ms; heat must shut off at the 250ms freshness deadline.",
+  "firmware": { "board": "uno", "source": "../controller.ino" },
+  "seed": 12345,
+  "initialState": [{ "pin": 14, "value": 300 }, { "pin": 2, "value": 0 }],
+  "inputs": [
+    { "atMs": 20, "pin": 14, "value": 300 },
+    { "atMs": 20, "pin": 2, "value": 1023 },
+    { "atMs": 120, "pin": 14, "value": 300 },
+    { "atMs": 120, "pin": 2, "value": 0 },
+    { "atMs": 220, "pin": 14, "value": 300 },
+    { "atMs": 220, "pin": 2, "value": 1023 }
+  ],
+  "limits": { "durationMs": 650, "stepMs": 10, "wallTimeoutMs": 3000, "maxEvents": 1000 },
+  "assertions": [
+    { "id": "heating-before-loss", "kind": "state", "event": "pwm", "pin": 9, "value": 180, "atMs": 460 },
+    { "id": "sensor-timeout-shutdown", "kind": "event", "event": "pwm", "pin": 9, "value": 0, "fromMs": 470, "toMs": 480 },
+    { "id": "sensor-timeout-log", "kind": "event", "event": "serial", "text": "TIMEOUT", "fromMs": 470, "toMs": 480 },
+    { "id": "sensor-timeout-fault", "kind": "event", "event": "pin", "pin": 13, "value": 1, "fromMs": 470, "toMs": 480 },
+    { "id": "stale-sensor-stays-off", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 0, "fromMs": 480, "toMs": 650 },
+    { "id": "actuator-safety-limit", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 180, "fromMs": 0, "toMs": 650 },
+    { "id": "timeout-state-transitions", "kind": "sequence", "texts": ["BOOT", "HEATING", "TIMEOUT"], "fromMs": 0, "toMs": 650 }
+  ]
+}

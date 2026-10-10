@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import type { ToolchainInfo } from '../../shared/ipc'
+import { getArduinoCli } from './arduinoCliService'
 
 const execFileAsync = promisify(execFile)
 
@@ -53,16 +54,21 @@ const PROBE_TIMEOUT_MS = 10000
 
 async function probe(p: Probe): Promise<ToolchainInfo> {
   try {
-    const { stdout, stderr } = await execFileAsync(p.command, p.args, {
+    const cli = p.id === 'arduino-cli' ? await getArduinoCli() : null
+    if (p.id === 'arduino-cli' && !cli) throw new Error('Board tools are not ready')
+    const command = cli?.command ?? p.command
+    const args = cli ? [...cli.args, ...p.args] : p.args
+    const { stdout, stderr } = await execFileAsync(command, args, {
       timeout: PROBE_TIMEOUT_MS,
-      windowsHide: true
+      windowsHide: true,
+      env: cli?.env
     })
     const out = (stdout || stderr || '').toString()
     return {
       id: p.id,
       name: p.name,
       kind: p.kind,
-      command: p.command,
+      command,
       version: p.parse ? p.parse(out) : firstLine(out),
       available: true
     }

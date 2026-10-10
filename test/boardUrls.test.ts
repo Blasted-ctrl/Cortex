@@ -42,9 +42,10 @@ describe('buildAdditionalUrlArgs', () => {
       'https://a/x.json'
     ])
   })
-  it('the seeded ESP32/ESP8266 defaults are all valid index URLs', () => {
+  it('the seeded ESP32/ESP8266/Pico defaults are all valid index URLs', () => {
     expect(DEFAULT_BOARD_URLS.every(isValidIndexUrl)).toBe(true)
     expect(DEFAULT_BOARD_URLS.some((u) => u.includes('esp32'))).toBe(true)
+    expect(DEFAULT_BOARD_URLS.some((u) => u.includes('package_rp2040_index.json'))).toBe(true)
     expect(buildAdditionalUrlArgs(DEFAULT_BOARD_URLS)).toHaveLength(2)
   })
 })

@@ -33,11 +33,15 @@ function relTime(ts: number): string {
 }
 
 export default function Welcome(): JSX.Element {
-  const { openWorkspace, openFile, setMainView, refreshTree, startSim, recents, removeRecent } = useStore()
+  const { openWorkspace, openFile, setMainView, refreshTree, startSim, recents, removeRecent, notify } = useStore()
 
   const handleOpen = async (): Promise<void> => {
-    const dir = await window.api.openFolder()
-    if (dir) await openWorkspace(dir)
+    try {
+      const dir = await window.api.openFolder()
+      if (dir) await openWorkspace(dir)
+    } catch (error) {
+      notify('error', 'Could not open project', String(error))
+    }
   }
 
   // A hobbyist should reach a blinking LED without leaving the app to mkdir a
@@ -54,16 +58,18 @@ export default function Welcome(): JSX.Element {
     // moment the user connects a real board.
     const sketchDir = `${dir}${sep}blink`
     const path = `${sketchDir}${sep}blink.ino`
+    await window.api.createDir(sketchDir)
+    let created = false
     try {
-      await window.api.createDir(sketchDir)
       // createFile uses flag 'wx', so it THROWS when the sketch already exists.
       // That guard is the whole point: writeFile truncates, and createDir never
       // throws, so the old code silently replaced a real sketch with the template.
       await window.api.createFile(path)
-      await window.api.writeFile(path, BLINK_SKETCH)
-    } catch {
-      /* already exists: keep the user's work and just open it */
+      created = true
+    } catch (error) {
+      if (!(await window.api.exists(path))) throw error
     }
+    if (created) await window.api.writeFile(path, BLINK_SKETCH)
     await refreshTree()
     await openFile(path)
     setMainView('simulator')
@@ -73,8 +79,8 @@ export default function Welcome(): JSX.Element {
   const openRecent = async (path: string): Promise<void> => {
     try {
       await openWorkspace(path)
-    } catch {
-      removeRecent(path) // moved or deleted
+    } catch (error) {
+      notify('error', 'Could not open recent project', `${path}: ${String(error)} Choose Open folder to locate it, or remove it from this list.`)
     }
   }
 
@@ -92,7 +98,7 @@ export default function Welcome(): JSX.Element {
         <p className="mb-8 text-ide-muted">An AI-native IDE for embedded and low-level development.</p>
 
         <div className="row mb-3 gap-2">
-          <button className="btn btn-accent px-4 py-2 text-sm" onClick={() => void handleNewSketch()}>
+          <button className="btn btn-accent px-4 py-2 text-sm" onClick={() => void handleNewSketch().catch((error) => notify('error', 'Could not create sketch', String(error)))}>
             <FilePlus2 size={16} /> New sketch
           </button>
           <button className="btn border border-ide-border px-4 py-2 text-sm" onClick={handleOpen}>

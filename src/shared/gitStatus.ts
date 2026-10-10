@@ -12,7 +12,7 @@
  *   - Each subsequent record is `XY path`, where X is the staged (index) state
  *     and Y the unstaged (worktree) state (` MADRCU?!`). With `-z`, records are
  *     NUL-separated (so paths with spaces or newlines are safe), and a rename or
- *     copy (X in `RC`) is followed by a second record carrying its original path.
+ *     copy (X or Y in `RC`) is followed by a second record carrying its original path.
  */
 
 export interface GitFileStatus {
@@ -70,7 +70,7 @@ export function parsePorcelain(output: string): GitStatusResult {
     // A file record is `XY path`: two status chars, a space, then the path.
     if (rec.length < 4) continue
     const entry: GitFileStatus = { path: rec.slice(3), index: rec[0], worktree: rec[1] }
-    if (entry.index === 'R' || entry.index === 'C') {
+    if (entry.index === 'R' || entry.index === 'C' || entry.worktree === 'R' || entry.worktree === 'C') {
       // A rename/copy carries its original path in the following record.
       const orig = records[i + 1]
       if (orig !== undefined) {

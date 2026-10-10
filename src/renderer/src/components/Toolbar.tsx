@@ -23,6 +23,10 @@ export default function Toolbar(): JSX.Element {
     stopRun,
     diagnostics,
     boardStatus,
+    boardSetupBusy,
+    boardSetupMessage,
+    boardSetupError,
+    setupBoardTools,
     selectedFqbn,
     verifyBoard,
     uploadBoard,
@@ -35,7 +39,7 @@ export default function Toolbar(): JSX.Element {
     debug
   } = useStore()
 
-  const boardsReady = !!boardStatus?.available
+  const boardsReady = !!boardStatus?.available && !boardStatus.setupRequired
 
   const openSerial = (plot: boolean): void => {
     setSerialPlot(plot)
@@ -127,9 +131,7 @@ export default function Toolbar(): JSX.Element {
           </>
         ) : sketch ? (
           <>
-            {/* Without arduino-cli, Verify/Upload cannot work. Simulate CAN, so it
-                becomes the primary action instead of shipping a toolbar whose only
-                accent button is disabled. */}
+            {/* Simulation stays usable while the real-board tools are prepared. */}
             {!boardsReady && (
               <>
                 {/* Same action as the Simulator toolbar's Run, so it carries
@@ -154,17 +156,19 @@ export default function Toolbar(): JSX.Element {
                     <Play size={14} /> Run
                   </button>
                 )}
-                {/* boardStatus.hint already says what is missing, what it
-                    unlocks and how to install it. Hardcoding the headline here
-                    a second time meant the remedy was computed and thrown
-                    away. */}
-                <span
-                  className="row cursor-help gap-1 rounded border border-ide-border px-1.5 py-0.5 text-[10px] text-ide-muted"
-                  title={boardStatus?.hint || 'arduino-cli not found'}
+                <button
+                  className="btn text-[10px] disabled:opacity-60"
+                  disabled={boardSetupBusy}
+                  onClick={() => void setupBoardTools()}
+                  title={boardSetupError || boardSetupMessage || 'Cortex sets up board tools automatically. No separate installation is needed.'}
                 >
-                  <AlertTriangle size={11} className="text-ide-amber" />
-                  arduino-cli not found
-                </span>
+                  {boardSetupBusy ? (
+                    <Loader2 size={11} className="animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <AlertTriangle size={11} className="text-ide-amber" />
+                  )}
+                  {boardSetupBusy ? 'Setting up board tools' : boardSetupError ? 'Retry board setup' : 'Set up board tools'}
+                </button>
               </>
             )}
             <button

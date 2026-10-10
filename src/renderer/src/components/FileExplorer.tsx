@@ -42,7 +42,7 @@ function InlineEditRow({
   value: string
   isDir: boolean
   onChange: (v: string) => void
-  onCommit: () => void
+  onCommit: () => Promise<void>
   onCancel: () => void
 }): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -56,7 +56,7 @@ function InlineEditRow({
   const commitOnce = (): void => {
     if (settledRef.current) return
     settledRef.current = true
-    onCommit()
+    void onCommit().finally(() => { settledRef.current = false })
   }
   const cancelOnce = (): void => {
     if (settledRef.current) return
@@ -100,7 +100,7 @@ type OnContext = (x: number, y: number, node: FileNode) => void
 interface EditProps {
   dialog: DialogState | null
   onChangeValue: (v: string) => void
-  onCommit: (target: DialogState) => void
+  onCommit: (target: DialogState) => Promise<void>
   onCancel: (target: DialogState) => void
 }
 
@@ -115,7 +115,7 @@ function TreeRow({
   onContext: OnContext
   edit: EditProps
 }): JSX.Element {
-  const { expanded, childrenCache, toggleDir, openFile, activePath } = useStore()
+  const { expanded, childrenCache, toggleDir, openFile, activePath, notify } = useStore()
   const isOpen = expanded.has(node.path)
   const isActive = activePath === node.path
   const children = childrenCache[node.path]
@@ -123,7 +123,7 @@ function TreeRow({
 
   const onClick = (): void => {
     if (node.isDir) void toggleDir(node)
-    else void openFile(node.path)
+    else void openFile(node.path).catch((error) => notify('error', 'Could not open file', String(error)))
   }
 
   const renaming = !!dialog && dialog.mode === 'rename' && dialog.path === node.path
@@ -207,7 +207,8 @@ export default function FileExplorer(): JSX.Element {
     createNewFolder,
     expanded,
     toggleDir,
-    confirm
+    confirm,
+    notify
   } = useStore()
   const [busy, setBusy] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
@@ -220,8 +221,12 @@ export default function FileExplorer(): JSX.Element {
   }, [])
 
   const handleOpen = async (): Promise<void> => {
-    const dir = await window.api.openFolder()
-    if (dir) await openWorkspace(dir)
+    try {
+      const dir = await window.api.openFolder()
+      if (dir) await openWorkspace(dir)
+    } catch (error) {
+      notify('error', 'Could not open project', String(error))
+    }
   }
 
   const dirOf = (node: FileNode | null): string =>
@@ -246,19 +251,23 @@ export default function FileExplorer(): JSX.Element {
   // new dialog, and an unconditional setDialog(null) would wipe that out.
   const commitDialog = async (target: DialogState): Promise<void> => {
     const name = target.value.trim()
-    if (name) {
-      if (target.mode === 'newFile') await createNewFile(target.dir, name)
-      else if (target.mode === 'newFolder') await createNewFolder(target.dir, name)
-      else if (target.mode === 'rename' && target.path) await renameEntry(target.path, name)
+    try {
+      if (name) {
+        if (target.mode === 'newFile') await createNewFile(target.dir, name)
+        else if (target.mode === 'newFolder') await createNewFolder(target.dir, name)
+        else if (target.mode === 'rename' && target.path) await renameEntry(target.path, name)
+      }
+      setDialog((cur) => (cur === target ? null : cur))
+    } catch (error) {
+      notify('error', `Could not ${target.mode === 'rename' ? 'rename' : 'create'} ${name}`, String(error))
     }
-    setDialog((cur) => (cur === target ? null : cur))
   }
   const cancelDialog = (target: DialogState): void => setDialog((cur) => (cur === target ? null : cur))
 
   const edit: EditProps = {
     dialog,
     onChangeValue: (v) => setDialog((cur) => (cur ? { ...cur, value: v } : cur)),
-    onCommit: (target) => void commitDialog(target),
+    onCommit: commitDialog,
     onCancel: cancelDialog
   }
 
@@ -290,7 +299,7 @@ export default function FileExplorer(): JSX.Element {
                 confirmLabel: 'Delete',
                 danger: true
               }).then((ok) => {
-                if (ok) void deleteEntry(node.path)
+                if (ok) void deleteEntry(node.path).catch((error) => notify('error', 'Could not delete entry', String(error)))
               })
             }
           }

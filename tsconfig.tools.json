@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "src",
+    "outDir": "out/tools",
+    "noEmit": false
+  },
+  "include": ["src/main/services/arduinoCliInstall.ts"]
+}

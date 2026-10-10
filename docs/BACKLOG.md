@@ -53,3 +53,25 @@ view (three.js / react-three-fiber) can be added later for the hero and camera/s
 components: LED, resistor, pushbutton, potentiometer, servo, buzzer, 7-segment, LCD1602, SSD1306
 OLED, NeoPixel, HC-SR04, DHT22, plus Uno/Nano/Mega/ESP32/Pico boards. Cycle-accurate engine via
 avr8js (AVR) and rp2040js (Pico) once a compile-to-hex path exists. See [`SIMULATOR.md`](SIMULATOR.md).
+
+## Automated firmware testing follow-up
+
+The first release delivers headless Uno example execution, version 1 scenarios,
+deterministic virtual inputs/time, behavior assertions, hang protection, reports,
+replay, failure-detection fixtures, CI and advisory benchmarks. Setup and failure
+reproduction are documented in [FIRMWARE-TESTING.md](FIRMWARE-TESTING.md).
+The detailed acceptance/verification checklist is in
+[tasks/todo.md](../tasks/todo.md).
+
+| Order | Remaining task | Completion evidence |
+|---|---|---|
+| 1 | Desktop Run Tests calls the same runner | Passing and failing scenarios launched from the app |
+| 2 | Desktop results/details and saved-scenario rerun | Failure inputs, outputs/logs and preserved configuration can be inspected and rerun |
+| 3 | Record a short demonstration | Correct sketch passes, broken sketch fails, report locates the problem, corrected sketch passes |
+| 4 | Two teammate trials from fresh installs | Record setup/report confusion and verify resulting fixes |
+| 5 | One outside-team trial | Record usefulness for their firmware and missing capabilities |
+| 6 | Establish representative CI baselines | Repeated runs on compatible tooling/hosts quantify normal variation |
+| 7 | Expand boards/peripherals from trial evidence | New capability has a documented runnable example and scenarios |
+
+Automated local verification is not evidence that a demonstration was recorded
+or that teammates/an outside team tried the workflow.

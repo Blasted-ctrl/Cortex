@@ -62,6 +62,23 @@ describe('parsePorcelain', () => {
     expect(r.files[0].path).toBe('src/a file.c')
   })
 
+  it('consumes rename and copy origins in the working-tree column as well as the index', () => {
+    const r = parsePorcelain(z('## main', ' R new.c', 'old.c', ' C copy.c', 'source.c', ' M after.c'))
+    expect(r.files).toEqual([
+      { path: 'new.c', index: ' ', worktree: 'R', orig: 'old.c' },
+      { path: 'copy.c', index: ' ', worktree: 'C', orig: 'source.c' },
+      { path: 'after.c', index: ' ', worktree: 'M' }
+    ])
+  })
+
+  it('preserves newline characters in filenames and reports unmerged paths', () => {
+    const r = parsePorcelain(z('## main', 'UU firmware\nconflict.cpp', '?? new\nfile.cpp'))
+    expect(r.files).toEqual([
+      { path: 'firmware\nconflict.cpp', index: 'U', worktree: 'U' },
+      { path: 'new\nfile.cpp', index: '?', worktree: '?' }
+    ])
+  })
+
   it('returns an empty file list for a clean tree', () => {
     const r = parsePorcelain(z('## main...origin/main'))
     expect(r.files).toEqual([])

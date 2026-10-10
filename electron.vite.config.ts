@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { monacoCancellationPatch } from './build/monacoCancellationPatch'
 
 export default defineConfig({
   main: {
@@ -36,7 +37,10 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [react()],
+    plugins: [monacoCancellationPatch(), react()],
+    // The backport must also run in development, before dependency optimization
+    // could turn the original module into an opaque prebundled chunk.
+    optimizeDeps: { exclude: ['monaco-editor'] },
     build: {
       rollupOptions: {
         input: { index: resolve('src/renderer/index.html') }

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "controller-benchmark",
+  "description": "Fixed 60-second virtual workload: heat, idle, reheat, then fail safe on stale input; host performance is measured separately.",
+  "firmware": { "board": "uno", "source": "controller.ino" },
+  "seed": 12345,
+  "initialState": [{ "pin": 14, "value": 300 }, { "pin": 2, "value": 0 }],
+  "inputs": [
+    { "atMs": 20, "pin": 14, "value": 300 },
+    { "atMs": 20, "pin": 2, "value": 1023 },
+    { "atMs": 120, "pin": 14, "value": 650 },
+    { "atMs": 120, "pin": 2, "value": 0 },
+    { "atMs": 220, "pin": 14, "value": 300 },
+    { "atMs": 220, "pin": 2, "value": 1023 }
+  ],
+  "limits": { "durationMs": 60000, "stepMs": 10, "wallTimeoutMs": 5000, "maxEvents": 2000 },
+  "assertions": [
+    { "id": "benchmark-workload-transitions", "kind": "sequence", "texts": ["BOOT", "HEATING", "IDLE", "HEATING", "TIMEOUT"], "fromMs": 0, "toMs": 60000 },
+    { "id": "benchmark-final-safe-state", "kind": "state", "event": "pwm", "pin": 9, "value": 0, "atMs": 60000 },
+    { "id": "benchmark-actuator-limit", "kind": "range", "event": "pwm", "pin": 9, "min": 0, "max": 180, "fromMs": 0, "toMs": 60000 }
+  ]
+}

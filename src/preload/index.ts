@@ -65,7 +65,7 @@ const api = {
   searchInFiles: (q: SearchQuery): Promise<SearchResults> => ipcRenderer.invoke(IPC.FS_SEARCH, q),
   readFile: (p: string): Promise<FileReadResult> => ipcRenderer.invoke(IPC.FS_READ_FILE, p),
   exists: (p: string): Promise<boolean> => ipcRenderer.invoke(IPC.FS_EXISTS, p),
-  writeFile: (p: string, c: string): Promise<void> => ipcRenderer.invoke(IPC.FS_WRITE_FILE, p, c),
+  writeFile: (p: string, c: string, expectedContent?: string | null): Promise<void> => ipcRenderer.invoke(IPC.FS_WRITE_FILE, p, c, expectedContent),
   createFile: (p: string): Promise<void> => ipcRenderer.invoke(IPC.FS_CREATE_FILE, p),
   createDir: (p: string): Promise<void> => ipcRenderer.invoke(IPC.FS_CREATE_DIR, p),
   rename: (a: string, b: string): Promise<void> => ipcRenderer.invoke(IPC.FS_RENAME, a, b),
@@ -112,6 +112,8 @@ const api = {
 
   // embedded boards
   boardStatus: (): Promise<BoardStatus> => ipcRenderer.invoke(IPC.BOARD_STATUS),
+  setupBoardTools: (): Promise<BoardStatus> => ipcRenderer.invoke(IPC.BOARD_SETUP),
+  onBoardSetupProgress: (cb: (message: string) => void): Unsub => on(IPC.BOARD_SETUP_PROGRESS, cb),
   boardListConnected: (): Promise<BoardPort[]> => ipcRenderer.invoke(IPC.BOARD_LIST_CONNECTED),
   boardListAll: (): Promise<BoardTarget[]> => ipcRenderer.invoke(IPC.BOARD_LIST_ALL),
   boardCompile: (req: BoardCompileRequest): Promise<void> => ipcRenderer.invoke(IPC.BOARD_COMPILE, req),
@@ -151,6 +153,10 @@ const api = {
   gitPush: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_PUSH),
   gitBranches: (): Promise<GitBranches> => ipcRenderer.invoke(IPC.GIT_BRANCHES),
   gitSwitch: (name: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_SWITCH, name),
+  gitInit: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_INIT),
+  gitCreateBranch: (name: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_CREATE_BRANCH, name),
+  gitFetch: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_FETCH),
+  gitPull: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_PULL),
   onDebugState: (cb: (s: DebugState) => void): Unsub => on(IPC.DEBUG_STATE, cb),
   onDebugOutput: (cb: (o: DebugOutput) => void): Unsub => on(IPC.DEBUG_OUTPUT, cb),
 
@@ -179,7 +185,7 @@ const api = {
   serialOpen: (opts: SerialOpenOptions): Promise<boolean> => ipcRenderer.invoke(IPC.SERIAL_OPEN, opts),
   serialClose: (): Promise<void> => ipcRenderer.invoke(IPC.SERIAL_CLOSE),
   serialWrite: (data: string): Promise<void> => ipcRenderer.invoke(IPC.SERIAL_WRITE, data),
-  onSerialData: (cb: (d: { data: string }) => void): Unsub => on(IPC.SERIAL_DATA, cb),
+  onSerialData: (cb: (d: { data: string; path?: string }) => void): Unsub => on(IPC.SERIAL_DATA, cb),
   onSerialStatus: (cb: (s: { open: boolean; path: string; message?: string }) => void): Unsub =>
     on(IPC.SERIAL_STATUS, cb),
 

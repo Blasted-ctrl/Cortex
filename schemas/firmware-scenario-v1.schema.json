@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cortex firmware scenario version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "description", "firmware", "seed", "initialState", "inputs", "limits", "assertions"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$" },
+    "description": { "$ref": "#/$defs/text" },
+    "firmware": {
+      "type": "object", "additionalProperties": false, "required": ["board", "source"],
+      "properties": { "board": { "const": "uno" }, "source": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "\\.[iI][nN][oO]$", "description": "Local .ino path, relative to this scenario file. URLs and UNC paths are refused by the runner." } }
+    },
+    "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "initialState": {
+      "type": "array", "maxItems": 20,
+      "description": "Applied before setup. Each pin may occur only once (checked by the runner).",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["pin", "value"],
+        "properties": { "pin": { "$ref": "#/$defs/pin" }, "value": { "$ref": "#/$defs/adc" } }
+      }
+    },
+    "inputs": {
+      "type": "array", "maxItems": 10000,
+      "description": "Sorted by atMs; same-time events retain JSON order, after initialState events. atMs must not exceed durationMs.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["atMs", "pin", "value"],
+        "properties": { "atMs": { "$ref": "#/$defs/time" }, "pin": { "$ref": "#/$defs/pin" }, "value": { "$ref": "#/$defs/adc" } }
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false, "required": ["durationMs", "stepMs", "wallTimeoutMs", "maxEvents"],
+      "properties": {
+        "durationMs": { "type": "integer", "minimum": 1, "maximum": 3600000 },
+        "stepMs": { "type": "integer", "minimum": 1, "maximum": 3600000, "description": "Virtual loop step when loop() does not advance time; must not exceed durationMs." },
+        "wallTimeoutMs": { "type": "integer", "minimum": 1, "maximum": 120000 },
+        "maxEvents": { "type": "integer", "minimum": 1, "maximum": 100000 }
+      }
+    },
+    "assertions": {
+      "type": "array", "minItems": 1, "maxItems": 1000,
+      "description": "Unique assertion IDs. Times must be within durationMs; fromMs <= toMs; numeric values must match the event scale. Checked strictly by the runner.",
+      "items": { "oneOf": [ { "$ref": "#/$defs/serialEvent" }, { "$ref": "#/$defs/pinEvent" }, { "$ref": "#/$defs/state" }, { "$ref": "#/$defs/range" }, { "$ref": "#/$defs/sequence" } ] }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "\\S", "description": "NUL characters are refused by the runner." },
+    "pin": { "type": "integer", "minimum": 0, "maximum": 19 },
+    "adc": { "type": "integer", "minimum": 0, "maximum": 1023 },
+    "time": { "type": "integer", "minimum": 0, "maximum": 3600000 },
+    "value": { "type": "integer", "minimum": 0, "maximum": 1000000, "description": "Event-specific maximum: pin=1, mode=2, pwm=255, tone=1000000. Enforced by the runner." },
+    "output": { "enum": ["pin", "pwm", "tone"] },
+    "serialEvent": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "event", "text", "fromMs", "toMs"],
+      "properties": { "id": { "$ref": "#/$defs/text" }, "kind": { "const": "event" }, "event": { "const": "serial" }, "text": { "$ref": "#/$defs/text" }, "fromMs": { "$ref": "#/$defs/time" }, "toMs": { "$ref": "#/$defs/time" } }
+    },
+    "pinEvent": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "event", "pin", "value", "fromMs", "toMs"],
+      "properties": { "id": { "$ref": "#/$defs/text" }, "kind": { "const": "event" }, "event": { "enum": ["pin", "pwm", "tone", "mode"] }, "pin": { "$ref": "#/$defs/pin" }, "value": { "$ref": "#/$defs/value" }, "fromMs": { "$ref": "#/$defs/time" }, "toMs": { "$ref": "#/$defs/time" } }
+    },
+    "state": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "event", "pin", "value", "atMs"],
+      "properties": { "id": { "$ref": "#/$defs/text" }, "kind": { "const": "state" }, "event": { "$ref": "#/$defs/output" }, "pin": { "$ref": "#/$defs/pin" }, "value": { "$ref": "#/$defs/value" }, "atMs": { "$ref": "#/$defs/time" } }
+    },
+    "range": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "event", "pin", "min", "max", "fromMs", "toMs"],
+      "properties": { "id": { "$ref": "#/$defs/text" }, "kind": { "const": "range" }, "event": { "$ref": "#/$defs/output" }, "pin": { "$ref": "#/$defs/pin" }, "min": { "$ref": "#/$defs/value" }, "max": { "$ref": "#/$defs/value" }, "fromMs": { "$ref": "#/$defs/time" }, "toMs": { "$ref": "#/$defs/time" } }
+    },
+    "sequence": {
+      "type": "object", "additionalProperties": false, "required": ["id", "kind", "texts", "fromMs", "toMs"],
+      "properties": { "id": { "$ref": "#/$defs/text" }, "kind": { "const": "sequence" }, "texts": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/$defs/text" } }, "fromMs": { "$ref": "#/$defs/time" }, "toMs": { "$ref": "#/$defs/time" } }
+    }
+  }
+}

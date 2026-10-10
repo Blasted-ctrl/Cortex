@@ -1,4 +1,8 @@
-# Simulator (Wokwi / Tinkercad-style) - plan
+# Simulator architecture and future roadmap
+
+Current implemented controls, wiring, board inspection, circuit checks and provider
+exchange are documented in [Simulation workbench](SIMULATION-WORKBENCH.md).
+The roadmap below is not a claim that every listed device or engine is shipped.
 
 **Goal:** let people without physical hardware *simulate* boards and *play with circuits* - write
 code, wire up components on a virtual breadboard, press Run, and watch it behave. Should feel like
@@ -17,8 +21,10 @@ Compile the user's real `setup()`/`loop()` on the host with a **mock Arduino run
   `analogWrite`, `analogRead`, `delay`, `delayMicroseconds`, `millis`, `micros`, `Serial.*`.
 - The shim emits a line-based **pin-event protocol** on stdout, e.g. `@pin 13 1`, `@pwm 9 128`,
   `@serial hello`, and reads `@in <pin> <value>` on stdin for button/pot interaction.
-- Wrap the sketch in a generated `main()` that runs `setup()` then loops `loop()` against a
-  simulated clock, so `delay()` advances virtual time.
+- Wrap the sketch in a generated `main()` that runs `setup()` then loops `loop()`.
+  The interactive desktop simulator uses elapsed host time and real waits for
+  `delay()`. The headless firmware test runner explicitly selects a deterministic
+  virtual clock; its delays advance simulation time without sleeping.
 - Cortex compiles with `g++`/`clang++`, runs the process, parses the event stream, and drives the
   virtual components on the canvas in real time. Interaction (button press, pot turn) is written
   back to the process stdin.
@@ -60,3 +66,27 @@ interface SimDiagram { board: 'uno'|'esp32'|'pico'; components: SimComponent[]; 
 Add a **ROS2** integration so Cortex can drive/inspect robotics stacks: node graph view, topic echo/
 plot (reuse the serial plotter), `ros2 bag` playback, and bridging simulated firmware ↔ ROS2 topics
 (e.g. Gazebo/Ignition co-simulation). Tracked here + in ROADMAP Phase 6.
+
+## Headless behavior testing (first release)
+
+The [firmware-testing runner](FIRMWARE-TESTING.md) shares the desktop's host
+sketch/shim build preparation and protocol parser. It compiles and executes
+real Uno example code without an Electron window. Each scenario starts a fresh
+process with initial ADC-scale inputs, timestamped input changes, a seeded
+random generator and a virtual clock. Equal-time input order follows the JSON
+array order. Behavior assertions observe pin/PWM/tone events and Serial logs;
+reports preserve the configuration, trace, failure evidence and build hashes.
+
+The delivered example uses A0 sensor data, D2 sample freshness, D9 PWM and D13
+fault output. Normal, sensor-timeout and invalid-input scenarios define the
+tested contract. Host watchdog and event/output limits stop stuck firmware;
+the deliberately broken fixture and hanging fixture exercise those failure
+paths. A separate fixed workload produces host performance metrics and advisory
+baseline comparisons in GitHub Actions.
+
+Native simulation is application logic testing. It uses host C++ types and
+libraries; it does not model AVR instructions, physical PWM, analog circuits,
+interrupt timing or general I2C/SPI devices. Board labels outside Uno, renderer
+component animations and planned cycle-accurate engines do not imply headless
+test support. Desktop Run Tests/results/replay is follow-up work, tracked in
+[tasks/todo.md](../tasks/todo.md).

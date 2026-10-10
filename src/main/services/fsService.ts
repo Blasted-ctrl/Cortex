@@ -1,5 +1,7 @@
-import { promises as fs } from 'fs'
-import { join, basename, resolve } from 'path'
+import { constants, promises as fs } from 'fs'
+import { isUtf8 } from 'buffer'
+import { randomUUID } from 'crypto'
+import { join, basename, dirname, relative, resolve } from 'path'
 import chokidar, { FSWatcher } from 'chokidar'
 import type { BrowserWindow } from 'electron'
 import type { FileNode, FileReadResult } from '../../shared/ipc'
@@ -7,12 +9,13 @@ import { IPC } from '../../shared/ipc'
 import { isWithin } from '../../shared/security'
 
 const IGNORE = new Set(['node_modules', '.git', 'out', 'dist', 'release', '.cortex'])
+const isIgnoredName = (name: string): boolean => IGNORE.has(name) || /^\..+\.cortex-save-[a-f0-9-]{36}$/.test(name)
 
 // The currently open workspace. Renderer-initiated writes/deletes are confined
 // to it so a compromised renderer cannot mutate arbitrary files on disk.
 let workspaceRoot: string | null = null
-export function setWorkspaceRoot(root: string): void {
-  workspaceRoot = resolve(root)
+export function setWorkspaceRoot(root: string | null): void {
+  workspaceRoot = root ? resolve(root) : null
 }
 export function getWorkspaceRoot(): string | null {
   return workspaceRoot
@@ -22,18 +25,54 @@ export function getWorkspaceRoot(): string | null {
 export function withinWorkspace(p: string): boolean {
   return !!workspaceRoot && isWithin(workspaceRoot, resolve(p))
 }
-function assertWithin(p: string): void {
-  if (!workspaceRoot) return // no workspace open yet: nothing to confine against
-  if (!isWithin(workspaceRoot, resolve(p))) {
+/** Project-wide settings can target only the admitted folder, not a nested
+ * symlink supplied by the renderer. The service captures its real root next. */
+export function isWorkspaceRoot(p: string): boolean {
+  return typeof p === 'string' && !!workspaceRoot &&
+    isWithin(workspaceRoot, resolve(p)) && isWithin(resolve(p), workspaceRoot)
+}
+async function writablePath(p: string): Promise<string> {
+  const root = workspaceRoot
+  if (!root) throw new Error('Open a project folder before changing files.')
+  const target = resolve(p)
+  if (!isWithin(root, target)) {
     throw new Error(`Refused: path is outside the open workspace: ${p}`)
   }
+  const realRoot = await fs.realpath(root)
+  let probe = target
+  for (;;) {
+    try {
+      const real = await fs.realpath(probe)
+      if (!isWithin(realRoot, real)) throw new Error(`Refused: path is outside the open workspace: ${p}`)
+      return join(real, relative(probe, target))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      // A dangling link is not a new file: following it can create a target
+      // outside the project, even though its parent directory is inside it.
+      const entry = await fs.lstat(probe).catch((failure: NodeJS.ErrnoException) => {
+        if (failure.code === 'ENOENT') return null
+        throw failure
+      })
+      if (entry?.isSymbolicLink()) throw new Error(`Refused: unresolved symbolic link: ${p}`)
+      const parent = dirname(probe)
+      if (parent === probe) throw error
+      probe = parent
+    }
+  }
+}
+
+async function entryPath(p: string): Promise<string> {
+  const physical = await writablePath(p)
+  const root = workspaceRoot && await fs.realpath(workspaceRoot)
+  if (root && relative(root, physical) === '') throw new Error('Refused: cannot rename or delete the workspace root.')
+  return join(await writablePath(dirname(p)), basename(p))
 }
 
 /** Read a directory one level deep (lazy tree loading). */
 export async function readDir(dirPath: string): Promise<FileNode[]> {
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   const nodes: FileNode[] = entries
-    .filter((e) => !IGNORE.has(e.name))
+    .filter((e) => !isIgnoredName(e.name))
     .map((e) => ({
       name: e.name,
       path: join(dirPath, e.name),
@@ -66,7 +105,8 @@ export async function readFile(filePath: string): Promise<FileReadResult> {
   const stat = await fs.stat(filePath)
   if (stat.size > MAX_EDITABLE_BYTES) return { kind: 'too-large', size: stat.size }
   const buf = await fs.readFile(filePath)
-  if (buf.includes(0)) return { kind: 'binary' }
+  if (buf.length > MAX_EDITABLE_BYTES) return { kind: 'too-large', size: buf.length }
+  if (buf.includes(0) || !isUtf8(buf)) return { kind: 'binary' }
   return { kind: 'text', content: buf.toString('utf8') }
 }
 
@@ -97,7 +137,7 @@ export async function listAllFiles(root: string, cap = 8000): Promise<string[]> 
       return
     }
     for (const e of entries) {
-      if (IGNORE.has(e.name)) continue
+      if (isIgnoredName(e.name)) continue
       const full = join(dir, e.name)
       if (e.isDirectory()) {
         await walk(full)
@@ -113,30 +153,64 @@ export async function listAllFiles(root: string, cap = 8000): Promise<string[]> 
   return out
 }
 
-export async function writeFile(filePath: string, content: string): Promise<void> {
-  assertWithin(filePath)
-  await fs.writeFile(filePath, content, 'utf8')
+async function assertFileUnchanged(filePath: string, expectedContent: string | null | undefined): Promise<void> {
+  if (expectedContent === undefined) return
+  const current = await fs.readFile(filePath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null
+    throw error
+  })
+  if (expectedContent === null ? current !== null : !current || !isUtf8(current) || current.toString('utf8') !== expectedContent) {
+    throw new Error('This file changed on disk or was deleted. Your editor changes were not written. Compare them with the disk version before retrying.')
+  }
+}
+
+export async function writeFile(filePath: string, content: string, expectedContent?: string | null): Promise<void> {
+  const target = await writablePath(filePath)
+  const previous = await fs.stat(target).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null
+    throw error
+  })
+  if (previous && !previous.isFile()) throw new Error('Cannot save: the destination is not a regular file.')
+  await assertFileUnchanged(target, expectedContent)
+  if (previous) await fs.access(target, constants.W_OK)
+  const staged = join(dirname(target), `.${basename(target)}.cortex-save-${randomUUID()}`)
+  const mode = previous ? previous.mode & 0o777 : 0o666
+  const handle = await fs.open(staged, 'wx', mode)
+  try {
+    await handle.writeFile(content, 'utf8')
+    await handle.sync()
+    await handle.close()
+    if (previous) await fs.chmod(staged, mode)
+    if (await writablePath(filePath) !== target) throw new Error('Cannot save: the project path changed during the save.')
+    await assertFileUnchanged(target, expectedContent)
+    await fs.rename(staged, target)
+  } finally {
+    await handle.close().catch(() => {})
+    await fs.unlink(staged).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+    })
+  }
 }
 
 export async function createFile(filePath: string): Promise<void> {
-  assertWithin(filePath)
-  await fs.writeFile(filePath, '', { flag: 'wx' })
+  await fs.writeFile(await writablePath(filePath), '', { flag: 'wx' })
 }
 
 export async function createDir(dirPath: string): Promise<void> {
-  assertWithin(dirPath)
-  await fs.mkdir(dirPath, { recursive: true })
+  await fs.mkdir(await writablePath(dirPath), { recursive: true })
 }
 
 export async function rename(oldPath: string, newPath: string): Promise<void> {
-  assertWithin(oldPath)
-  assertWithin(newPath)
-  await fs.rename(oldPath, newPath)
+  const source = await entryPath(oldPath)
+  const destination = await entryPath(newPath)
+  if (source === destination) return
+  const sameWindowsEntry = process.platform === 'win32' && source.toLowerCase() === destination.toLowerCase()
+  if (!sameWindowsEntry && await exists(destination)) throw new Error(`A file or folder already exists at: ${newPath}`)
+  await fs.rename(source, destination)
 }
 
 export async function remove(targetPath: string): Promise<void> {
-  assertWithin(targetPath)
-  await fs.rm(targetPath, { recursive: true, force: true })
+  await fs.rm(await entryPath(targetPath), { recursive: true, force: true })
 }
 
 // ---- file watching -------------------------------------------------------
@@ -144,16 +218,18 @@ export async function remove(targetPath: string): Promise<void> {
 let watcher: FSWatcher | null = null
 
 export function startWatch(rootPath: string, win: BrowserWindow): void {
-  setWorkspaceRoot(rootPath)
   stopWatch()
+  setWorkspaceRoot(rootPath)
   watcher = chokidar.watch(rootPath, {
     // Match whole path SEGMENTS. A substring test silently unwatched output.cpp,
     // layout.h and distance.cpp, and killed the whole watcher for any workspace
     // whose path merely contained "dist".
-    ignored: (p: string) => p.split(/[\\/]/).some((seg) => IGNORE.has(seg)),
+    ignored: (p: string) => p.split(/[\\/]/).some(isIgnoredName),
     ignoreInitial: true,
     depth: 12,
-    awaitWriteFinish: { stabilityThreshold: 120, pollInterval: 40 }
+    // Explorer consumes names, not file contents. Delaying add can suppress a
+    // rename destination's deletion after a sibling event exposed that name.
+    awaitWriteFinish: false
   })
   const emit = (type: string) => (path: string) => {
     if (!win.isDestroyed()) {
@@ -169,6 +245,7 @@ export function startWatch(rootPath: string, win: BrowserWindow): void {
 }
 
 export function stopWatch(): void {
+  setWorkspaceRoot(null)
   if (watcher) {
     void watcher.close()
     watcher = null

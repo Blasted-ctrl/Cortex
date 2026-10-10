@@ -83,4 +83,12 @@ describe('isWithin', () => {
   it('is separator-insensitive', () => expect(isWithin('C:\\proj', 'C:/proj/a.txt')).toBe(true))
   it('rejects a sibling directory', () => expect(isWithin('C:/proj', 'C:/projedit/x')).toBe(false))
   it('rejects a path outside the root', () => expect(isWithin('C:/proj', 'C:/other/secret.txt')).toBe(false))
+  it('does not authorize a different case-sensitive POSIX project', () => {
+    expect(isWithin('/home/alice/Proj', '/home/alice/proj/secret.txt')).toBe(false)
+    expect(isWithin('/home/alice/Proj', '/home/alice/Proj/main.cpp')).toBe(true)
+  })
+  it('still folds Windows drive and UNC path case', () => {
+    expect(isWithin('C:/PROJ', 'c:/proj/main.cpp')).toBe(true)
+    expect(isWithin('\\\\Server\\Share\\Proj', '\\\\server\\share\\proj\\main.cpp')).toBe(true)
+  })
 })

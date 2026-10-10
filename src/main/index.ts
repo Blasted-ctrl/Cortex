@@ -29,6 +29,7 @@ import * as environment from './services/environmentService'
 import * as lockfile from './services/lockfileService'
 import * as datasheet from './services/datasheetService'
 import * as embedded from './services/embeddedService'
+import * as arduinoCli from './services/arduinoCliService'
 import * as pkg from './services/packageService'
 import * as debug from './services/debugService'
 import * as git from './services/gitService'
@@ -105,7 +106,10 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
+    try {
+      const url = new URL(details.url)
+      if (url.protocol === 'https:' || url.protocol === 'http:') void shell.openExternal(url.toString())
+    } catch (err) { console.warn('[cortex] refused invalid external link:', String(err)) }
     return { action: 'deny' }
   })
 
@@ -568,7 +572,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.FS_SEARCH, (_e, q: SearchQuery) => search.searchInFiles(q))
   ipcMain.handle(IPC.FS_READ_FILE, (_e, p: string) => fsService.readFile(p))
   ipcMain.handle(IPC.FS_EXISTS, (_e, p: string) => fsService.exists(p))
-  ipcMain.handle(IPC.FS_WRITE_FILE, (_e, p: string, c: string) => fsService.writeFile(p, c))
+  ipcMain.handle(IPC.FS_WRITE_FILE, (_e, p: string, c: string, expectedContent?: string | null) => fsService.writeFile(p, c, expectedContent))
   ipcMain.handle(IPC.FS_CREATE_FILE, (_e, p: string) => fsService.createFile(p))
   ipcMain.handle(IPC.FS_CREATE_DIR, (_e, p: string) => fsService.createDir(p))
   ipcMain.handle(IPC.FS_RENAME, (_e, a: string, b: string) => fsService.rename(a, b))
@@ -629,9 +633,11 @@ function registerIpc(): void {
   ipcMain.on(IPC.AGENT_CANCEL, (_e, id: string) => agent.cancel(id))
 
   // ---- project config ----
-  ipcMain.handle(IPC.PROJECT_CONFIG_GET, (_e, root: string) => projectConfig.getProjectConfig(root))
+  ipcMain.handle(IPC.PROJECT_CONFIG_GET, (_e, root: string) =>
+    fsService.isWorkspaceRoot(root) ? projectConfig.getProjectConfig(root) : Promise.reject(new Error('Project settings path rejected.'))
+  )
   ipcMain.handle(IPC.PROJECT_CONFIG_SET, (_e, root: string, patch: ProjectConfig) =>
-    projectConfig.setProjectConfig(root, patch)
+    fsService.isWorkspaceRoot(root) ? projectConfig.setProjectConfig(root, patch) : Promise.reject(new Error('Project settings path rejected.'))
   )
 
   // ---- project model (derived: languages, board/platform, GPIO usage) ----
@@ -682,7 +688,20 @@ function registerIpc(): void {
   )
 
   // ---- embedded boards ----
-  ipcMain.handle(IPC.BOARD_STATUS, () => embedded.status())
+  const boardStatus = async () => ({
+    ...await embedded.status(),
+    ...(arduinoCli.arduinoCliSetupHint() ? { hint: arduinoCli.arduinoCliSetupHint() } : {}),
+    setupRequired: await arduinoCli.arduinoCliNeedsSetup()
+  })
+  ipcMain.handle(IPC.BOARD_STATUS, boardStatus)
+  ipcMain.handle(IPC.BOARD_SETUP, async () => {
+    await arduinoCli.setupArduinoCli((message) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.BOARD_SETUP_PROGRESS, message)
+    })
+    environment.invalidate()
+    await toolchain.detectToolchains(true)
+    return boardStatus()
+  })
   ipcMain.handle(IPC.BOARD_LIST_CONNECTED, () => embedded.listConnected())
   ipcMain.handle(IPC.BOARD_LIST_ALL, () => embedded.listAll())
   ipcMain.handle(IPC.BOARD_COMPILE, (_e, req: BoardCompileRequest) => embedded.compile(requireWindow(), req))
@@ -725,6 +744,10 @@ function registerIpc(): void {
   ipcMain.handle(IPC.GIT_PUSH, () => git.push())
   ipcMain.handle(IPC.GIT_BRANCHES, () => git.branches())
   ipcMain.handle(IPC.GIT_SWITCH, (_e, name: string) => git.switchBranch(name))
+  ipcMain.handle(IPC.GIT_INIT, () => git.init())
+  ipcMain.handle(IPC.GIT_CREATE_BRANCH, (_e, name: string) => git.createBranch(name))
+  ipcMain.handle(IPC.GIT_FETCH, () => git.fetch())
+  ipcMain.handle(IPC.GIT_PULL, () => git.pull())
 
   // ---- settings / app ----
   // Return redacted settings only: the raw API key never crosses to the renderer.

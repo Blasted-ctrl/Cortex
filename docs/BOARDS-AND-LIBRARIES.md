@@ -1,22 +1,19 @@
 # Boards and Libraries
 
-Cortex manages board cores and Arduino libraries the same way the Arduino IDE does, because
-it drives the same tool: **`arduino-cli`**. Everything here is a thin, honest UI over it -
-no bundled copies, no private index, so what you install works with the rest of your setup.
+Cortex manages board cores and Arduino libraries through **`arduino-cli`**. Release
+installers include the CLI; development launches prepare it automatically if needed.
+There is no separate CLI installation prerequisite. The managers use the Arduino
+package indexes rather than a private package catalogue.
 
 Both managers live on the activity bar: **Boards Manager** and **Library Manager**.
 
-## Prerequisite
+## Initial setup
 
-`arduino-cli` must be on your `PATH`:
-
-```bash
-winget install ArduinoSA.CLI     # Windows
-brew install arduino-cli         # macOS
-```
-
-Without it, both panels say so and offer the install command rather than showing an empty
-list. The 3D Simulator still works - it needs only a C++ compiler.
+Cortex prepares board tools and initializes package indexes on first launch. Both
+managers show setup progress; a failed download offers an in-app retry. Initial setup
+needs internet access. Install the core for your board through Boards Manager before
+Verify or Upload. The simulator stays usable during setup and needs only a host C++
+compiler. See [the real-board quickstart](BOARD-TOOLS.md) for the complete workflow.
 
 ## Boards Manager
 

@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import { useStore, type SimPart, INPUT_PARTS, PART_PINS } from '../store/useStore'
 import { ADC_MAX, PWM_MAX } from '@shared/simProtocol'
+import { motorDrive, connectedBoardPins, type SimTerminal } from '@shared/simCircuit'
+import CircuitInspector from './CircuitInspector'
+import { BOARDS } from './sim3d/board3d'
 // Design space and board rect. Shared with the store, which places new parts
 // relative to the board: two copies of these numbers is what let parts spawn
 // on top of the pins.
@@ -33,11 +36,10 @@ function buildPins(): PinPos[] {
   for (let i = 0; i < anaN; i++) {
     pins.push({ pin: 14 + i, label: `A${i}`, x: BOARD.x + topPad + (anaSpan * i) / (anaN - 1), y: PAD_BOT_Y })
   }
+  ;[['GND', -1], ['5V', -2], ['3.3V', -3], ['VIN', -4]].forEach(([label, pin], i) => pins.push({ pin: Number(pin), label: String(label), x: BOARD.x + 260 + i * 34, y: PAD_BOT_Y }))
   return pins
 }
 const PINS = buildPins()
-const pinPos = (pin: number): PinPos | undefined => PINS.find((p) => p.pin === pin)
-const pinLabel = (pin: number | null): string => (pin === null ? '' : (pinPos(pin)?.label ?? `${pin}`))
 
 // Per-pin connector offsets (local part coords). Single-pin parts use 'sig'.
 const CONNECTORS: Partial<Record<SimPart['type'], Record<string, { x: number; y: number }>>> = {
@@ -53,8 +55,10 @@ const CONNECTORS: Partial<Record<SimPart['type'], Record<string, { x: number; y:
     dp: { x: 21, y: 40 }
   }
 }
-const connFor = (type: SimPart['type'], name: string): { x: number; y: number } =>
-  CONNECTORS[type]?.[name] ?? { x: 0, y: 34 }
+const connFor = (type: SimPart['type'], name: string): { x: number; y: number } => {
+  const names = PART_PINS[type]
+  return CONNECTORS[type]?.[name] ?? { x: names.length > 1 ? (names.indexOf(name) - (names.length - 1) / 2) * 14 : 0, y: 34 }
+}
 
 const WIRE_COLOR: Record<string, string> = { r: '#E05561', g: '#6FB65A', b: '#5B9DF0' }
 
@@ -103,9 +107,9 @@ function PartBody({
         // No stopPropagation: the parent part group needs the pointerdown to
         // select/drag this part, otherwise a button can never be moved, rotated,
         // deleted or wired.
-        <g onPointerDown={() => onButton(true)} onPointerUp={() => onButton(false)} onPointerLeave={() => onButton(false)} style={{ cursor: 'pointer' }}>
+        <g onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onButton(true) }} onPointerUp={() => onButton(false)} onPointerCancel={() => onButton(false)} onLostPointerCapture={() => onButton(false)} style={{ cursor: 'pointer' }}>
           <rect x={-18} y={-18} width={36} height={36} rx={5} fill="#171D28" stroke="#3A4557" strokeWidth={1.5} />
-          <circle cx={0} cy={0} r={10} fill="#232B38" stroke="#7D8899" />
+          <circle cx={0} cy={0} r={10} fill={part.color ?? '#232B38'} stroke="#7D8899" />
         </g>
       )
     case 'buzzer':
@@ -151,6 +155,17 @@ function PartBody({
         </>
       )
     }
+    case 'motor':
+    case 'stepper': {
+      const angle = part.type === 'stepper' ? read('__steps').value / (part.props?.stepsPerRevolution ?? 200) * 360 : read('__drive').value * 180
+      return <><rect x={-20} y={-20} width={40} height={40} rx={part.type === 'stepper' ? 3 : 12} fill="#39424f" stroke="#7D8899" /><circle r={7} fill="#9aa4b2" /><line x1={0} y1={0} x2={0} y2={-16} transform={`rotate(${angle})`} stroke="#E8952B" strokeWidth={3} /></>
+    }
+    case 'actuator': {
+      const extension = Math.min(1, read('__position').value / (part.props?.travelMm ?? 100)) * 28
+      return <><rect x={-9} y={-18} width={18} height={36} rx={3} fill="#39424f" stroke="#7D8899" /><rect x={-3} y={-28 - extension} width={6} height={20 + extension} fill="#9aa4b2" /><line x1={-10} y1={-28 - extension} x2={10} y2={-28 - extension} stroke="#E8952B" strokeWidth={3} /></>
+    }
+    case 'power':
+      return <><rect x={-25} y={-20} width={50} height={40} rx={4} fill="#232b38" stroke="#7D8899" /><text x={0} y={0} textAnchor="middle" fill="#6FB65A" fontSize={10}>{part.props?.volts ?? 5} V</text><text x={-10} y={12} fill="#E05561" fontSize={10}>+</text><text x={10} y={12} fill="#7D8899" fontSize={10}>-</text></>
     case 'ldr': {
       const lit = Math.min(ADC_MAX, Math.max(0, sig.value)) / ADC_MAX
       return (
@@ -240,6 +255,10 @@ export function PartGlyph({ type, size = 20 }: { type: SimPart['type']; size?: n
 export default function SimCanvas(): JSX.Element {
   const {
     simParts,
+    simWires,
+    sim3dBoard,
+    simStepperStates,
+    simActuatorStates,
     simPinStates,
     simPinPwm,
     simWiring,
@@ -247,17 +266,21 @@ export default function SimCanvas(): JSX.Element {
     beginWire,
     attachWire,
     cancelWire,
-    rotatePart,
-    setPartColor,
-    removePart,
-    detachWire,
-    setSimInput,
-    simInputs,
-    simPinModes
+    setPartButton,
+    simInputs
   } = useStore()
 
   const svgRef = useRef<SVGSVGElement>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  const def = BOARDS[sim3dBoard]
+  const pins: PinPos[] = sim3dBoard === 'uno' ? PINS : def.pins.filter((p) => !p.inspectOnly).map((p) => ({ pin: p.pin, label: p.label, x: BOARD.x + BOARD.w / 2 + p.x / def.size.w * (BOARD.w - 30), y: BOARD.y + BOARD.h / 2 + p.z / def.size.d * (BOARD.h - 30) }))
+  const position = (t: SimTerminal): { x: number; y: number } | undefined => {
+    if (t.kind === 'board') return pins.find((p) => p.pin === t.pin)
+    const part = simParts.find((p) => p.id === t.partId)
+    if (!part) return undefined
+    const off = rotateOffset(connFor(part.type, t.pin), part.rotation)
+    return { x: part.x + off.x, y: part.y + off.y }
+  }
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
 
   // The SVG scales to fit its container (viewBox), so client pixels must be
@@ -290,57 +313,23 @@ export default function SimCanvas(): JSX.Element {
   }
 
   const readFor = (part: SimPart) => (name: string): Reading => {
-    const bp = part.pins[name]
+    if (name === '__drive') return { value: motorDrive(part, simPinStates, simPinPwm), pwm: false }
+    if (name === '__steps') return { value: simStepperStates[part.id]?.steps ?? 0, pwm: false }
+    if (name === '__position') return { value: simActuatorStates[part.id]?.positionMm ?? 0, pwm: false }
+    const bp = name === 'sig' && (INPUT_PARTS.includes(part.type) || part.type === 'button') ? connectedBoardPins(simParts, simWires, { kind: 'part', partId: part.id, pin: name })[0] : part.pins[name]
     if (bp === null || bp === undefined) return { value: 0, pwm: false }
     if (INPUT_PARTS.includes(part.type)) return { value: simInputs[bp] ?? 0, pwm: false }
     return { value: simPinStates[bp] ?? 0, pwm: simPinPwm[bp] ?? false }
   }
 
-  const selectedPart = simParts.find((p) => p.id === selected)
   const wiring = !!simWiring
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#080b11]">
-      {selectedPart && (
-        <div className="absolute left-3 top-3 z-10 row flex-wrap gap-1 rounded-lg border border-ide-border bg-ide-bar/95 px-2 py-1.5 text-[11px] shadow-lg">
-          <span className="mono text-ide-muted">{selectedPart.type}</span>
-          {PART_PINS[selectedPart.type].map((name) => {
-            const bp = selectedPart.pins[name]
-            const armed = simWiring?.partId === selectedPart.id && simWiring.pinName === name
-            return (
-              <button
-                key={name}
-                className={`rounded px-1.5 py-0.5 ${armed ? 'bg-ide-amber/20 text-ide-on-amber' : bp !== null ? 'bg-ide-active text-ide-text' : 'text-ide-muted hover:bg-ide-hover'}`}
-                onClick={() => (bp !== null ? detachWire(selectedPart.id, name) : beginWire(selectedPart.id, name))}
-                title={bp !== null ? 'Click to detach' : 'Click, then a board pin'}
-              >
-                {PART_PINS[selectedPart.type].length > 1 ? `${name}:` : ''}
-                {/* 'n/c' is the schematic convention for an unconnected pin. */}
-                {bp !== null ? pinLabel(bp) : armed ? 'pick...' : 'n/c'}
-              </button>
-            )
-          })}
-          {INPUT_PARTS.includes(selectedPart.type) && selectedPart.pins.sig !== null && (
-            <input
-              type="range"
-              min={0}
-              max={ADC_MAX}
-              value={simInputs[selectedPart.pins.sig as number] ?? 0}
-              onChange={(e) => setSimInput(selectedPart.pins.sig as number, Number(e.target.value))}
-              className="w-20 accent-ide-amber"
-              title={`Analog value (0-${ADC_MAX})`}
-            />
-          )}
-          {selectedPart.type === 'led' && (
-            <input type="color" value={selectedPart.color || '#6FB65A'} onChange={(e) => setPartColor(selectedPart.id, e.target.value)} className="h-5 w-6 cursor-pointer rounded border-0 bg-transparent" title="LED color" />
-          )}
-          <button className="btn px-1.5 py-0.5" onClick={() => rotatePart(selectedPart.id)}>Rotate</button>
-          <button className="btn px-1.5 py-0.5 text-ide-red" onClick={() => { removePart(selectedPart.id); setSelected(null) }}>Delete</button>
-        </div>
-      )}
+      <CircuitInspector selectedId={selected} onSelect={setSelected} />
       {wiring && (
         <div className="absolute right-3 top-3 z-10 rounded-lg border border-ide-amber/50 bg-ide-bar/95 px-3 py-1.5 text-[11px] text-ide-amber shadow-lg">
-          Click a board pin to connect. (Esc to cancel)
+          Click a terminal to connect. Esc cancels.
         </div>
       )}
 
@@ -368,6 +357,8 @@ export default function SimCanvas(): JSX.Element {
             without them the pins read as loose circles floating on a slab. */}
         <g>
           <rect x={BOARD.x} y={BOARD.y} width={BOARD.w} height={BOARD.h} rx={10} fill="#0b3d2e" stroke="#12603f" strokeWidth={2} />
+
+          {sim3dBoard === 'uno' && <g>
 
           {/* header strips behind the pin rows, flush with the board edges */}
           <rect x={BOARD.x + 14} y={HDR.top} width={BOARD.w - 28} height={HDR.h} rx={3} fill="#0a0c10" stroke="#1c2430" />
@@ -397,15 +388,17 @@ export default function SimCanvas(): JSX.Element {
             style={(simPinStates[13] ?? 0) > 0 ? { filter: 'drop-shadow(0 0 5px #E8B44A)' } : undefined}
           />
           <text x={BOARD.x + BOARD.w - 32} y={BOARD.y + BOARD.h * 0.42 + 3} fill="#5b6675" fontSize={7}>L</text>
+          </g>}
 
           {/* Silkscreen is white ink on real hardware. Bright green read as a
               highlighted UI label rather than something printed on the board. */}
           <text x={BOARD.x + 22} y={BOARD.y + 90} fill="#dfe5ec" opacity={0.45} fontSize={11} fontWeight={600} letterSpacing={0.5}>
-            ARDUINO UNO
+            {def.name}
           </text>
 
-          {PINS.map((p) => (
-            <g key={p.pin} onClick={(e) => { e.stopPropagation(); if (wiring) attachWire(p.pin) }} style={{ cursor: wiring ? 'crosshair' : 'default' }}>
+          {pins.map((p, i) => (
+            <g key={`${p.pin}-${i}`} onClick={(e) => { e.stopPropagation(); if (wiring) attachWire(p.pin) }} style={{ cursor: wiring ? 'crosshair' : 'default' }}>
+              <title>{p.label}: {def.pins.find((q) => q.pin === p.pin)?.functions?.join(', ') || 'Board terminal'}</title>
               {/* square pad inside the header, like a real socket */}
               <rect
                 x={p.x - 4}
@@ -427,26 +420,16 @@ export default function SimCanvas(): JSX.Element {
         </g>
 
         {/* wires */}
-        {simParts.flatMap((part) =>
-          PART_PINS[part.type].map((name) => {
-            const bp = part.pins[name]
-            if (bp === null || bp === undefined) return null
-            const pos = pinPos(bp)
-            if (!pos) return null
-            // Rotated: the wire must land on the leg, not where the leg used to be.
-            const off = rotateOffset(connFor(part.type, name), part.rotation)
-            const sx = part.x + off.x
-            const sy = part.y + off.y
-            const midY = (sy + pos.y) / 2
-            const color = part.type === 'rgb' ? WIRE_COLOR[name] : part.type === 'led' ? part.color || '#6FB65A' : '#E8952B'
-            return <path key={`${part.id}-${name}`} d={`M ${sx} ${sy} C ${sx} ${midY}, ${pos.x} ${midY}, ${pos.x} ${pos.y}`} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.85} />
-          })
-        )}
+        {simWires.map((wire) => {
+          const a = position(wire.from), b = position(wire.to)
+          if (!a || !b) return null
+          const midY = (a.y + b.y) / 2
+          return <path key={wire.id} d={`M ${a.x} ${a.y} C ${a.x} ${midY}, ${b.x} ${midY}, ${b.x} ${b.y}`} fill="none" stroke={wire.color ?? '#E8952B'} strokeWidth={2.5} strokeLinecap="round" strokeDasharray={wire.kind === 'alligator' ? '6 3' : undefined} opacity={0.85}><title>{wire.kind} jumper</title></path>
+        })}
 
         {/* parts */}
         {simParts.map((part) => {
           const read = readFor(part)
-          const pullup = part.pins.sig != null && simPinModes[part.pins.sig] === 2
           return (
             <g key={part.id} transform={`translate(${part.x} ${part.y})`} onPointerDown={(e) => onPartDown(e, part)} onClick={(e) => e.stopPropagation()} style={{ cursor: 'grab' }}>
               {selected === part.id && <circle r={32} fill="none" stroke="#2E6FE0" strokeWidth={1.5} strokeDasharray="4 3" />}
@@ -457,12 +440,7 @@ export default function SimCanvas(): JSX.Element {
                 <PartBody
                   part={part}
                   read={read}
-                  onButton={(down) => {
-                    if (part.pins.sig != null) {
-                      const closed = pullup ? 0 : ADC_MAX
-                      setSimInput(part.pins.sig, down ? closed : pullup ? ADC_MAX : 0)
-                    }
-                  }}
+                  onButton={(down) => setPartButton(part.id, down)}
                 />
               </g>
               {PART_PINS[part.type].map((name) => {
