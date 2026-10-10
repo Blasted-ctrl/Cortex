@@ -145,6 +145,13 @@ to start after this combined/fresh-install baseline finishes. Its versioned
 v3/v4 migration and registry/advisory preflight is documented; it is not installed
 yet. Electron/PDF and all existing verification floors stay unchanged.
 
+The final approved-Vite combined baseline now passes on implementation source
+`c15627f`: 99 suites/1797 cases plus the same five existing skips, exact Node
+22.20.0, both types/build, nine reproducible CLI runs, expected negative self-tests
+and a ten-run advisory benchmark. Latest native approval/Stop/program-exit and
+the separately bounded dev/HMR checks also pass. Normal fresh installation is
+still in progress; next-major installation remains held until that result.
+
 ## External release gates
 
 These require real external state, explicit authority or human participation:

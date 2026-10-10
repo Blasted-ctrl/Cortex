@@ -530,6 +530,34 @@ retained separately; correcting the fixture did not change source or deadlines.
 Runtime exceptions are empty. Final combined/fresh-install verification remains
 open.
 
+## Final approved-Vite combined baseline
+
+Implementation source `c15627f` passes the exact Node 22.20.0 combined gate:
+99 suites, 1797 passing cases and the same five existing explicit platform/CI
+skips, exit 0 (481.66 seconds Vitest; 484772 ms independent parent). File/case
+serialization preserves isolation, all deadlines, assertions and explicit
+within-case races. Types/build and the final native controls above also pass.
+Independent floor review finds no new suppression, weakened test or success
+stub in the post-Vite implementation checkpoints.
+
+The CLI repeats all three scenarios three times: nine passes with identical
+virtual trace fingerprints (27674 ms). The negative self-test catches the broken
+shutdown assertion and the independent hanging-firmware runner error (20337 ms).
+The benchmark passes ten measured runs plus two warmups, all traces identical:
+host median 47.90 ms, p95 57.58 ms, min 43.24 ms; exact Node 22.20.0/g++ 14.2.0.
+The saved baseline remains incompatible by workload/shim and host Node version;
+it is not replaced, and no performance improvement/regression is inferred.
+All independent watchdogs remain unused. Receipts and reports are under
+`.cortex/release-smoke/md-final-combined-*`.
+
+CLI/benchmark metadata records HEAD `0da8fab` with dirty-worktree status from the
+preserved unrelated untracked user file. Every tracked source/test/tooling/config
+and dependency-manifest diff from `c15627f` is empty; subsequent commits contain
+documentation only. The normal fresh `c15627f` installation remains a separate
+in-progress check. This baseline still uses Vitest 2.1.9; the user approved
+Vitest 4.1.11 only after combined/fresh acceptance. No major install, release,
+remote push, physical upload or customer/human validation is inferred.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,
