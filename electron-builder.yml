@@ -41,4 +41,4 @@ publish:
   provider: github
   owner: Blasted-ctrl
   repo: Cortex
-  releaseType: release
+  releaseType: draft

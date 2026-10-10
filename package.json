@@ -20,10 +20,10 @@
     "firmware:selftest": "npm run firmware:build --silent && node out/firmware/main/firmwareTesting/cli.js selftest",
     "firmware:bench": "npm run firmware:build --silent && node out/firmware/main/firmwareTesting/cli.js bench",
     "start": "electron-vite preview",
-    "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:dir": "npm run build && electron-builder --dir",
-    "release": "npm run build && electron-builder --publish always"
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never",
+    "release": "node scripts/manual-release.cjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",

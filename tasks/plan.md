@@ -81,6 +81,9 @@ into release requirements. Preserve all unfinished external validation tasks.
 5. Isolate PDF parsing, retain debugger tool state, and verify the remaining
    local accessibility/session/optimization/security tasks in separate slices.
 6. Correct stale capability documentation and verify a fresh owned source install.
+7. Close the discovered local publication bypass: keep packaging non-publishing,
+   enforce the same quality/audit and exact-target draft guards for manual
+   publication, and test failures without publishing a real release.
 
 Each slice needs focused failure-path tests, relevant types/build/runtime checks
 and a scoped commit. Full regression/firmware/audit checks close the combined pass.

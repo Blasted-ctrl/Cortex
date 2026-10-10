@@ -370,6 +370,39 @@ These screenshots were personally inspected. Owned windows and captured children
 close normally and release port 9342; the unrelated user instance is untouched.
 Combined later-source, debugger-fix, dev/HMR and fresh-install gates remain open.
 
+## Manual publication guard follow-up
+
+Final inspection found that the old `npm run release` invoked electron-builder
+without CI's quality/audit and draft-only guard. The replacement accepts no
+forwarded overrides, pins the repository/version/draft policy, runs CI-prerequisite
+tests and an explicitly dev/optional-inclusive blocking audit, then performs
+bounded release checks and passes an immutable credential-free configuration
+snapshot to the publisher. Default distribution commands disable publication.
+
+The legacy-policy and lookup-drift/list/snapshot regressions fail before their
+fixes. All 84 release-guard cases pass after the final environment hardening,
+with an independent watchdog unused (7032 ms). Original 24 cases are retained.
+Injected command/API fixtures prove failed gates, signals, published/alternate
+tags, malformed/network responses, source drift and cleanup outcomes; they do
+not run a real release or actual quality-check children. Actual installed
+electron-builder 25.1.8 CLI normalization, `Packager.validateConfig`, schema and
+GitHub publisher construction confirm the snapshot excludes a malicious owned
+live platform publisher and preserves project/output/hook bases, draft mode and
+the pinned version/token. The publisher's lazy network lookup is not activated.
+The initial direct `getConfig` proof modeled an inherited merge incorrectly;
+that failing harness receipt is retained separately from the corrected exact
+Packager path. Node syntax and scoped whitespace checks pass.
+
+Receipts are in the owned `cortex-manual-release-*` Temp directory. Instructions
+and bounded lookup/direct-invocation limits are in
+[production readiness](PRODUCTION-READINESS.md#packaging-and-manual-publication).
+A separate actual read-only audit with the same dev/optional include flags exits
+1 in 28579 ms and still reports 31 findings (3 critical, 19 high, 9 moderate);
+its independent watchdog is unused. The receipt is
+`.cortex/release-smoke/md-manual-final-auditAll-*`. No release was published.
+The blocking audit and all-platform, signing, hardware and human validation
+remain required.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

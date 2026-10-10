@@ -224,5 +224,8 @@ another firmware example.
   inspection: [Simulation workbench](SIMULATION-WORKBENCH.md).
 - Validated Wokwi Uno circuit exchange and browser actions for Wokwi/Tinkercad;
   no embedded proprietary engine or automatic code upload.
-- Release packaging follows three-platform verification and dependency auditing;
-  only a draft can be created automatically. See [constraints](../CONSTRAINTS.md).
+- CI publication follows three-platform verification and dependency auditing.
+  Default local packaging never publishes; the guarded manual release command
+  runs quality/audit checks and permits only the pinned GitHub draft destination.
+  See [publication instructions and limits](PRODUCTION-READINESS.md#packaging-and-manual-publication)
+  and [constraints](../CONSTRAINTS.md). The current audit still blocks release.

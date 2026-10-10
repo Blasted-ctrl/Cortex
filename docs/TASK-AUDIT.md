@@ -49,8 +49,10 @@ full decoding, actual seek/frame checks and visual pass/failure/fix inspection;
 fresh-install full regression passed. Output/panel implementations are committed,
 with actual native stalled-output and panel acceptance now passing. The panel fix
 is `6b55381`, with six failing-then-passing actual React geometry cases and genuine
-short-window resize/zoom/drag/detail-scroll controls. Debugger Stop, dev/HMR,
-guarded manual publication and latest-source installation are separate final gates.
+short-window resize/zoom/drag/detail-scroll controls. The manual publication
+bypass is closed with 84 focused cases and actual installed builder validation,
+without a real publication. Debugger Stop, dev/HMR and latest-source installation
+are separate final gates.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |

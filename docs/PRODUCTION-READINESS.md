@@ -67,6 +67,40 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
   tests, audit and build, then creates a draft only. Published tags and ambiguous
   release lookups are refused; credentials are not persisted by checkout.
 
+## Packaging and manual publication
+
+`npm run dist`, `npm run dist:win` and `npm run dist:dir` build local artifacts
+with publication disabled. These commands do not upload a GitHub release.
+
+For an authorized maintainer publication, use `npm run release` with the supported
+Node/npm installation and a release-scoped GitHub token in `GITHUB_RELEASE_TOKEN`,
+`GH_TOKEN` or `GITHUB_TOKEN` (in that priority order). Do not put tokens in source
+or command arguments. The command accepts no forwarded arguments. It runs type
+checks, tests with the existing CI compiler-prerequisite guard active, the
+blocking high-severity audit and the build before any release lookup or publisher
+invocation. The audit explicitly includes development and optional dependencies,
+even when the incoming environment requests their omission. The current red audit
+intentionally prevents publication. See npm's [audit configuration](https://docs.npmjs.com/cli/v10/commands/npm-audit/).
+
+The destination is pinned to `Blasted-ctrl/Cortex` and `v<package version>`.
+Only an absent tag or an existing matching draft is eligible; published releases,
+bare-version aliases, malformed responses and lookup failures are refused. A
+tag lookup alone does not establish draft absence, so the command also checks the
+first 100 listed releases, covering the installed publisher's default 30-entry
+lookup. See GitHub's [tag lookup](https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name)
+and [release listing](https://docs.github.com/en/rest/releases/releases#list-releases)
+contracts. This is not an exhaustive inventory of older releases.
+
+Configuration must use the single pinned draft publisher, without inherited,
+platform-specific or version overrides. The verified configuration is handed to
+electron-builder as an owned, credential-free temporary JSON snapshot, then
+removed after the child finishes. Quality-check children do not receive the
+publication token. Publisher exits/signals fail the command; if it fails after
+invocation, inspect any existing draft before retrying. Creating a draft does not
+approve customer distribution. This wrapper protects the documented commands,
+not arbitrary direct electron-builder invocations or maintainer-modified source.
+No real publication was attempted during verification.
+
 ## Honest simulation and integration boundaries
 
 The supported firmware runtime compiles real Uno-style `setup()`/`loop()` against

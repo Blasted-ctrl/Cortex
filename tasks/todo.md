@@ -204,8 +204,11 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   document. The full combined regression remains a separate gate.
 - [ ] Finish combined verification of separately approved Vite 7.3.7 and its
   demonstrated Vitest config/typing/packaging migrations; keep Electron unchanged.
-- [ ] Close the discovered manual release-script bypass of CI quality/audit and
+- [x] Close the discovered manual release-script bypass of CI quality/audit and
   draft-only guards; verify exact-target rejection without real publication.
+  All 84 focused guard cases pass, including fail-closed fake gate/API paths and
+  actual installed CLI/Packager/schema/publisher construction without publication.
+  Documented default packaging never publishes; the audit still blocks release.
 - [ ] Fix the native debugger Stop lifecycle failure: a disposed process's late
   exit must not overwrite idle or a new session; verify real Stop/restart after
   focused callback/command ownership regressions.
