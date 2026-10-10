@@ -167,3 +167,21 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 - [ ] Validate real hardware, advanced Git/conflicts, recovery and human/outside-team trials.
 - [ ] Expand actual MCU/peripheral/electrical coverage; do not market inspection models
   as Teensy/ESP32/Pi CPU simulation or native Tinkercad/Wokwi engines.
+
+## Markdown task execution (2026-10-10)
+
+See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
+
+- [x] Exclude the renamed ESM tooling config from packages; actual electron-builder
+  file-matcher regression fails before the fix and passes with application controls.
+- [x] Propagate firmware cancellation through compiler/run processes; verify an
+  already-cancelled request never launches and a live child stops with retained logs.
+- [x] Bound debugger console text with the existing output-retention helper.
+- [ ] Isolate PDF parsing so a CPU-stuck parser cannot block the main-process timeout.
+- [ ] Preserve debugger watch/console state when changing sidebar tools.
+- [ ] Complete locally verifiable Explorer/editor keyboard and ARIA follow-ups.
+- [ ] Restore saved workspace tabs/expanded folders without overwriting unsaved data.
+- [ ] Expose persisted advanced optimization choices without losing custom values.
+- [ ] Harden renderer sandbox/navigation and verify native dev/production workflows.
+- [ ] Verify a fresh locked source installation in an owned temporary directory.
+- [x] Reconcile stale capability/status documentation against actual source evidence.

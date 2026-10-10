@@ -1,14 +1,18 @@
-# Theme (Cortex Dark)
+# Themes (Cortex Dark and Light)
 
-Cortex uses one cohesive dark theme with a signature multi-gradient accent, in the spirit of the
-JetBrains product themes. Deep navy base (not pure black), a single restrained navy accent in idle
-chrome, and a tri-hue identity (navy, amber, moss) that appears **only** in the signature gradient
-and the syntax tokens. This keeps the low-level embedded feel without visual noise.
+Cortex has Dark and Light themes with a shared navy/amber/moss identity and
+restrained signature gradient. Dark uses a deep navy base rather than pure black;
+Light uses light surfaces and darker semantic foregrounds. Changing the theme
+updates both application chrome and Monaco and persists the preference.
 
-The palette lives in `tailwind.config.js` under `theme.extend.colors.ide` and the Monaco editor
-theme in `src/renderer/src/components/CodeEditor.tsx` (`cortex-dark`). Keep the two in sync.
+The chrome palettes live in `src/renderer/src/styles/index.css` (`:root` and
+`:root[data-theme='light']`). `tailwind.config.js` exposes those RGB variables
+under `theme.extend.colors.ide`, including alpha-aware tokens. Monaco defines
+`cortex-dark` and `cortex-light` in `src/renderer/src/components/CodeEditor.tsx`.
+Keep the corresponding semantic values in sync rather than hardcoding dark
+colors into theme-aware components.
 
-## Base tokens
+## Dark base tokens
 
 | Token | Hex | Use |
 |---|---|---|
@@ -18,12 +22,24 @@ theme in `src/renderer/src/components/CodeEditor.tsx` (`cortex-dark`). Keep the 
 | `ide.border` | `#232B38` | borders, dividers |
 | `ide.hover` | `#1B2230` | hover states |
 | `ide.active` | `#1E3A5F` | selection (navy) |
-| `ide.accent` | `#3B82F6` | dominant chrome accent (buttons, focus) |
+| `ide.accent` | `#2E6FE0` | dominant chrome accent (buttons, focus) |
 | `ide.text` | `#E6EBF4` | primary text |
 | `ide.muted` | `#98A3B6` | secondary text |
-| `ide.faint` | `#5B6675` | tertiary / placeholder text |
+| `ide.faint` | `#7D8899` | tertiary / placeholder text |
 
-## Identity hues and gradient
+## Light base tokens
+
+| Token | Hex | Use |
+|---|---|---|
+| `ide.bg` | `#F5F6F8` | editor/workspace background |
+| `ide.panel` | `#FFFFFF` | side panels, tab bar |
+| `ide.bar` | `#ECEFF3` | toolbars and popovers |
+| `ide.accent` | `#1D5AD1` | chrome accent and focus |
+| `ide.text` | `#1A2233` | primary text |
+| `ide.muted` | `#566173` | secondary text |
+| `ide.faint` | `#60697A` | tertiary / placeholder text |
+
+## Dark identity hues and shared gradient
 
 | Token | Hex |
 |---|---|
@@ -33,6 +49,8 @@ theme in `src/renderer/src/components/CodeEditor.tsx` (`cortex-dark`). Keep the 
 
 Signature gradient: `linear-gradient(115deg, #2E6FE0 0%, #E8952B 55%, #6FB65A 100%)`
 (Tailwind: `bg-cortex-gradient`, vertical variant `bg-cortex-gradient-v`).
+The gradient remains the shared brand treatment; semantic foreground hues use
+darker light-theme equivalents where needed for contrast.
 
 Reserve the gradient for one expressive moment per surface: the logo mark, the activity-bar active
 rail, the status-bar build/flash progress line, and focus glow. Never loop it in the idle work area.
@@ -47,10 +65,12 @@ Respect `prefers-reduced-motion`.
 | string | `#8FBF6B` | moss |
 | type | `#4FB8A8` | teal-moss |
 | function | `#5B9DF0` | navy, a shade lighter than chrome accent |
-| comment | `#5B6675` | faint, italic |
+| comment | `#7D8899` | faint, italic |
 | macro / `#define` / register | `#C58BE6` | violet |
 
-All identifier/keyword tokens are contrast-checked at >= 4.5:1 on `#0C1017`; comments >= 3:1 by
-intent.
+`test/contrast.test.ts` checks designated chrome text/graphics, white accent-button
+labels and supported tinted status surfaces in both themes. This is evidence for
+those pairs, not a complete WCAG audit or a check of every syntax token. Preserve
+the tested foreground/background contracts when changing a token.
 
 See [`STYLE.md`](STYLE.md) for the copy and visual-language rules (including: no em dashes).

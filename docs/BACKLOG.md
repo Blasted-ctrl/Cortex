@@ -1,10 +1,14 @@
 # Backlog (production readiness for 100k+ users)
 
 Source: multi-agent completeness audit against a "$50M startup, 100k users" bar. Ordered by
-priority (1 = do next). Status updated as items ship.
+priority (1 = do next). Status updated as items ship. This is a product backlog,
+not a claim that all rows are in the current release scope. The dated
+[task audit](TASK-AUDIT.md) separates executable local work, external release
+gates and future product scope; [release validation](RELEASE-VALIDATION.md)
+records the actual checks.
 
 ## Genuinely done-done
-- Editor shell: Monaco + cortex-dark theme, tabs with dirty tracking, minimap, per-extension
+- Editor shell: Monaco + Cortex Dark/Light themes, tabs with dirty tracking, minimap, per-extension
   language detection, Ctrl+S / F5.
 - Workspace: open folder, lazy tree, filesystem watching.
 - Native run for C/C++ (compiler/std/optimization), Python, JavaScript, and Rust, with compiler
@@ -38,21 +42,34 @@ priority (1 = do next). Status updated as items ship.
 | 8 | Main resilience: global error handlers, single-instance, per-handler try/catch | production | high | M | partial (handlers + lock done) |
 | 9 | Flip Rust to runnable (backend already works) | language | high | S | **done** |
 | 10 | sandbox:true renderer + will-navigate allowlist | production | high | S | todo |
-| 11 | CI (GitHub Actions) + Vitest; first unit tests | testing | high | M | **done** (33 tests) |
+| 11 | CI (GitHub Actions) + Vitest; first unit tests | testing | high | M | **done** (current counts/evidence in release validation) |
 | 12 | Command palette (Ctrl+Shift+P) + quick-open (Ctrl+P) | ux | high | L | **done** |
 | 13 | File-tree context menu wired to existing rename/delete IPC | ux | high | M | **done** |
-| 14 | LSP integration (clangd / pyright / rust-analyzer) | language | high | XL | todo |
+| 14 | LSP integration (clangd / pyright / rust-analyzer) | language | high | XL | **done** (requires installed servers; see LSP.md for limits) |
 | 15 | Agentic AI (tool calling, apply diffs, multi-file context) | ai | high | XL | todo |
 | 16 | Extract plotter parser to shared; fix chunk-boundary split bug + test | testing | medium | M | **done** |
 | 17 | Extract sim protocol parser to shared; fix malformed-line drops + tests | testing | medium | M | **done** |
 
-## Next big build (from research): 2D-first SVG simulator
-The research pass recommends a **2D SVG** simulator editor (Wokwi and Tinkercad are both 2D; 3D
-fights the wiring loop), with a renderer-agnostic netlist (union-find) so an **optional** 3D showcase
-view (three.js / react-three-fiber) can be added later for the hero and camera/servo demos. Target
-components: LED, resistor, pushbutton, potentiometer, servo, buzzer, 7-segment, LCD1602, SSD1306
-OLED, NeoPixel, HC-SR04, DHT22, plus Uno/Nano/Mega/ESP32/Pico boards. Cycle-accurate engine via
-avr8js (AVR) and rp2040js (Pico) once a compile-to-hex path exists. See [`SIMULATOR.md`](SIMULATOR.md).
+Output from ordinary runs and debugging now retains a bounded recent display
+tail, with explicit omission markers. Producer-to-renderer backpressure,
+batching and virtualized rendering in row 6 remain separate work, not completed
+by that retention cap.
+
+## Simulator expansion (research direction, partially implemented)
+
+The 2D canvas, shared circuit graph, optional 3D inspection view, jumper metadata,
+power settings and conservative circuit warnings are implemented. The original
+2D-first recommendation is no longer an unstarted canvas task. See
+[SIMULATION-WORKBENCH.md](SIMULATION-WORKBENCH.md) for the current component and
+execution support, and [SIMULATOR-3D.md](SIMULATOR-3D.md) for board inspection.
+
+The earlier research's LCD1602, SSD1306 OLED, NeoPixel, HC-SR04, DHT22 and wider
+board/runtime targets remain expansion candidates, not supported merely because
+a board has a 3D model. A cycle-accurate engine such as avr8js or rp2040js needs a
+separate firmware build/execution path and acceptance scenarios. External
+Wokwi/Tinkercad engine integration is not implemented by the similar editing
+workflow; the existing limited JSON exchange and browser links are documented
+in the workbench guide.
 
 ## Automated firmware testing follow-up
 

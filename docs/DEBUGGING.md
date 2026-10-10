@@ -23,6 +23,12 @@ in an embedded IDE.
   made a debugged program's output visible at all.
 - **gdb console** - the raw gdb/program output stream, for when you need the truth.
 
+The shared Output view retains a recent tail bounded by 5,000 entries and
+524,288 UTF-16 code units (at most about 1 MiB of text), with an
+`[Earlier console output omitted]` marker. Debug program/gdb/system streams
+retain their existing stdout/stderr/system labels. This is bounded display
+retention, not lossless producer-to-renderer IPC backpressure or a durable log.
+
 ## How it works
 
 ```
@@ -65,6 +71,12 @@ process to pause: on Windows `kill()` maps to `TerminateProcess` and would end t
   are on the roadmap alongside the general multi-file build work.
 - **gdb must be installed.** On Windows, MSYS2's `gdb` works well (`pacman -S mingw-w64-x86_64-gdb`).
   Without it the Debug action reports that gdb was not found rather than failing silently.
+- **No thread selector.** The variables request currently targets thread 1;
+  multi-thread selection, LLDB and DAP support are not implemented.
+- **Watch/console UI lifetime.** Watch expressions and the expression-console
+  history are local to the mounted Debug panel and can reset when switching
+  sidebar views. Preserving them for the intended debug-session lifetime is an
+  open local task, not saved project-session support.
 
 ## Safety
 
@@ -85,5 +97,5 @@ same way the filesystem is:
 |---|---|
 | `src/shared/gdbmi.ts` | Pure GDB/MI2 parser (unit-tested) |
 | `src/main/services/debugService.ts` | Compile, spawn gdb, drive MI, push state |
-| `src/renderer/src/components/DebugPanel.tsx` | Threads/stack/variables/watch/breakpoints UI |
+| `src/renderer/src/components/DebugPanel.tsx` | Stack/frame variables, watch, expression console and breakpoints UI |
 | `src/renderer/src/components/CodeEditor.tsx` | Gutter breakpoints + current-line highlight |

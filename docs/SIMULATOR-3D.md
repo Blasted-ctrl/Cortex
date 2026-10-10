@@ -2,21 +2,21 @@
 
 A 3D board view sits alongside the 2D schematic canvas, toggled by the `2D | 3D`
 control in the Simulator toolbar. Both are drop-in siblings that read and mutate
-the **same** store (`simParts`, `simWiring`, the pin-state maps), so add/delete,
+the **same** store (`simParts`, `simWires`, the pin-state maps), so add/delete,
 wiring, running and live pin values stay in sync between them. Only the
-rendering differs.
+rendering differs. `simWiring` is the pending connection gesture, not the saved
+wire graph. See [SIMULATION-WORKBENCH.md](SIMULATION-WORKBENCH.md) for the shared
+version 3 diagram and circuit checks.
 
 ## Why it is built this way
 
-- **One source of truth.** The store already held everything view-agnostic
-  (parts, wiring, pin state, persistence). The Explore of the codebase confirmed
-  SimCanvas holds almost no local state, so a second view subscribing to the
-  same store is automatically synchronised. The 3D view added no store fields
-  and no change to the protocol, the shim, or `.cortex/diagram.json`.
-- **Lazy-loaded.** three.js + drei are ~1.5MB. `SimCanvas3D` is loaded with
-  `React.lazy`, so it becomes its own chunk and never enters the editor's
-  initial bundle. The editor stays fast; the 3D cost is paid only when the user
-  opens it.
+- **One source of truth.** Parts, explicit terminal-to-terminal wires, selected
+  board and pin state are shared rather than maintained as separate 2D/3D
+  circuits. `.cortex/diagram.json` persists the board, parts and wire graph;
+  legacy diagram versions are decoded through the shared model.
+- **Lazy-loaded.** `SimCanvas3D` is loaded with `React.lazy`, so its three.js/drei
+  dependencies can be split from the editor's initial bundle. The 3D view is
+  loaded when opened; this is not a measured startup-performance guarantee.
 - **CSP-safe.** No `drei` helper that fetches an external asset is used (no
   `Environment` HDR, no troika `Text` font). Labels are `drei/Html` (DOM over
   the canvas), so the strict production CSP is never violated and the app works
@@ -24,16 +24,17 @@ rendering differs.
 
 ## Geometry
 
-`components/sim3d/board3d.ts` maps the 2D design space to the 3D world: world
-units are design pixels and the Uno is centred at the origin, so a part's design
-`(x, y)` becomes world `(x, z)` by subtracting the board centre. Design `y`
-becomes world `z`. Pin numbers are identical to the sim engine (D0-D13 = 0-13,
-A0-A5 = 14-19), so wiring by pin number is the same in both views.
+`src/renderer/src/components/sim3d/board3d.ts` defines centred board geometry.
+The shared bounded design coordinates map `(x, y)` to world `(x, z)`, scaled to
+each board footprint; design `y` becomes world `z`. Uno execution pin numbers
+are D0-D13 = 0-13 and A0-A5 = 14-19. Other boards expose their own inspection
+labels/functions, not an interchangeable executable Uno pinout.
 
 ## Boards
 
-`components/sim3d/board3d.ts` is a registry of three boards, each with its real
-footprint (mm-derived), pin layout with real labels, and landmark features:
+`components/sim3d/board3d.ts` is a registry of four stylized inspection models,
+with mm-derived proportions, labelled pins and landmark features. These are not
+manufacturer CAD models or proof of every connector's physical placement:
 
 - **Arduino Uno** (`uno`) - 68.6x53.4mm, D0-D13 + A0-A5, ATmega328P, USB-B,
   barrel jack, the onboard "L" LED that mirrors D13.
@@ -41,35 +42,39 @@ footprint (mm-derived), pin layout with real labels, and landmark features:
   headers labelled by GPIO, micro-USB, EN/BOOT buttons.
 - **Raspberry Pi** (`pi`) - 85.6x56.5mm, the 40-pin 2x20 GPIO header, BCM2711
   SoC, USB/Ethernet/HDMI/USB-C ports.
+- **Teensy 4.1** (`teensy41`) - top and underside pin inspection, including
+  GND/power/function labels and explicit limits for illustrative pad placement.
 
-The 3D toolbar's board selector sets `sim3dBoard` in the store; the Canvas
-remounts on a switch so the camera reframes for the new footprint. A wire routes
-to whichever pin on the current board matches the part's stored pin number, and
-is simply not drawn if that board does not expose it.
+The board selector sets the shared `sim3dBoard`. Switching is blocked during a
+simulation and asks for confirmation when wires exist, because identical GPIO
+numbers can mean different physical pins. A confirmed change clears wiring,
+resets pin state and marks the diagram dirty; it does not silently reinterpret
+the old circuit. The view reframes for the selected board.
 
 ## Interaction
 
-- **Wiring.** Single-pin parts (LED, button, buzzer, pot, servo, LDR, thermistor)
-  arm from the body; multi-pin parts (RGB, 7-seg) show a row of per-pin
-  connector nubs, so each pin wires independently. Click a part/nub to arm, click
-  a board pin to attach. Same `beginWire`/`attachWire` store actions as 2D.
-- **Dragging.** On the Uno, drag a part on the workbench plane (pointer capture +
-  a ray/plane intersection) and it feeds `movePart` in design coordinates, so the
-  2D canvas stays in sync. ESP32/Pi keep their auto-row layout (no 2D coords to
-  map to).
-- **Part layout.** The Uno maps parts 1:1 from the 2D canvas; ESP32 and Pi lay
-  parts out in a tidy row in front of the board.
+- **Wiring.** Explicit part terminals, board pins and power/GND endpoints use
+  the shared wire graph, including part-to-part connections and jumper metadata.
+  A wire's connector style is not a contact-resistance or mechanical model.
+- **Dragging.** All four boards map workbench dragging back to the shared design
+  coordinates through `movePart`, keeping 2D and 3D placement in sync.
+- **Inspection.** Orbit above or below the board, choose Top/Underside, toggle
+  pin labels and inspect a pin's name/functions and warnings. Dense labels may
+  need zooming; unsupported inspection-only pads do not become runtime GPIOs.
 
 ## What the engine actually drives
 
-The shim is an Arduino-core mock, but it drives any pin NUMBER, so
-`digitalWrite`/`digitalRead`/`analogRead`/`analogWrite` on an ESP32 GPIO or a Pi
-BCM pin work. It also carries the ESP32 LEDC PWM API (`ledcSetup`/`ledcAttachPin`
-/`ledcAttach`/`ledcWrite`), scaled to the canvas's 8-bit range, so a typical
-ESP32 fade sketch (see `examples/sim/esp32_fade.ino`) compiles and drives a pin.
-WiFi/BLE and Pi Linux GPIO are not modelled. In short: all three boards are
-accurate models you can wire and drive at the pin level; the Uno is the
-fully-supported target.
+The supported executable target is the Uno-oriented host Arduino shim, not an
+emulated MCU. ESP32, Raspberry Pi and Teensy models provide inspection and
+topology editing; choosing one does not add its CPU, SDK, WiFi/BLE, Pi Linux GPIO
+or Teensyduino runtime. Legacy LEDC shim compatibility is not ESP32 execution
+support. Circuit warnings are conservative checks, not physical certification.
 
-The pinouts and the drag coordinate math are covered by `test/board3d.test.ts`;
-the LEDC behaviour by `test/arduinoShim.test.ts`.
+The desktop runs host-time sketches; [firmware tests](FIRMWARE-TESTING.md) use the
+separate deterministic virtual-time harness. Neither path currently provides
+cycle-accurate timing, general electrical solving or mechanical motion physics.
+
+Pinouts and drag-coordinate math are covered by `test/board3d.test.ts`; shared
+diagram/wiring behavior by `test/simCircuit.test.ts`, and launch/state guards by
+`test/simLifecycleStore.test.ts`. These tests do not establish physical board
+execution support.

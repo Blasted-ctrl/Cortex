@@ -62,3 +62,26 @@ with verified vertical slices rather than replacing unfinished human-validation 
 6. Run focused regression cases, full typechecks/tests/build and isolated desktop smoke.
 7. Hold customer release until audit, all-platform installers, hardware and human trials
    pass; no claim of electrical safety, full MCU/provider parity or zero edge cases.
+
+## Markdown task execution (2026-10-10)
+
+The current finite queue is indexed in `docs/TASK-AUDIT.md`; historical logs,
+recurring dictionary maintenance and long-term vision are not silently converted
+into release requirements. Preserve all unfinished external validation tasks.
+
+1. Close verified packaging and output-retention gaps; add cancellable firmware
+   child processes before exposing desktop test execution.
+2. Add a workspace-confined desktop test API calling the headless runner; reject
+   malformed scenarios, escaped paths, duplicate starts and stale project requests.
+3. Add Run Tests and a keyboard-accessible results/details panel; save edited
+   firmware before running and preserve pending saves/errors across transitions.
+4. Rerun report-embedded scenario configuration against current source, retaining
+   source fingerprints and explaining changes; record an actual failure/fix demo.
+5. Isolate PDF parsing, retain debugger tool state, and verify the remaining
+   local accessibility/session/optimization/security tasks in separate slices.
+6. Correct stale capability documentation and verify a fresh owned source install.
+
+Each slice needs focused failure-path tests, relevant types/build/runtime checks
+and a scoped commit. Full regression/firmware/audit checks close the combined pass.
+Hardware, credentials, human trials, remote CI and individually approved major
+upgrades remain honest external/owner gates, not assumed passes.

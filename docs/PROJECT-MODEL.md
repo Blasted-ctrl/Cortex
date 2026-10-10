@@ -85,11 +85,12 @@ relation is named `includes-driver`.
   slow. `pinsTruncated` says so when the cap was hit, so a caller (the AI
   context builder especially) never implies a complete picture from a partial
   scan.
-- **No execution.** Everything here is `fs.readFile`/`fs.stat` against files
+- **No firmware execution.** Source analysis reads files
   already inside the open workspace (the same confinement `fsService` uses
-  elsewhere) plus regex matching. No compiler is invoked to build this model;
-  `toolchains` is just whatever `toolchainService.detectToolchains()` already
-  found installed, not a fresh probe.
+  elsewhere) plus regex matching. This analysis does not compile source;
+  `toolchains` comes from `toolchainService.detectToolchains()`. Cached results
+  can be reused; discovery on a cache miss can invoke trusted tools' version
+  probes. That discovery is not a firmware compilation or execution.
 
 ## Why regex instead of a real parse
 
@@ -98,12 +99,12 @@ walk (the same gap `docs/LSP.md` describes for clangd - see "the toolchain
 bridge"), so `pinMode`/`digitalWrite`/`digitalRead`/`analogWrite`/`analogRead`
 call sites are found with a line-based regex scan
 (`PIN_PATTERNS` in `projectModelService.ts`), not a real parser. This is a
-real signal read from the actual source - not invented - it's just not as
-precise as a proper AST would be (a call inside a `//` comment or a string
-literal would still match). Tightening this to skip comments/strings is a
-reasonable next increment; it wasn't done in the first pass because the
-false-positive rate in practice (real firmware, not adversarial input) is low
-and the added parsing complexity wasn't worth it yet.
+real signal read from the actual source - not invented - but it is not an AST.
+The scanner now strips `//` comments and ordinary double-quoted strings before
+matching pins and buses; includes are matched as anchored preprocessor directives.
+Block comments, multiline raw strings, macro expansion and conditional
+compilation remain limitations of this
+line-based analysis; the graph must not imply compiler-level certainty.
 
 ## Extending this
 
@@ -118,5 +119,6 @@ The graph now exists (`buildHardwareGraph` / `hardwareForFile` in
 - **Address resolution through #defines.** `Wire.beginTransmission(MPU_ADDR)`
   records no address; following the token to its `#define` is a real
   next step.
-- **More devices.** `DEVICE_MAP` is a ~25-entry verified seed; the recurring
-  dictionary agent is the planned mechanism to grow it further.
+- **More devices.** `DEVICE_MAP` is a curated verified seed; extending the
+  recurring dictionary workflow to it is still planned, not enabled by this
+  graph or by the existing stdlib routine.

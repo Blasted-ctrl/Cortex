@@ -2,6 +2,11 @@
 
 Phased plan from the current foundation (v0.1) toward the full "Cursor for Embedded Systems" vision.
 
+The v0.x phase labels describe historical development milestones, not published
+installer releases. Current evidence and the finite local queue are tracked in
+[RELEASE-VALIDATION.md](RELEASE-VALIDATION.md) and [TASK-AUDIT.md](TASK-AUDIT.md).
+Later phases include both implemented slices and future scope, as noted below.
+
 ## ✅ Phase 0 - Foundation (v0.1, done)
 The runnable core:
 - Electron + React + TS + Vite + Tailwind + Monaco shell
@@ -23,7 +28,7 @@ The runnable core:
 
 ## ✅ Phase 1.x - Polish, security, richer sim (v0.3, done)
 - New **Cortex Dark theme** (navy/amber/moss signature gradient); see [`THEME.md`](THEME.md)
-- **Rust** run (rustc); AI is provider-agnostic: Anthropic, OpenAI, **Gemini**, local, custom
+- **Rust** run (Cargo projects or rustc for loose files); AI is provider-agnostic: Anthropic, OpenAI, **Gemini**, local, custom
 - **Command palette** (Ctrl+Shift+P) + **quick-open** (Ctrl+P); **file-tree context menu**
   (new/rename/delete/copy path)
 - **Security**: AI key encrypted at rest (safeStorage) and never sent to the renderer; single-instance
@@ -32,7 +37,7 @@ The runnable core:
 - **2D SVG simulator canvas**: drag parts, per-pin click-to-wire, **multi-pin components** (RGB LED
   with live color mixing, **7-segment** display), analog sensors (pot / photoresistor / temperature),
   buzzer, servo; **diagram save/load** to `.cortex/diagram.json`; demo sketches in `examples/sim/`
-- **Testing + CI**: 44 Vitest unit tests; GitHub Actions (typecheck + test + build on Ubuntu + Windows)
+- **Testing + CI**: initial unit suite and GitHub Actions (typecheck + test + build on Ubuntu + Windows); current counts and remote-run limits are in release validation
 
 ## Phase 1.4 - Automated firmware testing and CI benchmarks
 
@@ -59,22 +64,19 @@ See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work
 - **Code signing** + notarization; **auto-update** (electron-updater)
 - **Multi-file** C/C++ builds via CMake + Ninja
 - **PlatformIO** project support
-- Board/core **manager** (one-click install of ESP32/AVR/RP2040 cores)
-- Include paths / defines in run configuration
+- Board/core **manager**: implemented through managed Arduino CLI; physical board/vendor coverage still needs release validation
+- Include paths / defines in run configuration: implemented as validated `extraArgs`; see [PROJECT-CONFIG.md](PROJECT-CONFIG.md)
 - More sim parts (OLED SSD1306, NeoPixel, HC-SR04, LCD1602); cycle-accurate engine (avr8js / rp2040js)
-- **Multi-file** C/C++ builds via CMake + Ninja
-- **PlatformIO** project support
-- Board/core **manager** (one-click install of ESP32/AVR/RP2040 cores)
-- Include paths / defines in run configuration
 
 ## 🔜 Phase 2 - Language intelligence
-- **LSP integration**: clangd (C/C++), pyright (Python), rust-analyzer (Rust)
-- Cross-file completion, hover, go-to-definition, rename, diagnostics
-- Formatting (clang-format, black, rustfmt)
-- Global search/replace, symbol search
+- **Implemented LSP bridge**: clangd (C/C++), Pyright (Python), rust-analyzer (Rust), with installed servers; see [LSP.md](LSP.md)
+- Completion, hover, definition, references, rename, diagnostics and server-backed formatting providers are implemented; server/project support determines results
+- Standalone formatter-tool integration (clang-format, black, rustfmt) remains future work
+- Workspace text search is implemented; replacement and workspace symbol search remain future work
 
 ## 🔜 Phase 3 - Debugging
-- GDB/LLDB integration (DAP): breakpoints, watch, call stack, threads
+- **Implemented host gdb/MI2**: breakpoints, stepping, variables, watch and call stack; see [DEBUGGING.md](DEBUGGING.md)
+- LLDB/DAP support and thread selection remain future work; the current debugger is not a DAP or on-chip implementation
 - Registers, memory, disassembly views
 - On-chip debug via OpenOCD / J-Link / ST-Link
 
@@ -90,7 +92,7 @@ See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work
 - Power/timing analysis agents with concrete estimates
 
 ## 🔜 Phase 6 - Ecosystem
-- Board manager (one-click ESP32/STM32/RP2040/AVR/nRF52/Teensy/MSP430/PIC)
+- Expand and validate the implemented Arduino board manager across ESP32/STM32/RP2040/AVR/nRF52/Teensy/MSP430/PIC; the full vendor matrix is not verified support
 - Plugin/extension system (VSCode-style): Zephyr, ESP-IDF, STM32Cube, ROS2, LVGL, OpenCV
 - Auto-update, telemetry opt-in, crash reporting
 
