@@ -164,6 +164,33 @@ Nested old test tooling still contributes affected paths. No forced Vitest
 upgrade or security waiver follows from this step; verify every remaining gate
 before proposing another major.
 
+## Proposed next isolated step: Vitest 4.1.11
+
+This is reviewed, not approved or installed. The official registry lists Node
+20/22/24 and Vite 6/7/8 compatibility, so the pinned Node 22.20.0/root Vite 7.3.7
+meet its prerequisites. The maintainer still supports the 4.1 line with important
+and security backports; versions below 4.1 are unsupported. See the
+[support policy](https://vitest.dev/releases) and
+[fixed-version migration guide](https://raw.githubusercontent.com/vitest-dev/vitest/v4.1.11/docs/guide/migration.md).
+
+4.1.11 fixes the recorded
+[mocker path advisory](https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9);
+the older 3.2 line is not a complete security stopgap. Version 4 replaces
+vite-node with Vite's module runner and removes tinypool, whose retained older
+versions have an [options advisory](https://github.com/tinylibs/tinypool/security/advisories/GHSA-85c8-ppgw-ccpr).
+This is not a claim that it clears every release finding.
+
+If separately approved, change only the test-tool stack and required fixtures,
+commands and documentation. Remove the obsolete `--minWorkers` CLI option;
+retain file isolation, serial native scheduling, the worker ceiling, all
+deadlines, assertions, compiler prerequisites and explicit platform skips.
+Review constructor mocks and the intermediate v3 fake-timer change to
+`performance.now()` ([v3 migration](https://raw.githubusercontent.com/vitest-dev/vitest/v3.2.7/docs/guide/migration.md)).
+The existing test include pattern already confines discovery to `test`.
+Then rerun focused/full tests, types/build, firmware checks, native acceptance
+and audit. Do not combine Electron, packaging, Tailwind or PDF major upgrades
+with this step, force peer resolution, or edit the lockfile manually.
+
 ## Triage by code path
 
 | Package/group | Path to review | Current decision |
