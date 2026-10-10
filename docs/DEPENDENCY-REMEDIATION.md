@@ -90,21 +90,19 @@ the existing release floor visible in ordinary CI. Workflow regression checks
 pass locally; remote Actions results remain unverified. See the
 [CI architecture notes](ARCHITECTURE.md#continuous-integration).
 
-## Next proposed major: Vite (not installed)
+## Second approved major: Vite
 
-Propose Vite 5.4.21 to 7.3.7, subject to separate user confirmation after the
-current step finishes. Vite 7.3 receives important/security fixes; 6.4.4 remains
-a smaller security-only alternative. Vite 7.3.7 contains the current filesystem
-advisory fixes. See [support policy](https://vite.dev/releases) and the
+The user separately approved Vite 5.4.21 to 7.3.7 and raising the already
+installed React plugin's manifest floor to `^4.7.0`. The installed tree now
+matches both floors. See [support policy](https://vite.dev/releases) and the
 [maintainer's advisory](https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22).
 
 Both [Vite 6](https://v6.vite.dev/guide/migration) and
 [Vite 7](https://v7.vite.dev/guide/migration) migrations were reviewed, including
 resolver conditions, stricter CommonJS evaluation, CSS configuration and browser
 targets. Keep the `.mts` tooling config, Node pin, native/PDF externals and Monaco
-backport/exclusion. Electron-vite 4.0.1 and installed React plugin 4.7.0 admit Vite
-7; raise that plugin's manifest floor from `^4.3.4` to `^4.7.0` to encode the
-already installed compatible version, not to introduce a plugin major.
+backport/exclusion. Electron-vite 4.0.1 and installed React plugin 4.7.0 admit
+Vite 7. Raising the plugin floor encodes that compatibility, not a plugin major.
 
 Vitest/vite-node 2.1.9 still depend on Vite 5, and mocker 2 has an optional Vite 5
 peer. A valid isolated upgrade must preserve their compatible nested resolution;
@@ -112,10 +110,59 @@ never force them onto Vite 7. This leaves those security findings until a separa
 reviewed Vitest upgrade. Check [Vitest metadata](https://raw.githubusercontent.com/vitest-dev/vitest/v2.1.9/packages/vitest/package.json)
 and [mocker metadata](https://raw.githubusercontent.com/vitest-dev/vitest/v2.1.9/packages/mocker/package.json).
 
-Expected scope: manifest/lockfile, version/support documentation, and only config
-changes required by demonstrated incompatibilities. Verify the installed graph,
-types/full tests/build, firmware, native dev/production startup and a fresh audit
-before proposing another major. Electron runtime/packaging remain unchanged.
+Two incompatibilities were actually reproduced, not inferred from a green
+application check: the retained Vitest loader rejected root Vite's ESM import,
+and a dedicated config typecheck rejected the cross-major plugin type. The
+config is now `vitest.config.mts`; its PDF helper builds with root Vite while
+importing its plugin type from `vitest/config`. The ordinary Node typecheck now
+includes this config/helper, and the actual packaging matcher excludes both
+tooling config names in every supported extension. Existing assertions and
+deadlines are unchanged. Separate scheduling validation serializes test files
+and concurrent native compiler cases. `fileParallelism: false` resolves the
+existing command's worker ceiling to one while preserving file isolation; it is
+not shared-global single-fork mode. Explicit within-case races remain intact.
+This does not replace builds or globally cap unrelated CLI/compiler invocations.
+
+Portable Node 22.20.0/npm 10.9.3 installed with `--ignore-scripts`. Independent
+review confirms a compatible graph and unchanged hashes for all 70
+Electron/native binaries, with no package-manager guard exceptions. Root Vite
+resolves 7.3.7, root esbuild
+0.28.2, and the test stack keeps compatible Vite 5.4.21/esbuild 0.21.5. An npm
+cleanup warning left one locked, hidden old esbuild binary; no user process was
+terminated or runtime replaced. Focused config/preload/packaging/real-PDF checks
+pass: four suites, 56 tests and both ordinary typechecks. The combined production
+build also passes. The first full regression was interrupted by laptop sleep:
+Windows recorded sleep and a 3,625,867 ms clock advance, after which the independent
+watchdog stopped the owned test tree. That run is not a pass. An unchanged serial
+suite rerun passes all eight applicable tests with its existing CI-only check
+skipped. The awake full rerun exits 1: 96 suites pass, with two real
+desktop-firmware cases exceeding their unchanged 90/60-second deadlines. Serial
+checks pass. This failed receipt is retained, not waived as a slow host.
+
+The within-file-only scheduling candidate also fails the full gate: 96 suites
+pass, 1685 cases pass, two desktop cases exceed those same deadlines, and five
+normal explicit skips remain. The independent watchdog does not fire. This
+candidate is not credited as a remedy; a serial cross-file native-suite control
+passes 31 applicable cases in two suites (one existing explicit skip), including
+all 11 desktop cases within their original deadlines. The config guard fails
+before adding the file-serialization setting and passes all 24 cases afterward.
+The full serial gate passes: 97 suites, 1688 passing cases and the same five
+existing explicit platform/CI skips. Types, the production build, nine firmware
+runs (three repetitions per scenario), both negative harness checks and the
+ten-run benchmark also pass. The benchmark correctly rejects its incompatible
+saved baseline; no performance regression or improvement is inferred. Final
+native/fresh-source acceptance remains separate, including a Windows expanded
+folder restoration defect found in the final desktop checks. All failing receipts are retained in the
+[validation ledger](RELEASE-VALIDATION.md).
+
+The 2026-10-10 fresh registry audit exits 1 with 31 findings: 3 critical,
+19 high, 9 moderate. Its flagged Vite paths are the retained test stack's nested
+5.4.21 copies, not root 7.3.7. The full installed tree exits 0; six package-manager
+configuration paths, manifests and runtime/bundle hashes remain unchanged
+before/after these read-only audit/tree commands.
+Nested old test tooling still contributes affected paths. No forced Vitest
+upgrade or security waiver follows from this step; verify every remaining gate
+before proposing another major.
 
 ## Triage by code path
 

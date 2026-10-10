@@ -6,16 +6,19 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
 
 ## Release blockers
 
-1. Dependency remediation. After compatible fixes and the first approved tooling
-   major, local
+1. Dependency remediation. After compatible fixes and the approved tooling
+   changes, local
    `npm audit --audit-level=high` still fails with 31 findings: 3 critical,
    19 high and 9 moderate (initially 43, then 32 after compatible fixes).
    The separately approved electron-vite 4.0.1 upgrade removes one moderate
-   affected dependency group. This includes desktop and
+   affected dependency group. Root Vite 7.3.7 is separately approved and installed;
+   its retained Vitest 2 stack still has compatible nested Vite 5.4.21 findings.
+   Combined/native upgrade verification is recorded separately, not inferred from
+   an audit count. This includes desktop and
    build/test tooling; dev-only is not automatically unreachable. The audit remains
-   a blocking CI gate. Major Electron/Vite/Vitest/packaging changes need version-by-
+   a blocking CI gate. Remaining major Electron/Vitest/packaging changes need version-by-
    version review and verification; no forced upgrade or advisory waiver was applied.
-   Owner: project maintainer; review date: 2026-10-09; deadline: before any release.
+   Owner: project maintainer; review date: 2026-10-10; deadline: before any release.
    See [Dependency remediation](DEPENDENCY-REMEDIATION.md) for the path-based triage.
 2. Signing and clean-machine installer tests. Windows Authenticode and macOS
    signing/notarization still need owner credentials. A local Windows package

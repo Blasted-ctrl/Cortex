@@ -5,7 +5,7 @@
 | Layer | Choice | Why |
 |---|---|---|
 | Desktop shell | **Electron 33.4.11** | Existing CommonJS desktop/native-module integration; the runtime upgrade and dependency audit remain release blockers. |
-| Build tooling | **electron-vite 4.0.1** + **Vite 5.4.21** | One ESM tooling config builds main/preload/renderer; fast HMR; first-class TS. |
+| Build tooling | **electron-vite 4.0.1** + **Vite 7.3.7** | ESM tooling builds main/preload/renderer; React plugin 4.7.0 admits Vite 7. Vitest 2 retains its own Vite 5 until a separately reviewed upgrade. |
 | UI | **React 18 + TypeScript** | Component model the whole team knows; strict typing across the IPC boundary. |
 | Styling | **Tailwind CSS 3** | Semantic CSS-variable tokens for Cortex Dark and Light; see [THEME.md](THEME.md). |
 | Editor | **Monaco** (`@monaco-editor/react`) | Literally VS Code's editor - syntax highlighting, minimap, IntelliSense, folding, multi-cursor for free. Bundled locally (no CDN) for CSP. |
@@ -16,8 +16,10 @@
 | AI | **fetch** → Anthropic / Gemini / OpenAI-compatible | Streaming completions; provider-agnostic, including local compatible endpoints. |
 | Packaging | **electron-builder** | NSIS (Windows), DMG (macOS), AppImage/deb (Linux). |
 
-The tooling config is `electron.vite.config.mts`; the application remains
-CommonJS. Electron-vite's Node engine is `^20.19.0 || >=22.12.0`; CI pins
+The tooling configs are `electron.vite.config.mts` and `vitest.config.mts`; the
+application remains CommonJS. Both are covered by the normal Node typecheck
+and excluded from packaged application files. The build-host Node engine is
+`^20.19.0 || >=22.12.0`; CI pins
 22.20.0 and local validation also uses Node 24. These are source/build host
 versions, not Electron's embedded Node version. See
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for installed changes,

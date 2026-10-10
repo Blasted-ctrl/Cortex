@@ -27,6 +27,10 @@ not a promise of zero bugs or a certification of electrical safety.
 | Dependency audit (external advisory database) | No high/critical findings before release | `npm audit --audit-level=high` |
 | Firmware behavior and watchdog | Correct fixture passes; broken/hanging fixtures caught | `npm run firmware:test` and `npm run firmware:selftest` |
 
+The test configuration serializes files and concurrent native-compiler cases.
+The worker ceiling in the command above does not imply four active workers.
+File isolation, explicit races within a test and existing deadlines are preserved.
+
 Zero type errors and failed regression cases are blocking because they are known
 defects, not statistical budgets. High/critical audit findings block release until
 remediated or reviewed through an explicit, documented decision; do not lower the

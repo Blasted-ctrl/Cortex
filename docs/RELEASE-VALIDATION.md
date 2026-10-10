@@ -239,6 +239,66 @@ one worker. A within-file scheduling bound is being validated against the full
 gate; no compiler cache, higher deadlines, user-process termination or antivirus
 changes are used. These observations do not prove that Vite caused a slowdown.
 
+The within-file-only bound is insufficient: the third full regression still
+exits 1 with 96 passing suites, 1685 passing cases, two desktop-firmware deadline
+failures and the same five explicit skips (324.49 seconds). Its independent
+watchdog does not fire. Receipts remain under
+`.cortex/release-smoke/md-vite7-bounded-*`; this candidate is not credited as a fix.
+A serial native-suite control then passes 31 applicable cases in two files,
+with one existing explicit skip (251.83 seconds). All 11 desktop cases pass;
+default/report preservation takes 31.287 seconds, failure/replay/fix 27.509,
+cancellation/replay 44.798 and linked-project admission 11.718. No compiler
+prerequisite, deadline, assertion or fixture execution changes. Receipts remain
+under `.cortex/release-smoke/md-vite7-serial-control-*`.
+
+The next controlled configuration serializes files with `fileParallelism: false`
+alongside `maxConcurrency: 1`. Official Vitest 2 semantics and independent source
+review confirm that the existing `--maxWorkers=4 --minWorkers=1` command then
+resolves to one effective worker with file isolation intact. It is not
+`singleFork`/shared-global execution, and explicit races inside individual tests
+remain unchanged. The checked-in configuration guard fails before adding the
+file setting, then all 24 guard cases pass. The full serial gate was pending;
+its independent 15-minute watchdog and all test deadlines remain unchanged.
+
+The full serial gate now exits 0: all 97 suites pass, with 1688 passing cases
+and the same five existing explicit platform/CI skips (1693 total). Vitest takes
+545.91 seconds; the independent parent records 549522 ms without a timeout.
+All 11 desktop firmware cases pass within the original 90/60/90/30-second
+deadlines: 29.760/21.607/21.069/6.905 seconds respectively. Receipts remain under
+`.cortex/release-smoke/md-vite7-serial-final-*`. Earlier failing runs are not
+discarded or reclassified. Both typechecks then pass (48783 ms). The firmware
+suite passes all nine repeated runs with identical per-scenario traces (45790
+ms); its 29 assertions per three-scenario suite run three times. Negative checks
+catch the broken shutdown assertion and stop hanging firmware as a runner error
+(26818 ms). These CLI reports record Node 22.20.0. A ten-run benchmark with two
+warmups also passes under Node 22.20.0, with identical traces and a 42.16 ms host
+median; its baseline is incompatible because workload/shim and host Node differ.
+These observations are not a before/after speed comparison. The first benchmark
+invocation used host Node 24.12.0; both receipts remain separate. The verification
+helper now sets its owned child's PATH to the selected portable Node. Latest
+receipts use `md-vite7-node22-final-bench-*`; other serial-final receipts retain
+their original prefix. Final native and fresh-source acceptance remain open.
+
+Actual native reopen reveals a separate Windows restoration defect: forward-slash
+saved expansion/cache keys do not match backslash Explorer nodes, so a folder is
+visually collapsed despite its saved expanded metadata. A metadata-only assertion
+was insufficient; actual `aria-expanded` and visible descendants are required.
+The fix and new regressions are being verified separately from the successful
+97-suite Vite checkpoint. No unsaved buffers or user projects are changed.
+
+Final native editor keyboard validation also exposed a 5-by-5-pixel Monaco view
+inside a full-size selected tab pane. The unchanged-build discriminator measures
+the actual mount at 879.67-by-85 pixels, a valid live model, visible CSS and an
+ordinary nonminimized native window, but Chromium reports the document hidden;
+its screenshot request also times out. An ordinary show/focus of only the owned
+window changes the document to visible, restores the inner editor to 880-by-85
+and permits a screenshot showing readable code. No resize, forced editor layout
+or source patch is used. This supports native test-window occlusion/frame
+scheduling, not the initial unproven wrong-observer-target diagnosis. Subsequent
+render checks require a visible owned window. Failing evidence and the
+focus-only control are retained in the owned `cortex-md-desktop-*/production`
+artifacts; neither assertions nor helper deadlines were weakened.
+
 The fresh 2026-10-10 registry audit exits 1: 31 findings (3 critical, 19 high,
 9 moderate). Its Vite findings point only to the retained Vitest/vite-node Vite
 5.4.21 copies, not root 7.3.7. `npm ls --all --json` exits 0. Independent checks

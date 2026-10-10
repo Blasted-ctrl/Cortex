@@ -1,4 +1,5 @@
-import { build, type Plugin } from 'vite'
+import { build } from 'vite'
+import type { Plugin } from 'vitest/config'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { builtinModules, createRequire } from 'node:module'

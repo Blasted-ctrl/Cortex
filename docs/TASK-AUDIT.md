@@ -106,10 +106,15 @@ The separately approved tooling steps are electron-vite 4.0.1 and root Vite
 nested Vite 5.4.21; Electron 33.4.11 and the PDF 4.0.3 compatibility hold remain.
 The Vite step has focused/type checks and independent graph/native-hash review;
 types and production build pass. The first combined regression was interrupted
-by laptop sleep and stopped by its watchdog, not credited as a pass; an unchanged
-rerun and native checks remain pending.
+by laptop sleep and stopped by its watchdog, not credited as a pass.
 The awake rerun then fails two desktop-firmware test deadlines; 96 suites pass.
-That failure remains open and is not credited as a verified upgrade. Follow
+That failing receipt remains retained. A within-file-only bound also fails;
+serializing files and concurrent native cases then passes all 97 suites/1688
+applicable cases with five existing explicit skips, preserving isolation,
+deadlines and within-case races. Types/build, repeated CLI behavior, negative
+self-tests and the benchmark pass. Final native/fresh-source acceptance remains
+open; native reopen has exposed a separate Windows expansion-key mismatch now
+undergoing a regression-tested fix. Follow
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for separate major review,
 peer/engine compatibility, migration scope and approval before each install.
 Do not force test dependencies onto an incompatible Vite or waive findings as
