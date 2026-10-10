@@ -25,6 +25,7 @@ import { appendConsoleEntry } from '@shared/consoleBuffer'
 import { extractMissingHeaders, type EnvironmentReport } from '@shared/environment'
 import { restorePlan, type LockCheck } from '@shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta } from '@shared/datasheet'
+import type { FirmwareTestRequest, FirmwareTestResponse } from '@shared/firmwareTest'
 import type { LspAvailability } from '@shared/lsp'
 import type { DebugState, DebugOutput, FileReadResult } from '@shared/ipc'
 
@@ -153,6 +154,11 @@ export function workspaceScopedReset(): Record<string, unknown> {
     lastExitCode: null,
     output: [],
     diagnostics: [],
+    firmwareTestRunId: null,
+    firmwareTestRunning: false,
+    firmwareTestStopping: false,
+    firmwareTestResult: null,
+    firmwareTestError: null,
     // board target is per project (.cortex/config.json)
     selectedFqbn: '',
     // Derived from the old project's includes + board; re-inspected on demand.
@@ -328,7 +334,7 @@ export interface AppNotification {
   detail?: string
   ts: number
 }
-export type BottomView = 'output' | 'serial' | 'problems' | 'terminal'
+export type BottomView = 'output' | 'serial' | 'problems' | 'terminal' | 'tests'
 
 let runCounter = 0
 const nextRunId = (): string => `run-${++runCounter}`
@@ -505,6 +511,13 @@ interface State {
   lastExitCode: number | null
   output: OutputLine[]
   diagnostics: Diagnostic[]
+  firmwareTestRunId: string | null
+  firmwareTestRunning: boolean
+  firmwareTestStopping: boolean
+  firmwareTestResult: FirmwareTestResponse | null
+  firmwareTestError: string | null
+  runFirmwareTests: (options?: Pick<FirmwareTestRequest, 'path' | 'replay' | 'firmware'>) => Promise<void>
+  stopFirmwareTests: () => Promise<void>
   reveal: RevealLocation | null
 
   // language servers (which are installed; set once the editor initialises LSP)
@@ -1002,6 +1015,11 @@ export const useStore = create<State>((set, get) => ({
   lastExitCode: null,
   output: [],
   diagnostics: [],
+  firmwareTestRunId: null,
+  firmwareTestRunning: false,
+  firmwareTestStopping: false,
+  firmwareTestResult: null,
+  firmwareTestError: null,
   reveal: null,
 
   lspServers: { cpp: false, python: false, rust: false },
@@ -1065,6 +1083,7 @@ export const useStore = create<State>((set, get) => ({
       assertSavedWorkspace(get())
       await get().stopRun()
       await get().stopSim()
+      await get().stopFirmwareTests()
       get().stopDebug()
       get().cancelAgent()
       const previousRoot = get().workspaceRoot
@@ -1111,6 +1130,7 @@ export const useStore = create<State>((set, get) => ({
       assertSavedWorkspace(get())
       await get().stopRun()
       await get().stopSim()
+      await get().stopFirmwareTests()
       get().stopDebug()
       get().cancelAgent()
       try {
@@ -1950,6 +1970,42 @@ export const useStore = create<State>((set, get) => ({
       }
     } finally {
       preparation.finish()
+    }
+  },
+  async runFirmwareTests(options = {}) {
+    if (get().firmwareTestRunning) return
+    get().setBottom('tests')
+    const root = get().workspaceRoot
+    if (!root) { set({ firmwareTestError: 'Open a project folder before running firmware tests.' }); return }
+    const id = crypto.randomUUID()
+    const owns = (): boolean => get().workspaceRoot === root && get().firmwareTestRunId === id
+    set({ firmwareTestRunId: id, firmwareTestRunning: true, firmwareTestStopping: false, firmwareTestError: null, firmwareTestResult: null })
+    try {
+      await get().saveAll()
+      if (!owns() || get().firmwareTestStopping) return
+      if (get().tabs.some(tab => tab.content !== tab.savedContent)) throw new Error('Files changed during Save All. Save them before running tests.')
+      const result = await window.api.firmwareTestRun({ ...options, id, workspaceRoot: root, compiler: hostCppOrNull(get().compiler) || 'g++' })
+      if (owns()) {
+        set({ firmwareTestResult: result })
+        get().notify(result.report.exitCode === 0 ? 'success' : 'error', result.report.exitCode === 0 ? 'Firmware tests passed' : 'Firmware tests need attention', result.reportPath)
+      }
+    } catch (error) {
+      if (owns()) {
+        const message = error instanceof Error ? error.message : String(error)
+        set({ firmwareTestError: message })
+        get().notify('error', 'Could not run firmware tests', message)
+      }
+    } finally {
+      if (owns()) set({ firmwareTestRunning: false, firmwareTestStopping: false, firmwareTestRunId: null })
+    }
+  },
+  async stopFirmwareTests() {
+    const id = get().firmwareTestRunId
+    if (!id || get().firmwareTestStopping) return
+    set({ firmwareTestStopping: true })
+    try { await window.api.firmwareTestStop(id) }
+    finally {
+      if (get().firmwareTestRunId === id) set({ firmwareTestRunId: null, firmwareTestRunning: false, firmwareTestStopping: false })
     }
   },
   async stopRun() {

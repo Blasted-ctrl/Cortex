@@ -45,6 +45,7 @@ import type { LspCall, LspAvailability, LspDiagnosticsPush, LspServerExit, LspBu
 import type { EnvironmentReport } from '../shared/environment'
 import type { CortexLock, LockCheck } from '../shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta, DatasheetImportResult } from '../shared/datasheet'
+import type { FirmwareTestRequest, FirmwareTestResponse, FirmwareTestSelection } from '../shared/firmwareTest'
 
 type Unsub = () => void
 
@@ -58,6 +59,9 @@ const api = {
   // dialogs
   openFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.DIALOG_OPEN_FOLDER),
   openFileDialog: (): Promise<string | null> => ipcRenderer.invoke(IPC.DIALOG_OPEN_FILE),
+  firmwareTestChoose: (kind: FirmwareTestSelection): Promise<string | null> => ipcRenderer.invoke(IPC.FIRMWARE_TEST_CHOOSE, kind),
+  firmwareTestRun: (request: FirmwareTestRequest): Promise<FirmwareTestResponse> => ipcRenderer.invoke(IPC.FIRMWARE_TEST_RUN, request),
+  firmwareTestStop: (id: string): Promise<void> => ipcRenderer.invoke(IPC.FIRMWARE_TEST_STOP, id),
 
   // filesystem
   readDir: (p: string): Promise<FileNode[]> => ipcRenderer.invoke(IPC.FS_READ_DIR, p),

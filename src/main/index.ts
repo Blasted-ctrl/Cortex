@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, session } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
 import { IPC } from '../shared/ipc'
+import { guardRendererEvent, guardRendererInvoke, installWindowNavigationGuards, isTrustedRendererSender, resolveRendererDocumentUrl } from './windowSecurity'
 import type {
   RunRequest,
   SerialOpenOptions,
@@ -34,6 +35,8 @@ import * as pkg from './services/packageService'
 import * as debug from './services/debugService'
 import * as git from './services/gitService'
 import * as sim from './services/simService'
+import * as firmwareTests from './services/firmwareTests'
+import type { FirmwareTestSelection } from '../shared/firmwareTest'
 import * as lsp from './services/lspService'
 import * as terminal from './services/terminalService'
 import * as agent from './services/agentService'
@@ -41,6 +44,7 @@ import type { LspCall } from '../shared/lsp'
 import type { TerminalCreateRequest, AgentRunRequest } from '../shared/ipc'
 
 let mainWindow: BrowserWindow | null = null
+let rendererDocumentUrl: string | null = null
 
 // A second instance would clobber settings.json, the file watcher, and the
 // serial port. Keep a single instance and focus the existing window instead.
@@ -65,6 +69,7 @@ process.on('unhandledRejection', (reason) => {
 })
 
 function createWindow(): void {
+  rendererDocumentUrl = resolveRendererDocumentUrl(app.isPackaged, process.env['ELECTRON_RENDERER_URL'], join(__dirname, '../renderer/index.html'))
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -77,24 +82,32 @@ function createWindow(): void {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
     }
   })
 
-  // Closing with unsaved tabs used to just discard them. Intercept once,
-  // ask the renderer to save everything dirty, then let the SAME close
-  // happen for real - readyToClose flips this so it isn't asked twice.
+  const window = mainWindow
+  const documentUrl = rendererDocumentUrl
+  // The acknowledgement must belong to this window; an unauthorized invoke
+  // cannot consume the handler or enable closing with unsaved tabs.
   let readyToClose = false
-  mainWindow.on('close', (e) => {
-    if (readyToClose || !mainWindow) return
+  window.on('close', (e) => {
+    if (readyToClose) return
     e.preventDefault()
-    mainWindow.webContents.send(IPC.APP_CLOSE_REQUESTED)
+    window.webContents.send(IPC.APP_CLOSE_REQUESTED)
   })
-  ipcMain.handleOnce(IPC.APP_READY_TO_CLOSE, () => {
+  ipcMain.removeHandler(IPC.APP_READY_TO_CLOSE)
+  ipcMain.handle(IPC.APP_READY_TO_CLOSE, guardRendererInvoke(() => mainWindow === window ? window : null, () => documentUrl, () => {
     readyToClose = true
-    mainWindow?.close()
+    window.close()
+  }))
+  window.on('closed', () => {
+    if (mainWindow !== window) return
+    ipcMain.removeHandler(IPC.APP_READY_TO_CLOSE)
+    mainWindow = null
+    rendererDocumentUrl = null
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -105,13 +118,7 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    try {
-      const url = new URL(details.url)
-      if (url.protocol === 'https:' || url.protocol === 'http:') void shell.openExternal(url.toString())
-    } catch (err) { console.warn('[cortex] refused invalid external link:', String(err)) }
-    return { action: 'deny' }
-  })
+  installWindowNavigationGuards(mainWindow.webContents, rendererDocumentUrl, (url) => shell.openExternal(url))
 
   // A renderer reload or crash-restart wipes the terminal controller but leaves
   // its pty sessions alive in this process (a reload never runs killAll), so
@@ -121,13 +128,7 @@ function createWindow(): void {
   // live shell survives HMR as before.
   mainWindow.webContents.on('did-start-loading', () => terminal.killAll())
 
-  // electron-vite injects ELECTRON_RENDERER_URL in dev.
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
-  if (devUrl) {
-    void mainWindow.loadURL(devUrl)
-  } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  void mainWindow.loadURL(rendererDocumentUrl)
 }
 
 function requireWindow(): BrowserWindow {
@@ -556,109 +557,115 @@ async function runCaptureSequence(win: BrowserWindow, dir: string): Promise<void
 }
 
 function registerIpc(): void {
+  const handle: typeof ipcMain.handle = (channel, listener) => {
+    ipcMain.handle(channel, guardRendererInvoke(() => mainWindow, () => rendererDocumentUrl, listener))
+  }
+  const on: typeof ipcMain.on = (channel, listener) =>
+    ipcMain.on(channel, guardRendererEvent(() => mainWindow, () => rendererDocumentUrl, listener))
+
   // ---- dialogs ----
-  ipcMain.handle(IPC.DIALOG_OPEN_FOLDER, async () => {
+  handle(IPC.DIALOG_OPEN_FOLDER, async () => {
     const res = await dialog.showOpenDialog(requireWindow(), { properties: ['openDirectory'] })
     return res.canceled ? null : res.filePaths[0]
   })
-  ipcMain.handle(IPC.DIALOG_OPEN_FILE, async () => {
+  handle(IPC.DIALOG_OPEN_FILE, async () => {
     const res = await dialog.showOpenDialog(requireWindow(), { properties: ['openFile'] })
     return res.canceled ? null : res.filePaths[0]
   })
 
   // ---- filesystem ----
-  ipcMain.handle(IPC.FS_READ_DIR, (_e, p: string) => fsService.readDir(p))
-  ipcMain.handle(IPC.FS_LIST_ALL, (_e, p: string) => fsService.listAllFiles(p))
-  ipcMain.handle(IPC.FS_SEARCH, (_e, q: SearchQuery) => search.searchInFiles(q))
-  ipcMain.handle(IPC.FS_READ_FILE, (_e, p: string) => fsService.readFile(p))
-  ipcMain.handle(IPC.FS_EXISTS, (_e, p: string) => fsService.exists(p))
-  ipcMain.handle(IPC.FS_WRITE_FILE, (_e, p: string, c: string, expectedContent?: string | null) => fsService.writeFile(p, c, expectedContent))
-  ipcMain.handle(IPC.FS_CREATE_FILE, (_e, p: string) => fsService.createFile(p))
-  ipcMain.handle(IPC.FS_CREATE_DIR, (_e, p: string) => fsService.createDir(p))
-  ipcMain.handle(IPC.FS_RENAME, (_e, a: string, b: string) => fsService.rename(a, b))
-  ipcMain.handle(IPC.FS_DELETE, (_e, p: string) => fsService.remove(p))
-  ipcMain.handle(IPC.FS_WATCH_START, (_e, p: string) => fsService.startWatch(p, requireWindow()))
-  ipcMain.handle(IPC.FS_WATCH_STOP, () => fsService.stopWatch())
+  handle(IPC.FS_READ_DIR, (_e, p: string) => fsService.readDir(p))
+  handle(IPC.FS_LIST_ALL, (_e, p: string) => fsService.listAllFiles(p))
+  handle(IPC.FS_SEARCH, (_e, q: SearchQuery) => search.searchInFiles(q))
+  handle(IPC.FS_READ_FILE, (_e, p: string) => fsService.readFile(p))
+  handle(IPC.FS_EXISTS, (_e, p: string) => fsService.exists(p))
+  handle(IPC.FS_WRITE_FILE, (_e, p: string, c: string, expectedContent?: string | null) => fsService.writeFile(p, c, expectedContent))
+  handle(IPC.FS_CREATE_FILE, (_e, p: string) => fsService.createFile(p))
+  handle(IPC.FS_CREATE_DIR, (_e, p: string) => fsService.createDir(p))
+  handle(IPC.FS_RENAME, (_e, a: string, b: string) => fsService.rename(a, b))
+  handle(IPC.FS_DELETE, (_e, p: string) => fsService.remove(p))
+  handle(IPC.FS_WATCH_START, (_e, p: string) => fsService.startWatch(p, requireWindow()))
+  handle(IPC.FS_WATCH_STOP, () => fsService.stopWatch())
 
   // ---- toolchains ----
-  ipcMain.handle(IPC.TOOLCHAIN_DETECT, (_e, force?: boolean) => toolchain.detectToolchains(force))
+  handle(IPC.TOOLCHAIN_DETECT, (_e, force?: boolean) => toolchain.detectToolchains(force))
 
   // ---- run / build ----
-  ipcMain.handle(IPC.RUN_START, (_e, req: RunRequest) => runner.startRun(requireWindow(), req))
-  ipcMain.handle(IPC.RUN_STOP, (_e, id: string) => runner.stopRun(id))
-  ipcMain.handle(IPC.RUN_INPUT, (_e, id: string, data: string) => runner.sendInput(id, data))
+  handle(IPC.RUN_START, (_e, req: RunRequest) => runner.startRun(requireWindow(), req))
+  handle(IPC.RUN_STOP, (_e, id: string) => runner.stopRun(id))
+  handle(IPC.RUN_INPUT, (_e, id: string, data: string) => runner.sendInput(id, data))
 
   // ---- integrated terminal (pty) ----
   // A user-driven terminal is user-authorized: it spawns the user's own shell
   // at the user's own privileges, with the open workspace as cwd (chosen here,
   // not supplied by the renderer). Input is the user typing; no string is ever
   // interpolated into a shell command by Cortex.
-  ipcMain.handle(IPC.TERMINAL_CREATE, (_e, req: TerminalCreateRequest) =>
+  handle(IPC.TERMINAL_CREATE, (_e, req: TerminalCreateRequest) =>
     terminal.create(requireWindow(), req)
   )
-  ipcMain.on(IPC.TERMINAL_INPUT, (_e, id: string, data: string) => terminal.write(id, data))
-  ipcMain.on(IPC.TERMINAL_RESIZE, (_e, id: string, cols: number, rows: number) =>
+  on(IPC.TERMINAL_INPUT, (_e, id: string, data: string) => terminal.write(id, data))
+  on(IPC.TERMINAL_RESIZE, (_e, id: string, cols: number, rows: number) =>
     terminal.resize(id, cols, rows)
   )
-  ipcMain.on(IPC.TERMINAL_KILL, (_e, id: string) => terminal.kill(id))
+  on(IPC.TERMINAL_KILL, (_e, id: string) => terminal.kill(id))
 
   // ---- serial ----
-  ipcMain.handle(IPC.SERIAL_LIST, () => serial.listPorts())
-  ipcMain.handle(IPC.SERIAL_OPEN, (_e, opts: SerialOpenOptions) => serial.openPort(requireWindow(), opts))
-  ipcMain.handle(IPC.SERIAL_CLOSE, () => serial.closePort())
-  ipcMain.handle(IPC.SERIAL_WRITE, (_e, data: string) => serial.writePort(data))
+  handle(IPC.SERIAL_LIST, () => serial.listPorts())
+  handle(IPC.SERIAL_OPEN, (_e, opts: SerialOpenOptions) => serial.openPort(requireWindow(), opts))
+  handle(IPC.SERIAL_CLOSE, () => serial.closePort())
+  handle(IPC.SERIAL_WRITE, (_e, data: string) => serial.writePort(data))
 
   // ---- language servers (LSP) ----
   // `root` comes from the renderer and drives privileged sinks (spawn cwd, the
   // .clangd write, the .cortex/config.json read), so confine it to the open
   // workspace exactly as file writes are, before dispatching.
-  ipcMain.handle(IPC.LSP_SERVERS, (_e, refresh?: boolean) => lsp.availableServers(refresh))
-  ipcMain.handle(IPC.LSP_REQUEST, (_e, call: LspCall) =>
+  handle(IPC.LSP_SERVERS, (_e, refresh?: boolean) => lsp.availableServers(refresh))
+  handle(IPC.LSP_REQUEST, (_e, call: LspCall) =>
     fsService.withinWorkspace(call.root) ? lsp.request(requireWindow(), call) : Promise.resolve(null)
   )
-  ipcMain.handle(IPC.LSP_NOTIFY, (_e, call: LspCall) => {
+  handle(IPC.LSP_NOTIFY, (_e, call: LspCall) => {
     if (fsService.withinWorkspace(call.root)) lsp.notify(requireWindow(), call)
   })
   // Tearing down other roots' servers is not a privileged sink (no spawn/write),
   // so it is not gated; it only frees processes for an abandoned workspace.
-  ipcMain.handle(IPC.LSP_DISPOSE_ROOT, (_e, keepRoot: string) => lsp.disposeExcept(keepRoot))
+  handle(IPC.LSP_DISPOSE_ROOT, (_e, keepRoot: string) => lsp.disposeExcept(keepRoot))
 
   // ---- ai ----
-  ipcMain.handle(IPC.AI_COMPLETE, (_e, req: AiRequest) => ai.complete(requireWindow(), req))
+  handle(IPC.AI_COMPLETE, (_e, req: AiRequest) => ai.complete(requireWindow(), req))
 
   // ---- ai engineering agent (tool loop) ----
   // Read-only tools run behind the workspace boundary; file edits are staged as
   // reviewable diffs and applied only by the renderer after human approval.
-  ipcMain.handle(IPC.AGENT_RUN, (_e, req: AgentRunRequest) => agent.run(requireWindow(), req))
-  ipcMain.on(IPC.AGENT_CANCEL, (_e, id: string) => agent.cancel(id))
+  handle(IPC.AGENT_RUN, (_e, req: AgentRunRequest) => agent.run(requireWindow(), req))
+  on(IPC.AGENT_CANCEL, (_e, id: string) => agent.cancel(id))
 
   // ---- project config ----
-  ipcMain.handle(IPC.PROJECT_CONFIG_GET, (_e, root: string) =>
+  handle(IPC.PROJECT_CONFIG_GET, (_e, root: string) =>
     fsService.isWorkspaceRoot(root) ? projectConfig.getProjectConfig(root) : Promise.reject(new Error('Project settings path rejected.'))
   )
-  ipcMain.handle(IPC.PROJECT_CONFIG_SET, (_e, root: string, patch: ProjectConfig) =>
+  handle(IPC.PROJECT_CONFIG_SET, (_e, root: string, patch: ProjectConfig) =>
     fsService.isWorkspaceRoot(root) ? projectConfig.setProjectConfig(root, patch) : Promise.reject(new Error('Project settings path rejected.'))
   )
 
   // ---- project model (derived: languages, board/platform, GPIO usage) ----
-  ipcMain.handle(IPC.PROJECT_MODEL_BUILD, (_e, root: string) =>
+  handle(IPC.PROJECT_MODEL_BUILD, (_e, root: string) =>
     fsService.withinWorkspace(root) ? projectModel.buildProjectModel(root) : Promise.resolve(null)
   )
 
   // ---- environment / dependency intelligence ----
   // root drives buildProjectModel (a workspace read), so confine it as the
   // project-model build is. fqbn is a board identifier, not a path.
-  ipcMain.handle(IPC.ENV_INSPECT, (_e, root: string, fqbn: string | null, refresh?: boolean, buildMissingHeaders?: string[]) =>
+  handle(IPC.ENV_INSPECT, (_e, root: string, fqbn: string | null, refresh?: boolean, buildMissingHeaders?: string[]) =>
     fsService.withinWorkspace(root)
       ? environment.inspect(root, fqbn, !!refresh, Array.isArray(buildMissingHeaders) ? buildMissingHeaders : [])
       : Promise.resolve(null)
   )
   // Writing the lock touches <workspace>/.cortex, so confine root like the config
   // writer. The lock records only observed data (no command is spawned from it).
-  ipcMain.handle(IPC.ENV_LOCK_WRITE, (_e, root: string, fqbn: string | null) =>
+  handle(IPC.ENV_LOCK_WRITE, (_e, root: string, fqbn: string | null) =>
     fsService.withinWorkspace(root) ? lockfile.write(root, fqbn, new Date().toISOString()) : Promise.resolve(null)
   )
-  ipcMain.handle(IPC.ENV_LOCK_CHECK, (_e, root: string, fqbn: string | null) =>
+  handle(IPC.ENV_LOCK_CHECK, (_e, root: string, fqbn: string | null) =>
     fsService.withinWorkspace(root) ? lockfile.check(root, fqbn) : Promise.resolve(null)
   )
 
@@ -667,7 +674,7 @@ function registerIpc(): void {
   // always user-chosen and never renderer-supplied; the service copies it into
   // the workspace and every later read is workspace-confined. root gates the
   // corpus location like the other project-data handlers.
-  ipcMain.handle(IPC.DATASHEET_IMPORT, async (_e, root: string) => {
+  handle(IPC.DATASHEET_IMPORT, async (_e, root: string) => {
     if (!fsService.withinWorkspace(root)) return { ok: false, error: 'Workspace path rejected.' }
     const res = await dialog.showOpenDialog(requireWindow(), {
       title: 'Import datasheet or document',
@@ -680,10 +687,10 @@ function registerIpc(): void {
     if (res.canceled || !res.filePaths[0]) return { ok: false, error: 'Import canceled.' }
     return datasheet.importFile(root, res.filePaths[0])
   })
-  ipcMain.handle(IPC.DATASHEET_LIST, (_e, root: string) =>
+  handle(IPC.DATASHEET_LIST, (_e, root: string) =>
     fsService.withinWorkspace(root) ? datasheet.list(root) : Promise.resolve([])
   )
-  ipcMain.handle(IPC.DATASHEET_QUERY, (_e, root: string, query: string) =>
+  handle(IPC.DATASHEET_QUERY, (_e, root: string, query: string) =>
     fsService.withinWorkspace(root) ? datasheet.search(root, String(query ?? ''), 8) : Promise.resolve([])
   )
 
@@ -693,8 +700,8 @@ function registerIpc(): void {
     ...(arduinoCli.arduinoCliSetupHint() ? { hint: arduinoCli.arduinoCliSetupHint() } : {}),
     setupRequired: await arduinoCli.arduinoCliNeedsSetup()
   })
-  ipcMain.handle(IPC.BOARD_STATUS, boardStatus)
-  ipcMain.handle(IPC.BOARD_SETUP, async () => {
+  handle(IPC.BOARD_STATUS, boardStatus)
+  handle(IPC.BOARD_SETUP, async () => {
     await arduinoCli.setupArduinoCli((message) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC.BOARD_SETUP_PROGRESS, message)
     })
@@ -702,58 +709,82 @@ function registerIpc(): void {
     await toolchain.detectToolchains(true)
     return boardStatus()
   })
-  ipcMain.handle(IPC.BOARD_LIST_CONNECTED, () => embedded.listConnected())
-  ipcMain.handle(IPC.BOARD_LIST_ALL, () => embedded.listAll())
-  ipcMain.handle(IPC.BOARD_COMPILE, (_e, req: BoardCompileRequest) => embedded.compile(requireWindow(), req))
-  ipcMain.handle(IPC.BOARD_UPLOAD, (_e, req: BoardUploadRequest) => embedded.upload(requireWindow(), req))
+  handle(IPC.BOARD_LIST_CONNECTED, () => embedded.listConnected())
+  handle(IPC.BOARD_LIST_ALL, () => embedded.listAll())
+  handle(IPC.BOARD_COMPILE, (_e, req: BoardCompileRequest) => embedded.compile(requireWindow(), req))
+  handle(IPC.BOARD_UPLOAD, (_e, req: BoardUploadRequest) => embedded.upload(requireWindow(), req))
 
   // ---- Boards Manager (cores) + Library Manager ----
-  ipcMain.handle(IPC.CORE_SEARCH, (_e, q: string) => pkg.coreSearch(q))
-  ipcMain.handle(IPC.CORE_INSTALLED, () => pkg.coreInstalled())
-  ipcMain.handle(IPC.CORE_INSTALL, (_e, req: PackageInstallRequest) => pkg.coreInstall(requireWindow(), req))
-  ipcMain.handle(IPC.CORE_UNINSTALL, (_e, id: string, coreId: string) => pkg.coreUninstall(requireWindow(), id, coreId))
-  ipcMain.handle(IPC.CORE_UPDATE_INDEX, (_e, id: string) => pkg.coreUpdateIndex(requireWindow(), id))
-  ipcMain.handle(IPC.LIB_SEARCH, (_e, q: string) => pkg.libSearch(q))
-  ipcMain.handle(IPC.LIB_INSTALLED, () => pkg.libInstalled())
-  ipcMain.handle(IPC.LIB_INSTALL, (_e, req: PackageInstallRequest) => pkg.libInstall(requireWindow(), req))
-  ipcMain.handle(IPC.LIB_UNINSTALL, (_e, id: string, name: string) => pkg.libUninstall(requireWindow(), id, name))
+  handle(IPC.CORE_SEARCH, (_e, q: string) => pkg.coreSearch(q))
+  handle(IPC.CORE_INSTALLED, () => pkg.coreInstalled())
+  handle(IPC.CORE_INSTALL, (_e, req: PackageInstallRequest) => pkg.coreInstall(requireWindow(), req))
+  handle(IPC.CORE_UNINSTALL, (_e, id: string, coreId: string) => pkg.coreUninstall(requireWindow(), id, coreId))
+  handle(IPC.CORE_UPDATE_INDEX, (_e, id: string) => pkg.coreUpdateIndex(requireWindow(), id))
+  handle(IPC.LIB_SEARCH, (_e, q: string) => pkg.libSearch(q))
+  handle(IPC.LIB_INSTALLED, () => pkg.libInstalled())
+  handle(IPC.LIB_INSTALL, (_e, req: PackageInstallRequest) => pkg.libInstall(requireWindow(), req))
+  handle(IPC.LIB_UNINSTALL, (_e, id: string, name: string) => pkg.libUninstall(requireWindow(), id, name))
 
   // ---- simulator ----
-  ipcMain.handle(IPC.SIM_START, (_e, req: SimStartRequest) => sim.start(requireWindow(), req))
-  ipcMain.handle(IPC.SIM_STOP, (_e, id: string) => sim.stop(id))
-  ipcMain.handle(IPC.SIM_INPUT, (_e, id: string, pin: number, value: number) => sim.input(id, pin, value))
+  handle(IPC.SIM_START, (_e, req: SimStartRequest) => sim.start(requireWindow(), req))
+  handle(IPC.SIM_STOP, (_e, id: string) => sim.stop(id))
+  handle(IPC.SIM_INPUT, (_e, id: string, pin: number, value: number) => sim.input(id, pin, value))
+
+  handle(IPC.FIRMWARE_TEST_CHOOSE, async (event, kind: FirmwareTestSelection) => {
+    if (!isTrustedRendererSender(event, mainWindow, rendererDocumentUrl)) throw new Error('Untrusted firmware test sender')
+    if (!['scenario', 'scenarios', 'report', 'firmware'].includes(kind)) throw new Error('Invalid firmware test selection')
+    const root = fsService.getWorkspaceRoot()
+    if (!root) throw new Error('Open a project before selecting firmware tests')
+    const selection = await dialog.showOpenDialog(requireWindow(), {
+      title: kind === 'scenarios' ? 'Select scenario folder' : kind === 'report' ? 'Replay a saved firmware report' : kind === 'firmware' ? 'Select firmware override' : 'Select scenario',
+      defaultPath: root,
+      properties: [kind === 'scenarios' ? 'openDirectory' : 'openFile'],
+      ...(kind === 'scenarios' ? {} : { filters: [{ name: kind === 'firmware' ? 'Arduino sketch' : 'JSON', extensions: [kind === 'firmware' ? 'ino' : 'json'] }] })
+    })
+    if (selection.canceled || !selection.filePaths[0]) return null
+    if (!fsService.isWorkspaceRoot(root)) throw new Error('The project changed while choosing tests')
+    return firmwareTests.validateSelection(kind, selection.filePaths[0])
+  })
+  handle(IPC.FIRMWARE_TEST_RUN, (event, request: unknown) => {
+    if (!isTrustedRendererSender(event, mainWindow, rendererDocumentUrl)) throw new Error('Untrusted firmware test sender')
+    return firmwareTests.run(request)
+  })
+  handle(IPC.FIRMWARE_TEST_STOP, (event, id: string) => {
+    if (!isTrustedRendererSender(event, mainWindow, rendererDocumentUrl)) throw new Error('Untrusted firmware test sender')
+    return firmwareTests.stop(id)
+  })
 
   // ---- debugger (gdb) ----
-  ipcMain.handle(IPC.DEBUG_START, (_e, req: DebugStartRequest) => debug.start(requireWindow(), req))
-  ipcMain.handle(IPC.DEBUG_STOP, () => debug.stop())
-  ipcMain.handle(IPC.DEBUG_CONTINUE, () => debug.cont())
-  ipcMain.handle(IPC.DEBUG_STEP_OVER, () => debug.stepOver())
-  ipcMain.handle(IPC.DEBUG_STEP_INTO, () => debug.stepInto())
-  ipcMain.handle(IPC.DEBUG_STEP_OUT, () => debug.stepOut())
-  ipcMain.handle(IPC.DEBUG_PAUSE, () => debug.pause())
-  ipcMain.handle(IPC.DEBUG_SELECT_FRAME, (_e, level: number) => debug.selectFrame(level))
-  ipcMain.handle(IPC.DEBUG_SET_BREAKPOINTS, (_e, file: string, lines: number[]) => debug.setBreakpoints(file, lines))
-  ipcMain.handle(IPC.DEBUG_EVALUATE, (_e, expr: string) => debug.evaluate(expr))
+  handle(IPC.DEBUG_START, (_e, req: DebugStartRequest) => debug.start(requireWindow(), req))
+  handle(IPC.DEBUG_STOP, () => debug.stop())
+  handle(IPC.DEBUG_CONTINUE, () => debug.cont())
+  handle(IPC.DEBUG_STEP_OVER, () => debug.stepOver())
+  handle(IPC.DEBUG_STEP_INTO, () => debug.stepInto())
+  handle(IPC.DEBUG_STEP_OUT, () => debug.stepOut())
+  handle(IPC.DEBUG_PAUSE, () => debug.pause())
+  handle(IPC.DEBUG_SELECT_FRAME, (_e, level: number) => debug.selectFrame(level))
+  handle(IPC.DEBUG_SET_BREAKPOINTS, (_e, file: string, lines: number[]) => debug.setBreakpoints(file, lines))
+  handle(IPC.DEBUG_EVALUATE, (_e, expr: string) => debug.evaluate(expr))
 
   // ---- version control (git), read-only ----
-  ipcMain.handle(IPC.GIT_STATUS, () => git.status())
-  ipcMain.handle(IPC.GIT_DIFF, (_e, path: string, kind: GitDiffKind, orig?: string) => git.fileDiff(path, kind, orig))
-  ipcMain.handle(IPC.GIT_STAGE, (_e, paths: string[]) => git.stage(paths))
-  ipcMain.handle(IPC.GIT_UNSTAGE, (_e, paths: string[]) => git.unstage(paths))
-  ipcMain.handle(IPC.GIT_COMMIT, (_e, message: string) => git.commit(message))
-  ipcMain.handle(IPC.GIT_PUSH, () => git.push())
-  ipcMain.handle(IPC.GIT_BRANCHES, () => git.branches())
-  ipcMain.handle(IPC.GIT_SWITCH, (_e, name: string) => git.switchBranch(name))
-  ipcMain.handle(IPC.GIT_INIT, () => git.init())
-  ipcMain.handle(IPC.GIT_CREATE_BRANCH, (_e, name: string) => git.createBranch(name))
-  ipcMain.handle(IPC.GIT_FETCH, () => git.fetch())
-  ipcMain.handle(IPC.GIT_PULL, () => git.pull())
+  handle(IPC.GIT_STATUS, () => git.status())
+  handle(IPC.GIT_DIFF, (_e, path: string, kind: GitDiffKind, orig?: string) => git.fileDiff(path, kind, orig))
+  handle(IPC.GIT_STAGE, (_e, paths: string[]) => git.stage(paths))
+  handle(IPC.GIT_UNSTAGE, (_e, paths: string[]) => git.unstage(paths))
+  handle(IPC.GIT_COMMIT, (_e, message: string) => git.commit(message))
+  handle(IPC.GIT_PUSH, () => git.push())
+  handle(IPC.GIT_BRANCHES, () => git.branches())
+  handle(IPC.GIT_SWITCH, (_e, name: string) => git.switchBranch(name))
+  handle(IPC.GIT_INIT, () => git.init())
+  handle(IPC.GIT_CREATE_BRANCH, (_e, name: string) => git.createBranch(name))
+  handle(IPC.GIT_FETCH, () => git.fetch())
+  handle(IPC.GIT_PULL, () => git.pull())
 
   // ---- settings / app ----
   // Return redacted settings only: the raw API key never crosses to the renderer.
-  ipcMain.handle(IPC.SETTINGS_GET, () => settings.getPublicSettings())
-  ipcMain.handle(IPC.SETTINGS_SET, (_e, patch) => settings.setSettings(patch))
-  ipcMain.handle(IPC.APP_INFO, (): AppInfo => ({
+  handle(IPC.SETTINGS_GET, () => settings.getPublicSettings())
+  handle(IPC.SETTINGS_SET, (_e, patch) => settings.setSettings(patch))
+  handle(IPC.APP_INFO, (): AppInfo => ({
     version: app.getVersion(),
     platform: process.platform,
     arch: process.arch,
@@ -767,7 +798,7 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   // Apply a strict Content-Security-Policy in production. In dev we leave it to
   // Electron so Vite HMR (websocket) and the React Fast Refresh preamble work.
-  if (!process.env['ELECTRON_RENDERER_URL']) {
+  if (app.isPackaged || !process.env['ELECTRON_RENDERER_URL']) {
     session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       cb({
         responseHeaders: {
@@ -795,6 +826,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   runner.killAll()
+  firmwareTests.killAll()
   sim.killAll()
   debug.stop()
   lsp.killAll()
@@ -806,6 +838,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   runner.killAll()
+  firmwareTests.killAll()
   sim.killAll()
   debug.stop()
   lsp.killAll()

@@ -1,4 +1,4 @@
-import { Play, Square, CheckCircle2, UploadCloud, AlertTriangle, Radio, LineChart, Bug, CircleX, Loader2 } from 'lucide-react'
+import { Play, Square, CheckCircle2, UploadCloud, AlertTriangle, Radio, LineChart, Bug, CircleX, Loader2, FlaskConical } from 'lucide-react'
 import { useStore, isSketch } from '../store/useStore'
 import { isHeaderPath } from '@shared/languages'
 import BoardPortSelect from './BoardPortSelect'
@@ -36,6 +36,11 @@ export default function Toolbar(): JSX.Element {
     setBottom,
     setSerialPlot,
     startDebug,
+    workspaceRoot,
+    firmwareTestRunning,
+    firmwareTestStopping,
+    runFirmwareTests,
+    stopFirmwareTests,
     debug
   } = useStore()
 
@@ -116,6 +121,9 @@ export default function Toolbar(): JSX.Element {
           code), then the Board + Port selector to their right the way Arduino
           IDE lays it out. */}
       <div className="flex shrink-0 items-center gap-1 pl-1">
+        <button className="btn" disabled={!workspaceRoot || firmwareTestStopping} title="Run deterministic firmware scenarios in the Uno host model" onClick={() => void (firmwareTestRunning ? stopFirmwareTests().catch(error => useStore.getState().notify('error', 'Could not stop tests', String(error))) : runFirmwareTests())}>
+          <FlaskConical size={14} /> {firmwareTestRunning ? 'Stop Tests' : 'Run Tests'}
+        </button>
         {running ? (
           <>
             {/* Narrate the in-progress build so the row is not just a bare Stop. */}

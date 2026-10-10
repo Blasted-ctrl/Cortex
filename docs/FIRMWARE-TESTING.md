@@ -91,6 +91,45 @@ Expected: all nine runs pass and the suite report has `reproducible: true`.
 
 ## Commands and exit codes
 
+### Desktop tests
+
+Open the Cortex checkout (or a project containing your own version 1 scenarios)
+as a workspace. The toolbar, Sketch menu and command palette expose **Run Tests**;
+the **Firmware Tests** bottom tab shows scenario statuses, named assertions and
+virtual failure timestamps. Expand assertion evidence, inputs/outputs, logs and
+build configuration, or open the complete saved JSON/Markdown report.
+
+The default search is `.cortex/scenarios`, then
+`examples/firmware-testing/scenarios` inside the open project. The panel can
+select a scenario file/folder and an optional project-local `.ino` override.
+Save All completes before testing; a save conflict or a newer unsaved edit
+prevents launch. Desktop requests use the same Uno host runner as the CLI,
+not a board upload. Native firmware is trusted code, not a security sandbox.
+
+Each completed desktop suite writes a unique directory under
+`.cortex/test-results/`; earlier reports are not overwritten. **Replay saved
+report** and **Rerun saved inputs** use the report's embedded scenario even if
+its original JSON was deleted. Source fingerprints explain changes before
+failure/fix comparisons. Scenario/source/report selections must stay inside the
+open project's real filesystem boundary; reports copied from another machine
+need their paths adjusted to that project's location.
+
+**Stop Tests**, project switching and app shutdown cancel owned compiler/firmware
+children. Already-cancelled requests never spawn; earlier captured logs remain
+in results. Desktop suites accept 1..50 scenarios and have a separate 180-second
+host watchdog. Imported replay JSON is capped at 32 MiB. Per-process and virtual
+limits below still apply. Desktop suites additionally share a 100000-event
+budget, allow 2 MiB of aggregate configuration and divide a 4 MiB capture budget
+equally between scenarios (for each compilation/execution). Oversized 32 MiB
+reports are refused with an error rather than sent unbounded to the desktop.
+Cancellation reports retain configurations for scenarios that were not run,
+clearly mark them as runner errors, and can be replayed after fixing the cause.
+The results panel limits displayed log previews to
+64 Ki characters and its timeline preview to 30 events; saved reports contain
+the complete bounded runner output. Benchmarking remains a CLI/CI workflow.
+
+### CLI
+
 Run commands from the repository root. Forward CLI options after npm's `--`.
 
 | Command or option | Behavior |
@@ -294,11 +333,11 @@ driver, not external headers or libraries. Preserve those dependencies and use
 the recorded Git revision when reproducing a custom sketch; baseline comparisons
 cannot detect an included-file change from the top-level fingerprint alone.
 
-The first release intentionally ships the CLI, scenarios, reports, CI,
-benchmarks and this quickstart. Desktop Run Tests/results/replay, a recorded
-demonstration, two fresh-install teammate trials and one outside-team trial are
-tracked in [tasks/todo.md](../tasks/todo.md). Those user trials have not been
-completed by automated local tests.
+The first release shipped the CLI, scenarios, reports, CI, benchmarks and this
+quickstart. The desktop follow-up now exposes Run Tests, failure details and
+saved-input replay. Recording and fresh-install teammate/outside-team validation
+remain tracked in [tasks/todo.md](../tasks/todo.md); automated local tests do not
+complete those human trials.
 
 ## Troubleshooting
 

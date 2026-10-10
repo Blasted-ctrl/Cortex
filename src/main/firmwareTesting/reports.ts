@@ -1,17 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import type { FirmwareReport } from '../../shared/firmwareTest'
-
-export interface RunnerFailure { status: 'error'; scenarioPath: string; error: string }
-export type SuiteResult = (FirmwareReport & { repeat?: number }) | RunnerFailure
-export interface SuiteReport {
-  version: 1
-  generatedAt: string
-  exitCode: number
-  reproducible: boolean
-  expectedNegativeTests?: boolean
-  results: SuiteResult[]
-}
+import type { SuiteResult, SuiteReport } from '../../shared/firmwareTest'
+export type { RunnerFailure, SuiteResult, SuiteReport } from '../../shared/firmwareTest'
 
 export function suiteExitCode(results: SuiteResult[], reproducible = true): number {
   return results.some(r => r.status === 'error') ? 2 : !reproducible || results.some(r => r.status === 'failed') ? 1 : 0
@@ -29,6 +19,7 @@ export function renderSuiteSummary(report: SuiteReport): string {
     '| Scenario / run | Status | Host ms | Virtual ms |', '| --- | --- | ---: | ---: |'
   ]
   if (report.expectedNegativeTests) lines.splice(2, 0, `The broken firmware must fail its shutdown assertion and the hanging firmware must cause a watchdog error. Harness verification ${report.exitCode === 0 ? 'PASSED' : 'FAILED'}.`, '')
+  if (report.cancelled) lines.splice(2, 0, 'Suite cancelled or its host watchdog expired. Unexecuted scenarios retain their configuration and are runner errors, not passes.', '')
   for (const r of report.results) {
     if ('scenario' in r) {
       lines.push(`| ${r.scenario.id}${r.repeat ? ` / ${r.repeat}` : ''} | ${r.status} | ${r.execution.hostWallMs.toFixed(2)} | ${r.execution.virtualDurationMs} |`)

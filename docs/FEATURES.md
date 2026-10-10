@@ -24,7 +24,8 @@ Legend: ✅ implemented (v0.1) · 🟡 partial · ⬜ planned
 - ✅ **LSP integration** (clangd, plus Pyright / rust-analyzer when installed): completion,
   hover docs, go-to-definition, signature help, live diagnostics. clangd is auto-configured
   from your own compiler so the stdlib resolves - see `docs/LSP.md`
-- ⬜ Multi-root workspaces / split editors
+- ✅ Split editor groups with independent active tabs and draggable tab moves
+- ⬜ Multi-root workspaces
 - ⬜ Search *and replace*; go-to-symbol across the workspace
 
 ## Build & run
@@ -87,7 +88,7 @@ Legend: ✅ implemented (v0.1) · 🟡 partial · ⬜ planned
 
 ## Automated firmware testing and CI benchmarks
 
-First-release CLI workflow; see the complete [quickstart and reference](FIRMWARE-TESTING.md).
+CLI and desktop workflow; see the complete [quickstart and reference](FIRMWARE-TESTING.md).
 
 - **Headless real-sketch execution:** shares host build preparation with the
   desktop simulator; compiles the supported Uno `setup()`/`loop()` with the
@@ -124,8 +125,11 @@ First-release CLI workflow; see the complete [quickstart and reference](FIRMWARE
   execution measurements, throughput, environment/revision metadata, explicit
   saved baseline and advisory comparison; virtual-time duration is distinct
   from host performance.
-- **Follow-up:** desktop Run Tests action, scenario results/details and desktop
-  rerun; recorded demonstration, two fresh-install teammate trials and one
+- **Desktop tests:** toolbar/menu/palette Run Tests, saved-file preparation,
+  scenario statuses, assertion timestamps/evidence, input/output/log previews,
+  full saved JSON/Markdown reports and report-embedded replay. Workspace-confined
+  native runs have cancellation, batch/output budgets and unique report folders.
+- **Follow-up:** recorded demonstration, two fresh-install teammate trials and one
   outside-team trial. These are tracked tasks, not completed user validation.
 
 Native host tests do not emulate MCU instructions, electrical circuits, real

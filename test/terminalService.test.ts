@@ -56,10 +56,13 @@ describe('terminalService security invariants', () => {
 
 describe('terminal IPC wiring', () => {
   it('registers create as invoke and input/resize/kill as fire-and-forget', () => {
-    expect(INDEX).toMatch(/ipcMain\.handle\(IPC\.TERMINAL_CREATE/)
-    expect(INDEX).toMatch(/ipcMain\.on\(IPC\.TERMINAL_INPUT/)
-    expect(INDEX).toMatch(/ipcMain\.on\(IPC\.TERMINAL_RESIZE/)
-    expect(INDEX).toMatch(/ipcMain\.on\(IPC\.TERMINAL_KILL/)
+    expect(INDEX).toMatch(/handle\(IPC\.TERMINAL_CREATE/)
+    expect(INDEX).toMatch(/on\(IPC\.TERMINAL_INPUT/)
+    expect(INDEX).toMatch(/on\(IPC\.TERMINAL_RESIZE/)
+    expect(INDEX).toMatch(/on\(IPC\.TERMINAL_KILL/)
+    expect(INDEX).toMatch(/ipcMain\.handle\(channel, guardRendererInvoke\(/)
+    expect(INDEX).toMatch(/ipcMain\.on\(channel, guardRendererEvent\(/)
+    expect(INDEX).not.toMatch(/ipcMain\.(handle|on)\(IPC\.TERMINAL_/)
   })
 
   it('kills all terminals on window-all-closed and before-quit', () => {

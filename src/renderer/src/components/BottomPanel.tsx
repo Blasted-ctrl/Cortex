@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
-import { Terminal, Radio, AlertTriangle, ScrollText, X, Trash2 } from 'lucide-react'
+import { Terminal, Radio, AlertTriangle, ScrollText, X, Trash2, FlaskConical } from 'lucide-react'
 import { useStore, type BottomView } from '../store/useStore'
 import OutputConsole from './OutputConsole'
 import SerialMonitor from './SerialMonitor'
@@ -9,6 +9,7 @@ import ProblemsPanel from './ProblemsPanel'
 // controller) out of the startup bundle. window.__cortexTerminal is set when
 // this chunk loads; the clear button uses it rather than a static import.
 const TerminalPanel = lazy(() => import('./TerminalPanel'))
+const FirmwareTestsPanel = lazy(() => import('./FirmwareTestsPanel'))
 
 const TABS: { view: BottomView; icon: typeof Terminal; label: string }[] = [
   // The real interactive shell wears the ">_" glyph; the build/run log (Output)
@@ -16,18 +17,21 @@ const TABS: { view: BottomView; icon: typeof Terminal; label: string }[] = [
   { view: 'output', icon: ScrollText, label: 'Output' },
   { view: 'terminal', icon: Terminal, label: 'Terminal' },
   { view: 'serial', icon: Radio, label: 'Serial Monitor' },
-  { view: 'problems', icon: AlertTriangle, label: 'Problems' }
+  { view: 'problems', icon: AlertTriangle, label: 'Problems' },
+  { view: 'tests', icon: FlaskConical, label: 'Firmware Tests' }
 ]
 
 export default function BottomPanel(): JSX.Element {
-  const { bottomView, setBottom, toggleBottom, clearOutput, clearSerial, diagnostics, bottomHeight } = useStore()
+  const { bottomView, setBottom, toggleBottom, clearOutput, clearSerial, diagnostics, bottomHeight, workspaceRoot } = useStore()
   const problemCount = diagnostics.length
   // Mount the terminal lazily on first open, then keep it mounted (hidden when
   // another tab is active) so a running shell and its scrollback are not torn
   // down every time the user peeks at Output or Problems.
   const [termOpened, setTermOpened] = useState(bottomView === 'terminal')
+  const [testsOpened, setTestsOpened] = useState(bottomView === 'tests')
   useEffect(() => {
     if (bottomView === 'terminal') setTermOpened(true)
+    if (bottomView === 'tests') setTestsOpened(true)
   }, [bottomView])
 
   const clear = (): void => {
@@ -72,7 +76,7 @@ export default function BottomPanel(): JSX.Element {
             className="rounded p-1 hover:bg-ide-hover hover:text-ide-text disabled:opacity-30 disabled:hover:bg-transparent"
             title="Clear"
             onClick={clear}
-            disabled={bottomView === 'problems'}
+            disabled={bottomView === 'problems' || bottomView === 'tests'}
           >
             <Trash2 size={14} />
           </button>
@@ -85,6 +89,9 @@ export default function BottomPanel(): JSX.Element {
         {bottomView === 'output' && <OutputConsole />}
         {bottomView === 'serial' && <SerialMonitor />}
         {bottomView === 'problems' && <ProblemsPanel />}
+        {testsOpened && <div className={bottomView === 'tests' ? 'h-full' : 'hidden'} key={workspaceRoot}>
+          <Suspense fallback={<div className="p-3">Loading firmware tests...</div>}><FirmwareTestsPanel /></Suspense>
+        </div>}
         {/* Kept mounted once opened; hidden (not unmounted) when inactive. */}
         {termOpened && (
           <div className={bottomView === 'terminal' ? 'h-full' : 'hidden'}>

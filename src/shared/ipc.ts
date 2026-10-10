@@ -112,6 +112,11 @@ export const IPC = {
   SIM_EVENT: 'sim:event', // main -> renderer (pin/pwm/serial/system)
   SIM_EXIT: 'sim:exit', // main -> renderer
 
+  // Deterministic firmware behavior tests (same headless runner as the CLI).
+  FIRMWARE_TEST_CHOOSE: 'firmware:choose',
+  FIRMWARE_TEST_RUN: 'firmware:run',
+  FIRMWARE_TEST_STOP: 'firmware:stop',
+
   // Integrated terminal (pty-backed shell). A user-driven terminal is
   // user-authorized: keystrokes go to the user's own shell at the user's own
   // privileges. AI-initiated commands do NOT flow here; they stay behind the

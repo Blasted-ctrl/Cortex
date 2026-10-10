@@ -1,8 +1,8 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import type { FirmwareScenario } from '../../shared/firmwareTest'
 import { disposePrepared, executePrepared, prepareScenario, runScenario, ScenarioPreparationError } from './runner'
-import { validateScenario } from './scenario'
+import { replayEntries, scenarioPaths } from './suiteEntries'
+import type { ReplayEntry } from './suiteEntries'
 import { benchmark, renderBenchmarkSummary } from './benchmark'
 import { suiteExitCode, writeSuiteReport } from './reports'
 import type { SuiteReport } from './reports'
@@ -87,33 +87,6 @@ function parseArguments(argv: string[]): Arguments {
   }
   if (args.path && args.replay) throw new Error('Use a scenario path or --replay, not both')
   return args
-}
-
-async function scenarioPaths(path: string): Promise<string[]> {
-  const target = resolve(path)
-  if (!(await stat(target)).isDirectory()) return [target]
-  const files = (await readdir(target)).filter(name => name.endsWith('.json')).sort().map(name => join(target, name))
-  if (!files.length) throw new Error(`No JSON scenarios in ${target}`)
-  return files
-}
-
-interface ReplayEntry { path: string; scenario?: FirmwareScenario; firmware?: string; sourceSha256?: string }
-
-async function replayEntries(path: string): Promise<ReplayEntry[]> {
-  const saved = JSON.parse(await readFile(resolve(path), 'utf8')) as Partial<SuiteReport>
-  if (saved.version !== 1 || !Array.isArray(saved.results) || !saved.results.length) throw new Error('Replay requires a version 1 Cortex suite report')
-  const seen = new Set<string>()
-  const entries: ReplayEntry[] = []
-  for (const result of saved.results) {
-    if (!result || !('scenario' in result) || typeof result.scenarioPath !== 'string') throw new Error('Replay report is missing a scenario configuration; correct the runner error and rerun the original scenario')
-    const scenario = validateScenario(result.scenario)
-    const firmware = result.firmwarePath || result.build?.sourcePath
-    const identity = JSON.stringify({ path: result.scenarioPath, scenario, firmware })
-    if (seen.has(identity)) continue
-    seen.add(identity)
-    entries.push({ path: result.scenarioPath, scenario, firmware, sourceSha256: result.build?.sourceSha256 })
-  }
-  return entries
 }
 
 async function testSuite(args: Arguments): Promise<number> {

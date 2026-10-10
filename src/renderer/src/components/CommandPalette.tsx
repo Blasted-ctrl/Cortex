@@ -71,6 +71,8 @@ export default function CommandPalette({ mode, onClose }: { mode: PaletteMode; o
   const commands: Item[] = useMemo(
     () => [
       { key: 'run', label: 'Run: Run active file', hint: 'F5', run: () => void s.runActive() },
+      { key: 'firmwareTests', label: 'Firmware: Run Tests', run: () => void s.runFirmwareTests() },
+      { key: 'firmwareResults', label: 'Firmware: Test Results', run: () => s.setBottom('tests') },
       // Stops whichever is live. A palette Stop that could not stop a
       // simulation was the only Stop a keyboard user could reach.
       {
@@ -79,6 +81,7 @@ export default function CommandPalette({ mode, onClose }: { mode: PaletteMode; o
         run: () => {
           void s.stopRun()
           void s.stopSim()
+          void s.stopFirmwareTests().catch(error => s.notify('error', 'Could not stop tests', String(error)))
         }
       },
       { key: 'sim', label: 'Simulator: Open', run: () => s.setMainView('simulator') },

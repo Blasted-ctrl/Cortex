@@ -62,3 +62,30 @@ export interface FirmwareReport {
   timeline: TimelineEvent[]
   logs: { stdout: string; stderr: string; compiler: string }
 }
+
+export interface RunnerFailure { status: 'error'; scenarioPath: string; error: string }
+export type SuiteResult = (FirmwareReport & { repeat?: number }) | RunnerFailure
+export interface SuiteReport {
+  version: 1
+  generatedAt: string
+  exitCode: number
+  reproducible: boolean
+  expectedNegativeTests?: boolean
+  cancelled?: boolean
+  results: SuiteResult[]
+}
+export type FirmwareTestSelection = 'scenario' | 'scenarios' | 'report' | 'firmware'
+export interface FirmwareTestRequest {
+  id: string
+  workspaceRoot: string
+  path?: string
+  replay?: string
+  firmware?: string
+  compiler?: string
+}
+export interface FirmwareTestResponse {
+  report: SuiteReport
+  reportPath: string
+  summaryPath: string
+  notes: string[]
+}

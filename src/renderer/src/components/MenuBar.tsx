@@ -176,6 +176,9 @@ export default function MenuBar(): JSX.Element {
     {
       label: 'Sketch',
       items: [
+        { label: 'Run Tests', disabled: !s.workspaceRoot || s.firmwareTestRunning, onClick: () => void s.runFirmwareTests() },
+        { label: 'Firmware Test Results', onClick: () => s.setBottom('tests') },
+        { label: 'Stop Tests', disabled: !s.firmwareTestRunning || s.firmwareTestStopping, onClick: () => void s.stopFirmwareTests().catch(error => s.notify('error', 'Could not stop tests', String(error))) },
         { label: busy ? 'Stop' : 'Run', hint: 'F5', disabled: !hasFile || !canRun, onClick: () => (busy ? void (s.running ? s.stopRun() : s.stopSim()) : void s.runActive()) },
         {
           // Simulate/Verify/Upload are sketch actions. Enabled for every file
