@@ -131,8 +131,7 @@ async function streamCli(
   args: string[],
   sketchPath: string
 ): Promise<void> {
-  const cancellation = runner.beginRunStart(id)
-  if (!cancellation) return
+  const cancellation = runner.beginRunStart(win, id)
   const sketchDir = dirname(sketchPath)
   runner.sendRunOutput(win, id, 'system', `$ ${CLI} ${args.join(' ')}\n`)
   const start = performance.now()
@@ -165,12 +164,12 @@ async function streamCli(
   })
   proc.on('error', (err) => runner.sendRunOutput(win, id, 'stderr', `${String(err)}\n`))
   proc.on('close', (code, signal) => {
-    runner.untrackProcess(id)
+    runner.untrackProcess(id, proc)
     // arduino-cli surfaces the underlying gcc diagnostics on stderr.
     runner.emitDiagnostics(win, id, stderrBuf, sketchDir)
     const durationMs = Math.round(performance.now() - start)
-    runner.sendRunExit(win, { id, code, signal, durationMs, phase: 'compile' })
     if (code === 0) runner.sendRunOutput(win, id, 'system', `Done in ${durationMs}ms\n`)
+    runner.sendRunExit(win, { id, code, signal, durationMs, phase: 'compile' })
   })
 }
 

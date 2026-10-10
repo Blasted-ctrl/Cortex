@@ -17,6 +17,7 @@ import {
 import { isAllowedCommand, isBareCommand, commandBaseName, sanitizeExtraArgs, OPT_LEVELS } from '../../shared/security'
 import { withinWorkspace, getWorkspaceRoot } from './fsService'
 import { safeCommand, commandMissing, needsShell } from './commandResolver'
+import { reserveRunOutput, deliverRunOutput, deliverRunExit, finishRunOutput, acknowledgeRunOutput, disposeRunOutput } from './runOutputDelivery'
 
 const IS_WIN = platform() === 'win32'
 
@@ -37,22 +38,27 @@ const PARTIAL_HOLD_MS = 250
 interface ActiveRun {
   child: ChildProcess
   startedAt: number
+  window: BrowserWindow
 }
 
 const active = new Map<string, ActiveRun>()
 // Reserve an ID before any async preparation. Stop/quit must still work while
 // no child exists, and a duplicate start must not replace the first child.
-const pending = new Map<string, AbortController>()
+const pending = new Map<string, { controller: AbortController; window: BrowserWindow }>()
 
-export function beginRunStart(id: string): AbortSignal | null {
-  if (active.has(id) || pending.has(id)) return null
+export function beginRunStart(win: BrowserWindow, id: string): AbortSignal {
+  if (active.has(id) || pending.has(id)) throw new Error('This run id is still active or cancelling. Wait for it to stop, then retry the run.')
+  reserveRunOutput(win, id)
   const controller = new AbortController()
-  pending.set(id, controller)
+  pending.set(id, { controller, window: win })
   return controller.signal
 }
 
 export function finishRunStart(id: string, signal: AbortSignal): void {
-  if (pending.get(id)?.signal === signal) pending.delete(id)
+  const reservation = pending.get(id)
+  if (reservation?.controller.signal !== signal) return
+  pending.delete(id)
+  if (!active.has(id)) finishRunOutput(reservation.window, id)
 }
 
 export function runStartCancelled(win: BrowserWindow, id: string, signal: AbortSignal, phase: RunExit['phase']): boolean {
@@ -66,11 +72,12 @@ function send(win: BrowserWindow, channel: string, payload: unknown): void {
 }
 
 function out(win: BrowserWindow, id: string, stream: 'stdout' | 'stderr' | 'system', data: string): void {
-  send(win, IPC.RUN_OUTPUT, { id, stream, data })
+  deliverRunOutput(win, id, stream, data)
 }
 
 function exit(win: BrowserWindow, payload: RunExit): void {
-  send(win, IPC.RUN_EXIT, payload)
+  deliverRunExit(win, payload)
+  if (!pending.has(payload.id) && !active.has(payload.id)) finishRunOutput(win, payload.id)
 }
 
 /** Parse compiler stderr and emit structured diagnostics with absolute paths. */
@@ -199,7 +206,7 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
       resolve(null)
       return
     }
-    active.set(req.id, { child: proc, startedAt: start })
+    active.set(req.id, { child: proc, startedAt: start, window: win })
     // Decode as UTF-8 across chunk boundaries. Without this each Buffer is
     // decoded in isolation, so a multi-byte character split by a pipe read
     // becomes U+FFFD before the line buffer ever sees it - and the raw bytes
@@ -218,7 +225,7 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
       out(win, req.id, 'stderr', spawnErrorText(compiler, err))
     })
     proc.on('close', (code, signal) => {
-      active.delete(req.id)
+      if (active.get(req.id)?.child === proc) active.delete(req.id)
       const durationMs = elapsed(start)
       // Parse diagnostics on both success (warnings) and failure (errors).
       emitDiagnostics(win, req.id, stderrBuf, req.cwd)
@@ -298,7 +305,7 @@ async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: Ab
       resolve(null)
       return
     }
-    active.set(req.id, { child: proc, startedAt: start })
+    active.set(req.id, { child: proc, startedAt: start, window: win })
     // Decode as UTF-8 across chunk boundaries. Without this each Buffer is
     // decoded in isolation, so a multi-byte character split by a pipe read
     // becomes U+FFFD before the line buffer ever sees it - and the raw bytes
@@ -324,7 +331,7 @@ async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: Ab
     })
     proc.on('error', (err) => out(win, req.id, 'stderr', spawnErrorText('rustc', err)))
     proc.on('close', (code, signal) => {
-      active.delete(req.id)
+      if (active.get(req.id)?.child === proc) active.delete(req.id)
       const durationMs = elapsed(start)
       // Flush any trailing partial line, then emit span-accurate diagnostics
       // from the JSON records (on success too, so warnings surface).
@@ -388,7 +395,7 @@ function runProcess(
     exit(win, { id: req.id, code: 127, signal: null, durationMs: 0, phase: 'run' })
     return
   }
-  active.set(req.id, { child: proc, startedAt: start })
+  active.set(req.id, { child: proc, startedAt: start, window: win })
   // Same reason as the compile paths: decode UTF-8 across chunk boundaries, so
   // the line buffer below reassembles lines out of whole characters.
   proc.stdout?.setEncoding('utf8')
@@ -454,7 +461,7 @@ function runProcess(
   proc.stderr?.on('data', (d) => out(win, req.id, 'stderr', d.toString()))
   proc.on('error', (err) => out(win, req.id, 'stderr', spawnErrorText(command, err)))
   proc.on('close', (code, signal) => {
-    active.delete(req.id)
+    if (active.get(req.id)?.child === proc) active.delete(req.id)
     cancelHold()
     // Flush any trailing partial line that passed the filter.
     if (opts.mapStdoutLine && stdoutPartial) {
@@ -471,8 +478,7 @@ function reject(win: BrowserWindow, id: string, msg: string): void {
 }
 
 export async function startRun(win: BrowserWindow, req: RunRequest): Promise<void> {
-  const cancellation = beginRunStart(req.id)
-  if (!cancellation) return
+  const cancellation = beginRunStart(win, req.id)
   try {
     await startReservedRun(win, req, cancellation)
   } catch (err) {
@@ -636,7 +642,7 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
 }
 
 export function stopRun(id: string): void {
-  pending.get(id)?.abort()
+  pending.get(id)?.controller.abort()
   const run = active.get(id)
   if (!run) return
   killTree(run.child)
@@ -702,11 +708,12 @@ export function sendRunExit(win: BrowserWindow, payload: RunExit): void {
 }
 
 export function trackProcess(id: string, child: ChildProcess): void {
-  active.set(id, { child, startedAt: performance.now() })
+  const reservation = pending.get(id)
+  if (reservation) active.set(id, { child, startedAt: performance.now(), window: reservation.window })
 }
 
-export function untrackProcess(id: string): void {
-  active.delete(id)
+export function untrackProcess(id: string, child: ChildProcess): void {
+  if (active.get(id)?.child === child) active.delete(id)
 }
 
 export function sendInput(id: string, data: string): void {
@@ -715,9 +722,19 @@ export function sendInput(id: string, data: string): void {
 }
 
 export function killAll(): void {
-  for (const controller of pending.values()) controller.abort()
+  const windows = new Set([...pending.values(), ...active.values()].map(run => run.window))
+  for (const { controller } of pending.values()) controller.abort()
   // Tree kill here too: quitting the app must not leave a `cargo run` child
   // running on the user's machine.
   for (const [, run] of active) killTree(run.child)
   active.clear()
+  for (const window of windows) disposeRunOutput(window)
+}
+
+export function acknowledgeOutput(win: BrowserWindow, token: unknown): void { acknowledgeRunOutput(win, token) }
+
+export function disposeWindowRuns(win: BrowserWindow): void {
+  for (const reservation of pending.values()) if (reservation.window === win) reservation.controller.abort()
+  for (const run of active.values()) if (run.window === win) killTree(run.child)
+  disposeRunOutput(win)
 }

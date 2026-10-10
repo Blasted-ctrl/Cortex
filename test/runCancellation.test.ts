@@ -56,7 +56,7 @@ function child() {
 let workspace: string
 const send = vi.fn()
 const destroyed = vi.fn(() => false)
-const win = { isDestroyed: destroyed, webContents: { send } } as unknown as BrowserWindow
+const win = { isDestroyed: destroyed, webContents: { send, isDestroyed: destroyed } } as unknown as BrowserWindow
 const cli = { command: 'mock-arduino-cli', args: [], source: 'managed' as const, env: {} }
 let children: ReturnType<typeof child>[]
 let autoClose: boolean
@@ -70,6 +70,7 @@ beforeAll(async () => { workspace = await mkdtemp(join(tmpdir(), 'cortex-cancel-
 afterAll(async () => { await rm(workspace, { recursive: true, force: true }) })
 beforeEach(() => {
   vi.clearAllMocks()
+  send.mockImplementation((_channel, payload) => { if (payload.deliveryToken) runner.acknowledgeOutput(win, payload.deliveryToken) })
   children = []
   autoClose = true
   destroyed.mockReturnValue(false)
@@ -88,11 +89,41 @@ beforeEach(() => {
 })
 afterEach(() => {
   runner.killAll()
+  runner.disposeWindowRuns(win)
   simulator.killAll()
   for (const proc of children) { proc.emit('exit', null); proc.emit('close', null, null) }
 })
 
 describe('Stop cancels reserved runs before any executable can launch', () => {
+  it('rejects a reload retry while the old resolver is cancelling and succeeds after it finishes', async () => {
+    const tool = deferred<typeof cli>()
+    mocks.getArduinoCli.mockReturnValueOnce(tool.promise)
+    const old = embedded.compile(win, boardRequest('reload-retry'))
+    runner.disposeWindowRuns(win)
+    await expect(embedded.compile(win, boardRequest('reload-retry'))).rejects.toThrow(/still active or cancelling/)
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    tool.resolve(cli)
+    await old
+    await embedded.compile(win, boardRequest('reload-retry'))
+    expect(mocks.spawn).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let an old closed child remove a new window run with the same id', async () => {
+    autoClose = false
+    await runner.startRun(win, request('same-id-after-quit', 'javascript'))
+    runner.killAll()
+    const newWin = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: vi.fn((_channel, payload) => {
+      if (payload.deliveryToken) runner.acknowledgeOutput(newWin as unknown as BrowserWindow, payload.deliveryToken)
+    }) } } as unknown as BrowserWindow
+    await runner.startRun(newWin, request('same-id-after-quit', 'javascript'))
+    expect(children).toHaveLength(2)
+    children[0].emit('close', 0, null)
+    runner.stopRun('same-id-after-quit')
+    expect(children[1].kill).toHaveBeenCalledTimes(1)
+    children[1].emit('close', 0, null)
+    runner.disposeWindowRuns(newWin)
+  })
+
   it.each(['compile', 'upload'] as const)('cancels a board %s during delayed CLI resolution', async (operation) => {
     const tool = deferred<typeof cli>()
     mocks.getArduinoCli.mockReturnValueOnce(tool.promise)
@@ -140,7 +171,7 @@ describe('Stop cancels reserved runs before any executable can launch', () => {
     const tool = deferred<typeof cli>()
     mocks.getArduinoCli.mockReturnValueOnce(tool.promise)
     const pending = embedded.compile(win, boardRequest('duplicate'))
-    await embedded.upload(win, boardRequest('duplicate'))
+    await expect(embedded.upload(win, boardRequest('duplicate'))).rejects.toThrow(/still active or cancelling/)
     expect(mocks.getArduinoCli).toHaveBeenCalledTimes(1)
     runner.stopRun('duplicate')
     tool.resolve(cli)

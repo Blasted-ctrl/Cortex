@@ -56,6 +56,17 @@ describe('run and board preparation boundaries', () => {
     expect(useStore.getState().running).toBe(true)
   })
 
+  it.each(actions)('%s clears its own busy state when output admission is rejected', async (action) => {
+    const message = 'This run id is still active or cancelling. Wait for it to finish before retrying.'
+    launch(action).mockRejectedValueOnce(new Error(message))
+    await useStore.getState()[action]()
+    expect(launch(action)).toHaveBeenCalledOnce()
+    expect(useStore.getState().running).toBe(false)
+    expect(useStore.getState().runId).toBe(null)
+    expect(useStore.getState().runPhase).toBe('idle')
+    expect(useStore.getState().output.some((entry) => entry.stream === 'stderr' && entry.text.includes(message))).toBe(true)
+  })
+
   it.each(actions)('%s does not launch an old project after its save finishes', async (action) => {
     const write = deferred<void>()
     api.writeFile.mockReturnValueOnce(write.promise)

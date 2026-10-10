@@ -55,6 +55,14 @@ function on<T>(channel: string, cb: (payload: T) => void): Unsub {
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
+function onRunDelivery<T extends { deliveryToken?: string }>(channel: string, cb: (payload: T) => void): Unsub {
+  return on<T>(channel, payload => {
+    try { cb(payload) } finally {
+      if (typeof payload.deliveryToken === 'string') ipcRenderer.send(IPC.RUN_OUTPUT_ACK, payload.deliveryToken)
+    }
+  })
+}
+
 const api = {
   // dialogs
   openFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.DIALOG_OPEN_FOLDER),
@@ -89,8 +97,8 @@ const api = {
   runStart: (req: RunRequest): Promise<void> => ipcRenderer.invoke(IPC.RUN_START, req),
   runStop: (id: string): Promise<void> => ipcRenderer.invoke(IPC.RUN_STOP, id),
   runInput: (id: string, data: string): Promise<void> => ipcRenderer.invoke(IPC.RUN_INPUT, id, data),
-  onRunOutput: (cb: (c: RunOutputChunk) => void): Unsub => on(IPC.RUN_OUTPUT, cb),
-  onRunExit: (cb: (e: RunExit) => void): Unsub => on(IPC.RUN_EXIT, cb),
+  onRunOutput: (cb: (c: RunOutputChunk) => void): Unsub => onRunDelivery(IPC.RUN_OUTPUT, cb),
+  onRunExit: (cb: (e: RunExit) => void): Unsub => onRunDelivery(IPC.RUN_EXIT, cb),
   onRunDiagnostics: (cb: (d: RunDiagnostics) => void): Unsub => on(IPC.RUN_DIAGNOSTICS, cb),
 
   // project config

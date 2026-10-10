@@ -128,7 +128,7 @@ describe('Arduino services use the same managed executable and configuration', (
     proc.emit('close', 0, null)
     expect(mocks.sendRunOutput).toHaveBeenCalledWith(win, 'operation', 'stdout', 'working\n')
     expect(mocks.sendRunExit).toHaveBeenCalledWith(win, expect.objectContaining({ id: 'operation', code: 0, phase }))
-    expect(mocks.untrackProcess).toHaveBeenCalledWith('operation')
+    expect(mocks.untrackProcess).toHaveBeenCalledWith('operation', proc)
   })
 
   it('uses a safe PATH installation without adding Cortex configuration', async () => {

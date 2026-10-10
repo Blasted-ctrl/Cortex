@@ -104,6 +104,7 @@ function createWindow(): void {
     window.close()
   }))
   window.on('closed', () => {
+    runner.disposeWindowRuns(window)
     if (mainWindow !== window) return
     ipcMain.removeHandler(IPC.APP_READY_TO_CLOSE)
     mainWindow = null
@@ -126,7 +127,8 @@ function createWindow(): void {
   // renderer starts a fresh top-level load. On the very first load there are no
   // sessions, so this is a no-op there; a dev HMR patch does not reload, so a
   // live shell survives HMR as before.
-  mainWindow.webContents.on('did-start-loading', () => terminal.killAll())
+  mainWindow.webContents.on('did-start-loading', () => { terminal.killAll(); runner.disposeWindowRuns(window) })
+  mainWindow.webContents.on('render-process-gone', () => runner.disposeWindowRuns(window))
 
   void mainWindow.loadURL(rendererDocumentUrl)
 }
@@ -596,6 +598,7 @@ function registerIpc(): void {
   handle(IPC.RUN_START, (_e, req: RunRequest) => runner.startRun(requireWindow(), req))
   handle(IPC.RUN_STOP, (_e, id: string) => runner.stopRun(id))
   handle(IPC.RUN_INPUT, (_e, id: string, data: string) => runner.sendInput(id, data))
+  on(IPC.RUN_OUTPUT_ACK, (_e, token: unknown) => runner.acknowledgeOutput(requireWindow(), token))
 
   // ---- integrated terminal (pty) ----
   // A user-driven terminal is user-authorized: it spawns the user's own shell

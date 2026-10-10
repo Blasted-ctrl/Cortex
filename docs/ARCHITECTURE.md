@@ -83,6 +83,59 @@ Every channel name lives in `src/shared/ipc.ts`. Two directions:
 Adding a feature that crosses the boundary means: add the channel + types to `shared/ipc.ts`, handle
 it in `main/index.ts`, expose it in `preload/index.ts`, and consume it via `window.api` in the store.
 
+### Bounded build/run console delivery
+
+`runOutputDelivery.ts` puts build, board and package console output behind one
+window-wide delivery credit. At most one output or exit packet is in flight;
+each serialized payload is at most 32 KiB. The preload returns credit through
+the guarded `run:outputAck` channel only after the synchronous output/exit
+callback completes, including when that callback throws. Wrong-window, old,
+missing and repeated tokens do not release credit.
+
+Pending display text is limited to 256 KiB and 64 normal entries. Adjacent
+chunks coalesce only when run id and stream match. Two phase-specific omission
+markers and two compile/run exit fences are reserved for each of at most 32
+outstanding run deliveries: at most 128 queued output entries and 64 exit
+entries globally per window. Run ids are limited to 256 UTF-8 bytes. Excess
+display text is omitted, with an explicit marker accounting for bytes by run
+and original stream; retained output order and compile/run fences are preserved.
+This is bounded console delivery, not a lossless transcript.
+
+A stalled or absent receiver cannot make the transport queue grow without
+limit. A 33rd outstanding delivery is rejected before a child starts, with an
+actionable wait/reload error. A still-active or cancelling duplicate id is also
+rejected explicitly. Exit delivery waits for preceding output acknowledgements;
+a stalled renderer may therefore not show completion until it resumes. Renderer
+reload/crash and window close dispose delivery state and cancel only that
+window's runner reservations/children. Late child cleanup checks child identity
+so it cannot erase a newer same-id run in another window.
+
+Compiler diagnostic parsing remains independent of console omissions. Raw
+compiler/Arduino stderr accumulation and diagnostic IPC are separate existing
+paths; this change does not claim to bound total main-process memory. Headless
+firmware reports and their complete traces are unchanged.
+
+#### Measurement ledger (2026-10-10)
+
+An owned Windows/Node 22.20.0 harness compared checkpoint `f89dce0` with this
+transport using three repetitions of fixed 4/16 MiB workloads. Renderer
+consumption was delayed until producer completion plus 250 ms. These are
+application-delivered serialized bytes/message counts, not Chromium allocator
+measurements or a host-speed benchmark.
+
+| Fixed workload | Before | After | Decision |
+|---|---|---|---|
+| 16 MiB in 256-byte alternating-stream chunks, stalled receiver | 65,536 output messages; 22,609,920 queued JSON-wrapper bytes | One unacknowledged output message; 66 total after draining, with explicit omission counts | Keep: fixed byte and entry bounds replace linear queued growth |
+| Real owned child emitting 16 MiB plus 500 compiler-shaped warnings | 312-339 output messages; approximately 16.9 MB total queued serialized data | One unacknowledged console packet; 18 output messages after draining; retained stdout 256 KiB plus explicit omissions | Keep: all 500 structured diagnostics and failure exit still arrive |
+
+The real-child post-change output/exit payload queue peaks at 32 KiB (32,803
+bytes including the harness's JSON channel wrapper); its separate diagnostic
+message is not included in that console bound. Focused regressions cover byte
+and entry accounting, Unicode/control-character packet limits, both phase
+fences, stale credits, admission recovery, callback exceptions and reload/late
+child cleanup. Final combined build/native verification is recorded separately
+in [release validation](RELEASE-VALIDATION.md).
+
 ## Build & module format
 
 - **electron-vite** builds three targets (main, preload, renderer) from one config

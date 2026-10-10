@@ -34,6 +34,7 @@ export const IPC = {
   RUN_STOP: 'run:stop',
   RUN_INPUT: 'run:input',
   RUN_OUTPUT: 'run:output', // main -> renderer (streamed)
+  RUN_OUTPUT_ACK: 'run:outputAck', // renderer -> main after output/exit delivery is handled
   RUN_EXIT: 'run:exit', // main -> renderer
   RUN_DIAGNOSTICS: 'run:diagnostics', // main -> renderer (parsed compiler diagnostics)
 
@@ -244,6 +245,8 @@ export interface RunOutputChunk {
   id: string
   stream: 'stdout' | 'stderr' | 'system'
   data: string
+  deliveryToken?: string
+  omitted?: { stdout: number; stderr: number; system: number }
 }
 
 export interface RunExit {
@@ -252,6 +255,7 @@ export interface RunExit {
   signal: string | null
   durationMs: number
   phase: 'compile' | 'run'
+  deliveryToken?: string
 }
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'note' | 'info'

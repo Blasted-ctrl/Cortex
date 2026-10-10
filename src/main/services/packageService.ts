@@ -262,8 +262,7 @@ export function setOnPackagesChanged(cb: () => void): void {
 
 /** Run an arduino-cli command, streaming its output to the Output panel. */
 async function stream(win: BrowserWindow, id: string, argsSource: string[] | (() => Promise<string[]>)): Promise<void> {
-  const cancellation = runner.beginRunStart(id)
-  if (!cancellation) return
+  const cancellation = runner.beginRunStart(win, id)
   const start = performance.now()
   let args: string[]
   let proc: ChildProcess
@@ -294,7 +293,7 @@ async function stream(win: BrowserWindow, id: string, argsSource: string[] | (()
   proc.stderr?.on('data', (d) => runner.sendRunOutput(win, id, 'stdout', d.toString()))
   proc.on('error', (err) => runner.sendRunOutput(win, id, 'stderr', `${String(err)}\n`))
   proc.on('close', (code, signal) => {
-    runner.untrackProcess(id)
+    runner.untrackProcess(id, proc)
     const durationMs = Math.round(performance.now() - start)
     if (code === 0) {
       if (args[0] === 'core' && args[1] === 'update-index') clearArduinoCliSetupHint()
