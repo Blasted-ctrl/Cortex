@@ -427,6 +427,39 @@ its independent watchdog is unused. The receipt is
 The blocking audit and all-platform, signing, hardware and human validation
 remain required.
 
+## Native Vite development acceptance
+
+An owned copied-source development launch loads the actual `.mts` config with
+Vite 7.3.7. Two genuine WebSocket component updates show the temporary StatusBar
+marker and its restoration without a page reload; the original root/copy bytes
+are unchanged afterward. Actual sandboxed preload/native bridge, editor saving,
+external-conflict recovery, automatic create/rename/delete watching and 30 Monaco
+focus/tab rounds pass. A genuine PowerShell PTY prints the marker and exits
+normally. Serial modules enumerate without opening a port. The built PDF worker
+imports real text and terminates; only the OS picker uses an explicit fixture.
+
+The initial copied-source dependency junction causes a font HTTP 403 because its
+resolved dependency path is outside that owned server's filesystem allowance.
+The harness-only correction allows the copied source and exact resolved
+`node_modules` directory, not the workspace or all filesystem paths. Actual font
+HTTP 200 (80340 bytes), Chromium's loaded codicon face, real fold/unfold clicks
+and both served Monaco backport calls then pass. No application security/config
+change follows from this fixture problem. Real Teensy underside 48-54/GND mesh
+inspection passes again in development. The HMR, terminal and fold screenshots
+were personally inspected.
+
+The copied source explicitly predates the AI approval and final GDB tail fixes;
+`dev-source-snapshot.json` records hashes instead of claiming an exact HEAD.
+Receipts and screenshots are in owned `cortex-md-desktop-ra4M3K/dev/artifacts`,
+including the retained `dev-before-exact-dependency-allowlist` directory,
+`dev-real-font-control.json` and `owned-normal-recovery-cleanup.json`.
+Published Monaco dependency sourcemap ENOENT and standard Electron development
+CSP warnings remain visible. WebGL context-loss informational messages accompany
+keyed canvas resets; replacement scenes render, and runtime exceptions are empty.
+All captured owned children exit normally, ports 9342/9344/9742 are released, and
+the unrelated user instance is untouched. Latest-source production acceptance
+and fresh installation remain separate checks.
+
 ## Reviewed AI edit approval follow-up
 
 The original approval path allowed overlapping approvals and stale reads/writes
