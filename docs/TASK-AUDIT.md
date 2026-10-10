@@ -25,8 +25,9 @@ actual limits. None establishes arbitrary firmware/board or electrical parity.
 
 Debugger output uses the shared recent-tail text budget, with actual-store and
 buffer regressions. Build/run console transport additionally bounds queued work
-with acknowledged packets and per-stream omission markers (`e8cd435`); native
-stalled-consumer checks of the final bundle remain pending. Structured compiler
+with acknowledged packets and per-stream omission markers (`e8cd435`); an actual
+native 16 MiB producer/2000 ms renderer stall now passes with an omission marker
+and a responsive bridge. This is not a total-memory measurement. Structured compiler
 diagnostics and complete bounded firmware reports are separate paths. The packaging
 config now excludes `.mts`/`.cts` tooling configs; that is a local packaging
 guard, not installer validation. Its actual electron-builder matcher regression
@@ -42,12 +43,14 @@ profile. Later-snapshot runtime checks are still running.
 The finite queue below is now being executed. Desktop tests/replay, PDF worker
 isolation and debugger state have matching implementation and acceptance evidence;
 their firmware/local checklist entries are checked. Keyboard navigation, sessions,
-advanced choices and renderer guards are committed and have focused checks, with
-final native verification pending. The [recorded demo](demos/README.md) passed
+advanced choices and renderer guards are committed and have focused checks;
+native keyboard/session/optimization checks now pass. The [recorded demo](demos/README.md) passed
 full decoding, actual seek/frame checks and visual pass/failure/fix inspection;
 fresh-install full regression passed. Output/panel implementations are committed,
-with final native acceptance pending. The panel fix is `6b55381`, with six failing-then-passing
-actual React geometry cases; native short-window validation remains open.
+with actual native stalled-output and panel acceptance now passing. The panel fix
+is `6b55381`, with six failing-then-passing actual React geometry cases and genuine
+short-window resize/zoom/drag/detail-scroll controls. Debugger Stop, dev/HMR,
+guarded manual publication and latest-source installation are separate final gates.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
@@ -62,6 +65,7 @@ Do not infer completion from this inventory's status prose alone.
 | 8 | Restore saved project/editor session state | Saved tabs, active group/file and expanded folders reopen safely; missing/renamed files and failed switches are handled without overwriting dirty work. Recent project folders already exist; this is not unsaved crash recovery |
 | 9 | Advanced optimization control | Provide validated project-level advanced choices and honest defaults, round-trip them through persistence and Run/Debug as applicable; retain the safe argument allowlist |
 | 10 | Renderer sandbox/navigation hardening as a separately tested security slice | Review preload/module compatibility, then verify sandboxed dev/production startup and an explicit navigation allowlist without breaking valid file/editor/tool workflows; do not merely flip a flag |
+| 11 | Close local publication bypass discovered during final inspection | Default local packaging never publishes; manual publication must pass quality/audit checks, refuse public or ambiguous exact-target releases and create drafts only. Exercise fake failure paths, not a real publication |
 
 Implementation evidence for these remaining boundaries:
 
@@ -81,7 +85,10 @@ Implementation evidence for these remaining boundaries:
   the V8 heap limit from total-memory or security isolation.
 - [DebugPanel](../src/renderer/src/components/DebugPanel.tsx) now stays mounted
   across tool switches and follows an explicit session reset policy. Nine real
-  React state/race checks pass; [DEBUGGING.md](DEBUGGING.md) states the limits.
+  React state/race checks pass; actual GDB Watch/Console and sidebar preservation
+  also pass. Native Stop exposes a late disposed-process exit overwriting idle;
+  this service lifecycle defect is being fixed separately, not waived by UI state
+  tests. [DEBUGGING.md](DEBUGGING.md) states the limits.
 - [FileExplorer](../src/renderer/src/components/FileExplorer.tsx) and
   [EditorArea](../src/renderer/src/components/EditorArea.tsx) now expose tree/tablist
   semantics and roving keyboard focus, with 19 actual React behavior cases.
@@ -93,7 +100,8 @@ Implementation evidence for these remaining boundaries:
 - [TargetSelect](../src/renderer/src/components/TargetSelect.tsx) exposes
   optimization presets and a validated advanced disclosure, without free-form
   shell arguments. [PROJECT-CONFIG.md](PROJECT-CONFIG.md) distinguishes host Run,
-  Debug and scenario build policies; native persistence/sink checks remain open.
+  Debug and scenario build policies; native persisted -O0/-O1 compiler and
+  executable sink checks now pass, with the visible -Ofast warning.
 - [Window setup](../src/main/index.ts) now uses `sandbox: true`, an exact renderer
   document navigation policy and main-frame/window IPC guards. Security tests and
   actual production sandbox/bridge/native controls pass; dev/HMR and final source
@@ -113,8 +121,9 @@ serializing files and concurrent native cases then passes all 97 suites/1688
 applicable cases with five existing explicit skips, preserving isolation,
 deadlines and within-case races. Types/build, repeated CLI behavior, negative
 self-tests and the benchmark pass. Final native/fresh-source acceptance remains
-open; native reopen has exposed a separate Windows expansion-key mismatch now
-undergoing a regression-tested fix. Follow
+open; native reopen exposed a separate Windows expansion-key mismatch, now fixed
+in `c2ec69b` with failing-then-passing store/React/native checks. Native GDB Stop
+has since exposed a separate disposed-callback lifecycle defect under repair. Follow
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for separate major review,
 peer/engine compatibility, migration scope and approval before each install.
 Do not force test dependencies onto an incompatible Vite or waive findings as

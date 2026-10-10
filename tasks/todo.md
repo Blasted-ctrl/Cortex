@@ -179,15 +179,36 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [x] Bound debugger console text with the existing output-retention helper.
 - [x] Isolate PDF parsing so a CPU-stuck parser cannot block the main-process timeout.
 - [x] Preserve debugger watch/console state when changing sidebar tools.
-- [ ] Complete locally verifiable Explorer/editor keyboard and ARIA follow-ups.
-- [ ] Verify saved workspace tabs/expanded folders without overwriting unsaved data.
-- [ ] Verify persisted advanced optimization choices without losing custom values.
+- [x] Complete locally verifiable Explorer/editor keyboard and ARIA follow-ups.
+  Actual native keys exercise nested tree navigation, context-menu focus return,
+  manual tab activation and dirty Delete/cancel then Ctrl+S/close. This is not a
+  complete accessibility audit.
+- [x] Verify saved workspace tabs/expanded folders without overwriting unsaved data.
+  Native visible-folder checks exposed a Windows separator mismatch; failing
+  React/store/native receipts precede the fix. Five focused suites/87 cases,
+  types/style/build and rebuilt actual expanded/selected/two-group disk restore,
+  Reload and watcher checks pass. Full combined verification remains separate.
+- [x] Verify persisted advanced optimization choices without losing custom values.
+  Focused allowlist/persistence tests and actual native -O0/-O1 compiler arguments,
+  executable markers, disk round-trip and visible -Ofast warning pass.
 - [ ] Verify hardened renderer sandbox/navigation in native dev/production workflows.
 - [x] Verify a fresh locked source installation in an owned temporary directory.
-- [ ] Verify bounded producer-to-renderer output delivery with stalled consumers.
-- [ ] Verify bottom-panel fitting and dragging in a short native window.
+- [x] Verify bounded producer-to-renderer output delivery with stalled consumers.
+  Actual native 16 MiB stdout with a 2000 ms renderer stall exits 0, retains
+  295018 UTF-16 code units, reports omitted bytes and leaves the bridge responsive.
+  Run-id reuse after a genuine reload also passes; no total-memory claim is made.
+- [x] Verify bottom-panel fitting and dragging in a short native window.
+  Native resize to 1000x650 and 110% zoom preserve the 640 preference while fitting
+  around the editor; a real two-pixel drag and hide/show preserve the new 508
+  preference. Genuine noisy-firmware failure details scroll internally, not the
+  document. The full combined regression remains a separate gate.
 - [ ] Finish combined verification of separately approved Vite 7.3.7 and its
   demonstrated Vitest config/typing/packaging migrations; keep Electron unchanged.
+- [ ] Close the discovered manual release-script bypass of CI quality/audit and
+  draft-only guards; verify exact-target rejection without real publication.
+- [ ] Fix the native debugger Stop lifecycle failure: a disposed process's late
+  exit must not overwrite idle or a new session; verify real Stop/restart after
+  focused callback/command ownership regressions.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
 Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,

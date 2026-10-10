@@ -320,6 +320,56 @@ confirm unchanged manifests, six npm configuration paths, Electron executable
 and renderer bundle before/after those read-only commands. Receipts are in the
 owned `cortex-post-vite-audit-*` Temp directory. The audit remains release-blocking.
 
+## Final native follow-ups after Vite and session fixes
+
+An owned production copy of the rebuilt session checkpoint passes actual
+Explorer tree keys, editor tab focus/activation and dirty-close recovery. The
+keyboard control puts tabs in the same editor group through the existing layout
+action before testing manual focus; focusing a different group legitimately
+changes its active file. No product assertion is weakened for that setup.
+
+Actual compiler sinks use `-O0` and `-O1`, with distinct executable output markers,
+exit 0, saved `-O1` settings and a visible `-Ofast` behavior warning. A fresh
+process reopens the expanded folders, current disk-backed tabs/groups and saved
+optimization, while excluding a freshly deleted tab. Genuine Reload permits
+another successful `run-1` after the previous `run-1` completes. An earlier
+immediate post-reload click did not admit a run and lacks a hit-target snapshot;
+that inconclusive receipt remains separate from the visible, focused, hit-tested
+positive control.
+
+A real 16 MiB stdout workload stalls the renderer for 2000 ms. It exits 0,
+retains 295018 UTF-16 code units and displays an omission marker for 16482401
+stdout bytes and 29 stderr bytes; the genuine bridge remains responsive. This
+proves bounded delivery/retention behavior, not total RSS or Chromium heap use.
+Structured compiler diagnostics remain a separate unbounded-memory path.
+
+Native panel checks preserve the 640 preference while fitting at 1000x650 and
+110% zoom, leaving approximately 120 CSS pixels for the editor. An actual
+two-pixel drag stores 508; hide/show retains it. A genuinely compiled broken
+firmware fixture produces 68419 stdout bytes and the expected shutdown failure
+at 480 ms. Its saved report and UI agree; the detail region scrolls from 7470 to
+9070 within 17151 pixels of content and a 312-pixel viewport, while document/root
+scroll remains zero. The inspected screenshot shows the failure's reproduction
+configuration, not a synthetic preloaded report. Built PDF parsing also succeeds
+and terminates its worker; only the OS picker is substituted with an owned file.
+
+Actual GDB 15.2 pauses at the real breakpoint on line 5, shows `localValue=7`,
+evaluates Watch `counter=41` and Console `counter+1=42`, and preserves drafts and
+history across sidebar changes. However, Stop kills the child and then a late
+exit changes the renderer to Exited instead of Idle. This genuine failing
+receipt is retained and requires a service lifecycle fix plus native recheck;
+successful Watch/Console controls do not waive it.
+
+Native WebGL clicks inspect each Teensy underside pad 48-54 and an independently
+reframed GND mesh with readable Ground reference details. Zoom is still needed
+for readable stylized labels. Screenshots and exact receipts are in the owned
+`cortex-md-desktop-*/production/artifacts` directory, including
+`latest-ui-report.json`, `latest-native-output-burst.json`,
+`native-reloaded-run-id-control.json` and `md-production-pin-inspection-report.json`.
+These screenshots were personally inspected. Owned windows and captured children
+close normally and release port 9342; the unrelated user instance is untouched.
+Combined later-source, debugger-fix, dev/HMR and fresh-install gates remain open.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

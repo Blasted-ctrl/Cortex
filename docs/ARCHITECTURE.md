@@ -136,6 +136,13 @@ fences, stale credits, admission recovery, callback exceptions and reload/late
 child cleanup. Final combined build/native verification is recorded separately
 in [release validation](RELEASE-VALIDATION.md).
 
+A later genuine production Electron control runs a 16 MiB stdout child while
+the renderer stalls for 2000 ms. It exits 0, retains 295018 UTF-16 code units,
+shows explicit stdout/stderr omissions and leaves the preload bridge responsive.
+Another real compile/run safely reuses `run-1` after renderer reload. These are
+native behavior controls, not allocator/RSS measurements or a speed comparison;
+they do not extend the console bound to structured compiler diagnostics.
+
 ## Build & module format
 
 - **electron-vite** builds three targets (main, preload, renderer) from one config
