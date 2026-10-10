@@ -335,9 +335,10 @@ cannot detect an included-file change from the top-level fingerprint alone.
 
 The first release shipped the CLI, scenarios, reports, CI, benchmarks and this
 quickstart. The desktop follow-up now exposes Run Tests, failure details and
-saved-input replay. Recording and fresh-install teammate/outside-team validation
-remain tracked in [tasks/todo.md](../tasks/todo.md); automated local tests do not
-complete those human trials.
+saved-input replay. A [playback-validated desktop demonstration](demos/README.md)
+shows the correct sketch, broken timeout assertion, failure evidence and verified
+fix. Fresh-install teammate/outside-team validation remains tracked in
+[tasks/todo.md](../tasks/todo.md); local agent tests do not complete human trials.
 
 ## Troubleshooting
 

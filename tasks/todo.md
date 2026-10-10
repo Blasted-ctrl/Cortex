@@ -33,7 +33,7 @@
 - [x] Add desktop Run Tests action calling the same headless runner.
 - [x] Add desktop results view with failure inputs, outputs and logs.
 - [x] Add saved-scenario/report rerun in desktop; preserve reproduction config.
-- [ ] Record demonstration: correct firmware passes, broken firmware fails,
+- [x] Record demonstration: correct firmware passes, broken firmware fails,
   report explains failure, and the fix passes.
 - [ ] Have two teammates try the quickstart from fresh installations; record
   setup/toolchain/report confusion and resolve identified problems.
@@ -198,8 +198,9 @@ and zero type errors; native latest-snapshot checks remain in progress.
 Actual desktop correct/broken/deleted-scenario-replay/fixed runs and live hanging
 fixture Stop passed in an isolated project. Genuine built PDF-worker import and
 termination passed with only the OS file picker substituted by an owned fixture;
-the picker itself remains unverified. The recorded WebM still requires playback
-validation before its demonstration checkbox is checked. Fresh locked source
+the picker itself remains unverified. The [recorded WebM](../docs/demos/README.md)
+passed full decoding, real seek/frame checks and visual pass/failure/fix inspection;
+it predates the committed panel-height fix. Fresh locked source
 installation/build/native terminal passed; its full suite also passed: 89 suites,
 1610 tests and the same five existing skips on the archived `f89dce0` snapshot.
 This fresh-install result does not substitute for verification of later source.

@@ -1,6 +1,6 @@
 # Production readiness
 
-Updated 2026-10-09 for customer-release hardening. Working features are not the
+Updated 2026-10-10 for customer-release hardening. Working features are not the
 same thing as a validated release. Cortex is not yet approved for customer rollout.
 The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
 
@@ -27,8 +27,9 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
    board was flashed during this hardening pass. Managed Arduino CLI removes a
    separate CLI installation requirement, not these hardware prerequisites.
 4. Fresh-install trials. Two teammates and an outside team still need to run
-   the documented firmware workflow and report setup/recovery problems. Record a
-   passing sketch, a broken sketch, the failure report and the verified fix.
+   the documented firmware workflow and report setup/recovery problems. The
+   [recorded local demonstration](demos/README.md) now shows the passing sketch,
+   broken sketch, failure evidence and verified fix; it is not a human trial.
 5. Recovery and maintenance. Decide release update policy and validate crash
    recovery/unsaved-work recovery. An auto-updater and privacy-reviewed crash
    reporting pipeline are not implemented.

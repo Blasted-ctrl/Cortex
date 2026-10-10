@@ -134,8 +134,10 @@ CLI and desktop workflow; see the complete [quickstart and reference](FIRMWARE-T
   scenario statuses, assertion timestamps/evidence, input/output/log previews,
   full saved JSON/Markdown reports and report-embedded replay. Workspace-confined
   native runs have cancellation, batch/output budgets and unique report folders.
-- **Follow-up:** recorded demonstration, two fresh-install teammate trials and one
-  outside-team trial. These are tracked tasks, not completed user validation.
+- **Demonstration:** an actual [playback-validated desktop recording](demos/README.md)
+  shows passing firmware, the broken timeout report and a verified fix.
+- **Follow-up:** two fresh-install teammate trials and one outside-team trial.
+  These are tracked tasks, not completed user validation.
 
 Native host tests do not emulate MCU instructions, electrical circuits, real
 hardware timing or arbitrary sensor libraries. Coverage is the supported Uno

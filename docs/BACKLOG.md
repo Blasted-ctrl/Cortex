@@ -84,11 +84,11 @@ The detailed acceptance/verification checklist is in
 |---|---|---|
 | 1 | Desktop Run Tests calls the same runner - implemented | Actual passing/failing scenarios launched from the app; local evidence in task audit |
 | 2 | Desktop results/details and saved-scenario rerun - implemented | Actual deleted-scenario embedded replay and fixed-source rerun pass; inputs/outputs/logs retained |
-| 3 | Record a short demonstration | Correct sketch passes, broken sketch fails, report locates the problem, corrected sketch passes |
+| 3 | Record a short demonstration - complete | [Actual playback-validated recording](demos/README.md) shows pass, broken report and corrected pass |
 | 4 | Two teammate trials from fresh installs | Record setup/report confusion and verify resulting fixes |
 | 5 | One outside-team trial | Record usefulness for their firmware and missing capabilities |
 | 6 | Establish representative CI baselines | Repeated runs on compatible tooling/hosts quantify normal variation |
 | 7 | Expand boards/peripherals from trial evidence | New capability has a documented runnable example and scenarios |
 
-Automated local verification is not evidence that a demonstration was recorded
-or that teammates/an outside team tried the workflow.
+The actual recording has separate playback evidence. Automated local verification
+is not evidence that teammates/an outside team tried the workflow.

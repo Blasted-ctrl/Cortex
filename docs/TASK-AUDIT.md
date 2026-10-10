@@ -41,7 +41,8 @@ The finite queue below is now being executed. Desktop tests/replay, PDF worker
 isolation and debugger state have matching implementation and acceptance evidence;
 their firmware/local checklist entries are checked. Keyboard navigation, sessions,
 advanced choices and renderer guards are committed and have focused checks, with
-final native verification pending. The recorded demo needs playback validation;
+final native verification pending. The [recorded demo](demos/README.md) passed
+full decoding, actual seek/frame checks and visual pass/failure/fix inspection;
 fresh-install full regression passed, and output/panel hardening is still in
 progress. The panel fix is committed as `6b55381`, with six failing-then-passing
 actual React geometry cases; native short-window validation remains open.

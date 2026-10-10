@@ -56,8 +56,8 @@ The first release covers the headless workflow and quickstart:
 - Complete [quickstart](FIRMWARE-TESTING.md), example contract and feature docs.
 
 Desktop Run Tests, results/details and saved-report replay now use the same
-runner, with real correct/broken/fixed native verification. A recorded local demo
-is undergoing playback validation. Two teammates still need to test fresh
+runner, with real correct/broken/fixed native verification. The
+[recorded local demo](demos/README.md) is playback-validated. Two teammates still need to test fresh
 installations and one outside team must try the workflow. Their feedback drives
 future board/peripheral coverage.
 See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work.
