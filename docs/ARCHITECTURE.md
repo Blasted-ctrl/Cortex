@@ -45,9 +45,14 @@ surface.
 - `services/settingsService.ts` - JSON settings persisted in `app.getPath('userData')`.
 
 ### Preload - `src/preload/`
-The only bridge. `index.ts` exposes a **typed, minimal `window.api`** via `contextBridge`. No Node
-globals leak into the renderer (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`
-so the preload may `import` from Node while the renderer stays isolated).
+The only bridge. The bundled CommonJS `index.ts` exposes a **typed, minimal
+`window.api`** via `contextBridge`, with `contextIsolation: true`,
+`nodeIntegration: false` and `sandbox: true`. Its runtime uses Electron's
+[sandbox-supported bridge APIs](https://github.com/electron/electron/blob/v33.4.11/docs/tutorial/sandbox.md),
+not general Node modules. Window navigation and incoming IPC require the selected
+renderer document; IPC also requires this window's main-frame identity.
+Focused security checks pass locally. Current native sandbox startup and OS-level
+sandbox evidence remain pending in [release validation](RELEASE-VALIDATION.md).
 
 ### Renderer - `src/renderer/`
 React + TypeScript UI, bundled by Vite.
@@ -91,3 +96,26 @@ it in `main/index.ts`, expose it in `preload/index.ts`, and consume it via `wind
 > Environment note: if `ELECTRON_RUN_AS_NODE=1` is set in your shell, Electron launches as plain
 > Node and `require('electron')` returns a path string (`app` is undefined). Unset it before
 > `npm run dev`.
+
+## Continuous integration
+
+The [ordinary CI workflow](../.github/workflows/ci.yml) runs on pull requests and
+pushes to `main`/`master`, using `ubuntu-24.04` and `windows-2022` rather than
+floating runner labels. Checkout and Node setup use verified full commit SHAs;
+checkout does not persist credentials, token permissions are `contents: read`,
+and each job has a 20-minute host timeout. Node remains pinned to 22.20.0.
+
+CI installs Linux `g++-14` or locates the Windows runner's MinGW compiler, then
+requires a successful `g++ --version` before compiler-gated tests. A missing
+compiler fails the job instead of quietly skipping real firmware cases. Compiler
+patch versions remain runner/package-provided and are recorded in the log;
+this is not the fully pinned benchmark toolchain. The [firmware workflow](../.github/workflows/firmware-tests.yml)
+separately pins the GCC 14.2.0 container by digest and explicitly probes its compiler.
+
+Ordinary CI retains locked `npm ci`, both typechecks, regression tests and the
+desktop/tools build, followed by `npm audit --audit-level=high`. Audit failures
+are not ignored or allowlisted. The known high/critical findings therefore keep
+CI and customer release readiness red until separately approved remediation
+clears them; see [Dependency release gate](DEPENDENCY-REMEDIATION.md).
+Local YAML regression checks validate this configuration, not a remote Actions
+run, branch protection or clean-machine installer validation.

@@ -79,6 +79,17 @@ removed before a passing rerun. The current audit is 31 findings:
 Vite/Vitest, Electron or packaging findings. Later majors require their own
 confirmation, peer/migration review and checks, not a single forced install.
 
+## CI enforcement without dependency upgrades
+
+Ordinary CI now uses verified immutable checkout/Node action pins, read-only
+token permissions, disabled checkout credential persistence, stable Windows/Linux
+runner labels, an explicit required host-compiler probe and a bounded job timeout.
+It also runs `npm audit --audit-level=high` without exceptions. These controls do
+not remediate the last recorded 31 findings or turn the audit green; they make
+the existing release floor visible in ordinary CI. Workflow regression checks
+pass locally; remote Actions results remain unverified. See the
+[CI architecture notes](ARCHITECTURE.md#continuous-integration).
+
 ## Next proposed major: Vite (not installed)
 
 Propose Vite 5.4.21 to 7.3.7, subject to separate user confirmation after the

@@ -39,6 +39,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Require the pinned host compiler
+        run: g++ --version
+
       - name: Typecheck
         run: npm run typecheck
 
