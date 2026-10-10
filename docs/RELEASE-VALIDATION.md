@@ -283,8 +283,22 @@ Actual native reopen reveals a separate Windows restoration defect: forward-slas
 saved expansion/cache keys do not match backslash Explorer nodes, so a folder is
 visually collapsed despite its saved expanded metadata. A metadata-only assertion
 was insufficient; actual `aria-expanded` and visible descendants are required.
-The fix and new regressions are being verified separately from the successful
-97-suite Vite checkpoint. No unsaved buffers or user projects are changed.
+The unchanged immutable build reproduces `aria-expanded=false` and missing
+nested rows in a visible/focused window with no renderer exception. Both new
+React/store regressions fail first; five focused suites then pass all 87 cases,
+including POSIX identity controls and collapse/reopen stale-read ownership. Types
+pass (34424 ms), style passes all four cases, and the rebuilt production/tools
+build passes (145504 ms). The renderer is `index-BS3X1PrX.js`, SHA256
+`27a8ae3a3d2400770a18c066a10aee7227a982ebcb2cf67cc77974ceca4ae4bf`;
+main/preload hashes remain unchanged. Actual rebuilt native reopen passes in
+2.44 seconds: both folders are visibly expanded, the selected child is visible,
+two editor groups read current disk bytes, and explicit Reload plus automatic
+create/rename/immediate-unlink watcher updates work. The missing-file admission
+control is retained from the earlier reopen; later metadata already omits it.
+The before/after screenshots are personally inspected. Owned native RED processes
+close normally with their listener released; other user instances are untouched.
+This is a separately verified session checkpoint, not a claim that its combined
+regression or all final desktop tasks have finished.
 
 Final native editor keyboard validation also exposed a 5-by-5-pixel Monaco view
 inside a full-size selected tab pane. The unchanged-build discriminator measures

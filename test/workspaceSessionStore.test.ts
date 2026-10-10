@@ -31,6 +31,27 @@ beforeEach(() => {
 })
 
 describe('actual store project session lifecycle', () => {
+  it('treats Windows directory aliases as one pending expansion across collapse and reopen', async () => {
+    await useStore.getState().openWorkspace(root)
+    const native = { ...node, path: 'C:\\Project\\src' }
+    const alias = { ...node, path: 'c:/project/SRC' }
+    const stale = deferred<FileNode[]>()
+    const fresh = deferred<FileNode[]>()
+    api.readDir.mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise)
+    const first = useStore.getState().toggleDir(native)
+    const collapse = useStore.getState().toggleDir(alias)
+    const collapsed = [...useStore.getState().expanded]
+    const second = useStore.getState().toggleDir(alias)
+    stale.resolve([{ path: `${native.path}\\stale.cpp`, name: 'stale.cpp', isDir: false }])
+    await first
+    fresh.resolve([{ path: `${alias.path}/fresh.cpp`, name: 'fresh.cpp', isDir: false }])
+    await collapse
+    await second
+    expect(collapsed).toEqual([])
+    expect(useStore.getState().expanded).toEqual(new Set([alias.path]))
+    expect(Object.values(useStore.getState().childrenCache).flat().map(entry => entry.name)).toEqual(['fresh.cpp'])
+  })
+
   it('restores fresh disk bytes, two groups and expanded directories', async () => {
     storage.set(SESSION_STORAGE_KEY, JSON.stringify([saved]))
     await useStore.getState().openWorkspace(root)

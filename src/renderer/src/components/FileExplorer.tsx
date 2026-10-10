@@ -5,6 +5,7 @@ import PanelHeader from './PanelHeader'
 import EmptyState from './EmptyState'
 import type { FileNode } from '@shared/ipc'
 import { visibleTreeEntries, type VisibleTreeEntry } from '@shared/treeNavigation'
+import { normPath } from '@shared/pathIdentity'
 import FileIcon from './FileIcon'
 
 const parentDir = (p: string): string => p.replace(/[\\/][^\\/]+$/, '')
@@ -131,13 +132,12 @@ function TreeRow({
   edit: EditProps
   navigation: NavigationProps
 }): JSX.Element {
-  const { expanded, childrenCache, activePath } = useStore()
-  const isOpen = expanded.has(node.path)
-  const isActive = activePath === node.path
-  const children = childrenCache[node.path]
+  const activePath = useStore(s => s.activePath)
+  const entry = navigation.entries.get(normPath(node.path))
+  const isOpen = entry?.expanded ?? false
+  const isActive = activePath !== null && normPath(activePath) === normPath(node.path)
+  const children = entry?.children
   const { dialog, onChangeValue, onCommit, onCancel } = edit
-
-  const entry = navigation.entries.get(node.path)
 
   const renaming = !!dialog && dialog.mode === 'rename' && dialog.path === node.path
   const creatingHere = !!dialog && dialog.mode !== 'rename' && dialog.dir === node.path && node.isDir && isOpen
@@ -251,9 +251,9 @@ export default function FileExplorer(): JSX.Element {
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
   const menuRef = useRef<HTMLDivElement>(null)
   const entries = useMemo(() => visibleTreeEntries(tree, expanded, childrenCache), [tree, expanded, childrenCache])
-  const entryMap = useMemo(() => new Map(entries.map((entry) => [entry.node.path, entry])), [entries])
-  const entryPath = focusedPath && entryMap.has(focusedPath) ? focusedPath
-    : activePath && entryMap.has(activePath) ? activePath : entries[0]?.node.path ?? null
+  const entryMap = useMemo(() => new Map(entries.map((entry) => [normPath(entry.node.path), entry])), [entries])
+  const entryPath = (focusedPath ? entryMap.get(normPath(focusedPath))?.node.path : undefined)
+    ?? (activePath ? entryMap.get(normPath(activePath))?.node.path : undefined) ?? entries[0]?.node.path ?? null
 
   useEffect(() => { setFocusedPath(null); setMenu(null); setDialog(null) }, [workspaceRoot])
   useEffect(() => { if (menu) menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus() }, [menu])
@@ -280,12 +280,12 @@ export default function FileExplorer(): JSX.Element {
       case 'End': next = entries.at(-1)?.node.path; break
       case 'ArrowRight':
         if (node.isDir) {
-          if (!expanded.has(node.path)) activate(node)
+          if (!current.expanded) activate(node)
           else if (entries[index + 1]?.parentPath === node.path) next = entries[index + 1].node.path
         }
         break
       case 'ArrowLeft':
-        if (node.isDir && expanded.has(node.path)) activate(node)
+        if (current.expanded) activate(node)
         else next = current.parentPath ?? undefined
         break
       case 'Enter':
@@ -331,7 +331,7 @@ export default function FileExplorer(): JSX.Element {
     // The target folder has to be expanded or the inline row has nowhere to
     // render. A no-op when it's already open (or is the root, which is
     // always "open").
-    if (dir !== workspaceRoot && !expanded.has(dir)) void toggleDir({ path: dir, name: '', isDir: true })
+    if (dir !== workspaceRoot && ![...expanded].some(path => normPath(path) === normPath(dir))) void toggleDir({ path: dir, name: '', isDir: true })
     setDialog({ mode, dir, value: '' })
   }
 

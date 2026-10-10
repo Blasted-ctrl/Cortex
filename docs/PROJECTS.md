@@ -36,6 +36,12 @@ text or unsaved edits. Missing, renamed, unreadable or escaped linked items are
 skipped and the surviving tab layout is repaired. Opening or navigating yourself
 while restoration is pending takes precedence over the saved layout.
 
+Windows drive/UNC paths use case-insensitive separator-normalized identity for
+Explorer selection, expansion and cached children. This keeps saved forward-slash
+metadata consistent with native directory listings without rewriting displayed
+paths. POSIX case and literal backslashes remain distinct. Collapsing a folder
+also invalidates pending reads through an equivalent Windows path spelling.
+
 Session metadata is versioned and bounded: 20 recent layouts, at most 50 tabs
 and 100 expanded folders per project, 128 Ki characters per layout and 512 Ki
 characters total. Restored text has a 32 MiB aggregate budget in addition to the

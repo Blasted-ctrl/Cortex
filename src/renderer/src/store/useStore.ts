@@ -22,6 +22,8 @@ import type {
 import { langFromPath, isHeaderPath, cDriver, cppDriver, type LanguageDef } from '@shared/languages'
 import { normalizeEol, detectEol, withEol } from '@shared/diff'
 import { appendConsoleEntry } from '@shared/consoleBuffer'
+import { normPath } from '@shared/pathIdentity'
+export { normPath } from '@shared/pathIdentity'
 import { extractMissingHeaders, type EnvironmentReport } from '@shared/environment'
 import { restorePlan, type LockCheck } from '@shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta } from '@shared/datasheet'
@@ -832,11 +834,6 @@ export interface RecentWorkspace {
 }
 const RECENTS_KEY = 'cortex.recents'
 export const LAST_WORKSPACE_KEY = 'cortex.lastWorkspace'
-/** Windows names are case-insensitive; POSIX names need to remain distinct. */
-export const normPath = (p: string): string => /^[a-z]:[\\/]/i.test(p) || /^(\\\\|\/\/)/.test(p)
-  ? p.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '')
-  : p.replace(/\/+$/, '')
-
 function loadRecents(): RecentWorkspace[] {
   try {
     const raw = localStorage.getItem(RECENTS_KEY)
@@ -1261,30 +1258,32 @@ export const useStore = create<State>((set, get) => ({
   async toggleDir(node) {
     sessionInteractionEpoch++
     const { workspaceRoot, expanded, childrenCache } = get()
+    const key = normPath(node.path)
+    const aliases = [...expanded].filter(path => normPath(path) === key)
     const next = new Set(expanded)
-    if (next.has(node.path)) {
-      directoryReadTokens.delete(node.path)
-      next.delete(node.path)
+    if (aliases.length) {
+      directoryReadTokens.delete(key)
+      for (const path of aliases) next.delete(path)
       set({ expanded: next })
     } else {
       next.add(node.path)
       set({ expanded: next })
-      if (childrenCache[node.path]) return
+      if (Object.keys(childrenCache).some(path => normPath(path) === key)) return
       const token = {}
-      directoryReadTokens.set(node.path, token)
-      const current = (): boolean => get().workspaceRoot === workspaceRoot && directoryReadTokens.get(node.path) === token && get().expanded.has(node.path)
+      directoryReadTokens.set(key, token)
+      const current = (): boolean => get().workspaceRoot === workspaceRoot && directoryReadTokens.get(key) === token && [...get().expanded].some(path => normPath(path) === key)
       try {
         const children = await window.api.readDir(node.path)
         if (current()) set({ childrenCache: { ...get().childrenCache, [node.path]: children } })
       } catch (error) {
         if (current()) {
           const remaining = new Set(get().expanded)
-          remaining.delete(node.path)
+          for (const path of remaining) if (normPath(path) === key) remaining.delete(path)
           set({ expanded: remaining })
           get().notify('error', 'Could not open folder', String(error))
         }
       } finally {
-        if (directoryReadTokens.get(node.path) === token) directoryReadTokens.delete(node.path)
+        if (directoryReadTokens.get(key) === token) directoryReadTokens.delete(key)
       }
     }
   },
