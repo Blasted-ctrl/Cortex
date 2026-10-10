@@ -51,8 +51,10 @@ The only bridge. The bundled CommonJS `index.ts` exposes a **typed, minimal
 [sandbox-supported bridge APIs](https://github.com/electron/electron/blob/v33.4.11/docs/tutorial/sandbox.md),
 not general Node modules. Window navigation and incoming IPC require the selected
 renderer document; IPC also requires this window's main-frame identity.
-Focused security checks pass locally. Current native sandbox startup and OS-level
-sandbox evidence remain pending in [release validation](RELEASE-VALIDATION.md).
+Focused security checks and actual production startup pass. A fresh source
+installation reports the Windows renderer as sandboxed at untrusted integrity,
+with the genuine preload/terminal bridge working. Development/HMR and final
+snapshot verification remain separate checks in [release validation](RELEASE-VALIDATION.md).
 
 ### Renderer - `src/renderer/`
 React + TypeScript UI, bundled by Vite.

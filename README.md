@@ -100,8 +100,10 @@ reported separately. The CLI runs without opening Electron.
 
 The [firmware-testing quickstart](docs/FIRMWARE-TESTING.md) covers installation,
 reproducing a failure, verifying the fix, saved-report replay, scenario format,
-CI and benchmark baselines. [Feature documentation](docs/FEATURES.md) records
-the delivered capabilities and desktop follow-up work. Native simulation tests
+CI and benchmark baselines. The desktop's **Run Tests** action uses the same
+runner, with failure details and saved-input replay in the Firmware Tests panel.
+[Feature documentation](docs/FEATURES.md) records the supported capabilities.
+Native simulation tests
 firmware logic against an Arduino shim; it is not AVR instruction emulation.
 
 ## License

@@ -41,7 +41,7 @@ records the actual checks.
 | 7 | Crash reporting + opt-in telemetry | production | high | M | todo |
 | 8 | Main resilience: global error handlers, single-instance, per-handler try/catch | production | high | M | partial (handlers + lock done) |
 | 9 | Flip Rust to runnable (backend already works) | language | high | S | **done** |
-| 10 | sandbox:true renderer + will-navigate allowlist | production | high | S | todo |
+| 10 | sandbox:true renderer + will-navigate allowlist | production | high | S | implemented; final dev/native validation in task audit |
 | 11 | CI (GitHub Actions) + Vitest; first unit tests | testing | high | M | **done** (current counts/evidence in release validation) |
 | 12 | Command palette (Ctrl+Shift+P) + quick-open (Ctrl+P) | ux | high | L | **done** |
 | 13 | File-tree context menu wired to existing rename/delete IPC | ux | high | M | **done** |
@@ -82,8 +82,8 @@ The detailed acceptance/verification checklist is in
 
 | Order | Remaining task | Completion evidence |
 |---|---|---|
-| 1 | Desktop Run Tests calls the same runner | Passing and failing scenarios launched from the app |
-| 2 | Desktop results/details and saved-scenario rerun | Failure inputs, outputs/logs and preserved configuration can be inspected and rerun |
+| 1 | Desktop Run Tests calls the same runner - implemented | Actual passing/failing scenarios launched from the app; local evidence in task audit |
+| 2 | Desktop results/details and saved-scenario rerun - implemented | Actual deleted-scenario embedded replay and fixed-source rerun pass; inputs/outputs/logs retained |
 | 3 | Record a short demonstration | Correct sketch passes, broken sketch fails, report locates the problem, corrected sketch passes |
 | 4 | Two teammate trials from fresh installs | Record setup/report confusion and verify resulting fixes |
 | 5 | One outside-team trial | Record usefulness for their firmware and missing capabilities |

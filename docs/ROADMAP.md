@@ -55,9 +55,11 @@ The first release covers the headless workflow and quickstart:
   explicitly saved baseline and advisory environment-aware comparisons.
 - Complete [quickstart](FIRMWARE-TESTING.md), example contract and feature docs.
 
-Next: desktop Run Tests and results/details/replay using the same runner; record
-a demonstration; have two teammates test fresh installations and one outside
-team try the workflow. User validation drives future board/peripheral coverage.
+Desktop Run Tests, results/details and saved-report replay now use the same
+runner, with real correct/broken/fixed native verification. A recorded local demo
+is undergoing playback validation. Two teammates still need to test fresh
+installations and one outside team must try the workflow. Their feedback drives
+future board/peripheral coverage.
 See [tasks/todo.md](../tasks/todo.md) for acceptance checks and outstanding work.
 
 ## 🔜 Phase 1.5 - Real project builds & distribution
