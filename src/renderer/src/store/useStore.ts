@@ -2362,51 +2362,75 @@ export const useStore = create<State>((set, get) => ({
 
   async approveAgentEdit(id) {
     const edit = get().agentEdits.find((e) => e.id === id)
-    if (!edit || edit.status !== 'pending') return
-    const setStatus = (patch: Partial<AgentEdit>): void =>
-      set({ agentEdits: get().agentEdits.map((e) => (e.id === id ? { ...e, ...patch } : e)) })
-
-    // Reconcile against reality before clobbering: the file may have changed
-    // since the agent proposed this (a prior approved edit, an external tool, or
-    // unsaved edits in its open tab). The reviewed diff was oldContent ->
-    // newContent, so applying blindly would silently discard those changes.
-    const tab = get().tabs.find((t) => normPath(t.path) === normPath(edit.path))
-    if (tab && tab.content !== tab.savedContent) {
-      setStatus({ status: 'stale', error: `${tab.name} has unsaved edits. Save or reject, then re-run the agent.` })
-      return
+    const root = get().workspaceRoot
+    if (!root || !edit || edit.status !== 'pending') return
+    if (get().agentEdits.some((e) => e.status === 'applying' && normPath(e.path) === normPath(edit.path))) return
+    const generation = workspaceGeneration
+    let ownedEdit: AgentEdit = { ...edit, status: 'applying', error: undefined }
+    const owns = (): boolean => get().workspaceRoot === root && workspaceGeneration === generation &&
+      get().agentEdits.find((e) => e.id === id) === ownedEdit
+    const setStatus = (patch: Partial<AgentEdit>): void => {
+      if (!owns()) return
+      const previous = ownedEdit
+      ownedEdit = { ...ownedEdit, ...patch }
+      set({ agentEdits: get().agentEdits.map((e) => e === previous ? ownedEdit : e) })
     }
-    let current = ''
+    const liveTab = (): Tab | undefined => get().tabs.find((t) => normPath(t.path) === normPath(edit.path))
+    const initialTab = liveTab()
+    set({ agentEdits: get().agentEdits.map((e) => e === edit ? ownedEdit : e) })
+    let stopTracking: (() => void) | undefined
     try {
-      const r = await window.api.readFile(edit.path)
-      if (r.kind !== 'text' && (await window.api.exists(edit.path))) {
-        setStatus({ status: 'stale', error: 'The file is no longer a text file.' })
+      if (initialTab && initialTab.content !== initialTab.savedContent) {
+        setStatus({ status: 'stale', error: `${initialTab.name} has unsaved edits. Save or reject, then re-run the agent.` })
         return
       }
-      current = r.kind === 'text' ? r.content : ''
-    } catch {
-      current = '' // gone since propose: treated as a new file below
-    }
-    if (normalizeEol(current) !== normalizeEol(edit.oldContent)) {
-      setStatus({ status: 'stale', error: 'The file changed since this was proposed. Re-run the agent to see a fresh diff.' })
-      return
-    }
-
-    // Flip status BEFORE the await so a fast second click cannot write twice.
-    setStatus({ status: 'applying' })
-    try {
-      // Preserve the file's existing line endings so approving does not silently
-      // rewrite a CRLF file to LF. writeFile is workspace-confined in main, so
-      // the edit passes the same boundary a user edit does; an open tab is
-      // synced (undoable via Monaco's controlled value).
-      const toWrite = withEol(edit.newContent, detectEol(edit.oldContent || current))
-      await window.api.writeFile(edit.path, toWrite)
-      if (tab) get().applyExternalEdit(edit.path, toWrite)
+      let current: string | null
+      try {
+        const r = await window.api.readFile(edit.path)
+        if (!owns()) return
+        if (r.kind !== 'text') {
+          setStatus({ status: 'stale', error: 'The file is no longer an editable text file.' })
+          return
+        }
+        current = r.content
+      } catch (error) {
+        if (!owns()) return
+        // Electron invoke preserves the Error message, not its Node errno code.
+        if (!(error instanceof Error) || !/\bENOENT:/.test(error.message)) throw error
+        if (initialTab || liveTab() || edit.oldContent !== '' || await window.api.exists(edit.path)) {
+          setStatus({ status: 'stale', error: 'The file disappeared or changed since this was proposed. Re-run the agent.' })
+          return
+        }
+        current = null
+      }
+      if (!owns()) return
+      if (normalizeEol(current ?? '') !== normalizeEol(edit.oldContent)) {
+        setStatus({ status: 'stale', error: 'The file changed since this was proposed. Re-run the agent to see a fresh diff.' })
+        return
+      }
+      const tab = liveTab()
+      if (tab && (current === null || tab.content !== tab.savedContent || normalizeEol(tab.savedContent) !== normalizeEol(current))) {
+        setStatus({ status: 'stale', error: `${tab.name} changed while approval was pending. Save or reject, then re-run the agent.` })
+        return
+      }
+      let tabClosed = false
+      if (tab) stopTracking = useStore.subscribe((state) => {
+        if (!state.tabs.some((t) => normPath(t.path) === normPath(edit.path))) tabClosed = true
+      })
+      const toWrite = withEol(edit.newContent, detectEol(current ?? edit.newContent))
+      await window.api.writeFile(edit.path, toWrite, current)
+      if (!owns()) return
+      const savedContent = normalizeEol(toWrite)
+      if (tab && !tabClosed) set({ tabs: get().tabs.map((t) =>
+        normPath(t.path) === normPath(edit.path) && t.savedContent === tab.savedContent
+          ? { ...t, content: t.content === tab.content ? savedContent : t.content, savedContent } : t
+      ) })
       setStatus({ status: 'approved' })
-      // Surface a newly created file; a refresh failure must NOT flip an
-      // already-applied edit to failed.
-      void get().refreshTree()
+      if (owns()) void get().refreshTree()
     } catch (err) {
       setStatus({ status: 'failed', error: err instanceof Error ? err.message : String(err) })
+    } finally {
+      stopTracking?.()
     }
   },
 

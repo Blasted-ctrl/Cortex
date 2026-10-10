@@ -21,9 +21,18 @@ Approval uses Cortex's workspace-confined file-write path, not a model-supplied
 shell command. Save or reject your own unsaved edits before approving a proposal
 against that file; if its reviewed contents are stale, request a fresh proposal.
 
-Approval safety is being regression-tested in the current
-[task audit](TASK-AUDIT.md): pending reads/writes must not discard newer typing,
-overwrite newer disk bytes, duplicate an approval or update another project.
+Approval locks before reading and checks the reviewed contents against disk and
+the live editor. Changed, unreadable or non-text files are refused. The native
+write also receives the exact expected disk bytes; a later conflicting write
+fails rather than silently overwriting them. Matching approvals for the same
+file cannot apply concurrently. Typing during a dispatched write stays in the
+editor as unsaved work; closing/reopening a tab or changing projects prevents
+late approval results from adopting that new editor session.
+
+Creating a file requires an absent, unopened path and an empty reviewed old
+content. The current proposal format cannot distinguish this from a deleted
+empty file that was not open. Disk comparison is not an OS-level atomic
+compare-and-swap; see [file save boundaries](PROJECTS.md).
 The approval card locks while applying; Reject is a pending-proposal action,
 not cancellation or undo of a dispatched filesystem write. Successful edits
 remain ordinary disk files; use the editor or your [Git workflow](GIT.md) to
@@ -44,5 +53,5 @@ review or reverse them. This is not an atomic multi-file transaction.
   register/test-execution tools are not implemented by this workflow.
 
 Provider connectivity is not established by local fixture tests. Current
-verification and remaining approval-race/native checks are in
+verification and remaining native/combined checks are in
 [Release validation](RELEASE-VALIDATION.md).

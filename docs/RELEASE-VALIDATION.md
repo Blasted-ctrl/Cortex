@@ -427,6 +427,34 @@ its independent watchdog is unused. The receipt is
 The blocking audit and all-platform, signing, hardware and human validation
 remain required.
 
+## Reviewed AI edit approval follow-up
+
+The original approval path allowed overlapping approvals and stale reads/writes
+to replace newer editor or disk contents. Actual-store deferred regressions
+first fail 22 cases with four positive controls. Additional failing controls
+cover a tab opening during the missing-file check and two distinct proposals
+targeting the same normalized Windows path. The fix locks before reading,
+checks exact proposal/project generation ownership after awaits, refuses
+non-text or unreadable files, and passes exact raw expected disk bytes (or null
+for a confirmed absent new file) to the existing confined write API.
+
+All 31 approval cases and unchanged persistence/reset/diff/tool/style neighbors
+pass: 171 cases in six suites, 8.58 seconds, with the independent watchdog
+unused. Renderer types and scoped whitespace checks pass. Independent review
+finds no qualifying issue. Receipts are in owned
+`cortex-agent-approval-final-green-mkml9V` and the retained RED Temp directories.
+A separate initially mis-sequenced fixture waited on its own deferred read and
+hit its harness watchdog; it is not credited as a product failure. No deadline,
+assertion or existing skip was relaxed.
+
+The temporary subscription protecting a closed/reopened tab is released on all
+settlements. Already-dispatched native writes cannot be undone by Reject or
+project switching; late UI effects are suppressed. The native comparison is not
+atomic CAS, and an absent unopened empty-old-content proposal cannot distinguish
+new creation from a formerly empty deleted file. These tests do not call a model
+provider. Genuine Electron approval controls and final combined gates remain
+separate; [AI assistant usage](AI-ASSISTANT.md) records the supported contract.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,
