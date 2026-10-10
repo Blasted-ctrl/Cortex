@@ -110,6 +110,26 @@ export async function readFile(filePath: string): Promise<FileReadResult> {
   return { kind: 'text', content: buf.toString('utf8') }
 }
 
+/** Saved session paths are untrusted metadata, unlike an explicit file picker. */
+async function workspaceRead<T>(root: string, path: string, read: (physical: string) => Promise<T>): Promise<T> {
+  if (!isWorkspaceRoot(root) || typeof path !== 'string' || path.length > 4096 || path.includes('\0')) throw new Error('Session read requires the open project.')
+  const target = resolve(path)
+  if (!isWithin(resolve(root), target)) throw new Error('Session path is outside the open workspace.')
+  const physicalRoot = await fs.realpath(root)
+  const physical = await fs.realpath(target)
+  if (!isWithin(physicalRoot, physical)) throw new Error('Session path links outside the open workspace.')
+  const result = await read(physical)
+  if (!isWorkspaceRoot(root) || await fs.realpath(root) !== physicalRoot || await fs.realpath(target) !== physical) throw new Error('The project changed during the session read.')
+  return result
+}
+export function readWorkspaceFile(root: string, path: string): Promise<FileReadResult> {
+  return workspaceRead(root, path, readFile)
+}
+export async function readWorkspaceDir(root: string, path: string): Promise<FileNode[]> {
+  const nodes = await workspaceRead(root, path, readDir)
+  return nodes.map(node => ({ ...node, path: join(path, node.name) }))
+}
+
 /**
  * Probe for optional files (a saved diagram, a project config) without going
  * through the throw path. Electron logs every rejected ipcMain.handle to

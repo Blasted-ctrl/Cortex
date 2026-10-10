@@ -16,6 +16,8 @@ export const IPC = {
   FS_LIST_ALL: 'fs:listAll',
   FS_SEARCH: 'fs:search', // content search across the workspace
   FS_READ_FILE: 'fs:readFile',
+  FS_READ_WORKSPACE_FILE: 'fs:readWorkspaceFile',
+  FS_READ_WORKSPACE_DIR: 'fs:readWorkspaceDir',
   FS_EXISTS: 'fs:exists',
   FS_WRITE_FILE: 'fs:writeFile',
   FS_CREATE_FILE: 'fs:createFile',

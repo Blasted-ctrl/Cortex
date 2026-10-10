@@ -578,6 +578,8 @@ function registerIpc(): void {
   handle(IPC.FS_LIST_ALL, (_e, p: string) => fsService.listAllFiles(p))
   handle(IPC.FS_SEARCH, (_e, q: SearchQuery) => search.searchInFiles(q))
   handle(IPC.FS_READ_FILE, (_e, p: string) => fsService.readFile(p))
+  handle(IPC.FS_READ_WORKSPACE_FILE, (_e, root: string, p: string) => fsService.readWorkspaceFile(root, p))
+  handle(IPC.FS_READ_WORKSPACE_DIR, (_e, root: string, p: string) => fsService.readWorkspaceDir(root, p))
   handle(IPC.FS_EXISTS, (_e, p: string) => fsService.exists(p))
   handle(IPC.FS_WRITE_FILE, (_e, p: string, c: string, expectedContent?: string | null) => fsService.writeFile(p, c, expectedContent))
   handle(IPC.FS_CREATE_FILE, (_e, p: string) => fsService.createFile(p))

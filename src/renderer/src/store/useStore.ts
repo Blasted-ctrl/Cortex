@@ -26,6 +26,7 @@ import { extractMissingHeaders, type EnvironmentReport } from '@shared/environme
 import { restorePlan, type LockCheck } from '@shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta } from '@shared/datasheet'
 import type { FirmwareTestRequest, FirmwareTestResponse } from '@shared/firmwareTest'
+import { captureSession, decodeSessions, sessionPath, updateSessions, SESSION_STORAGE_KEY, type WorkspaceSession } from '@shared/workspaceSession'
 import type { LspAvailability } from '@shared/lsp'
 import type { DebugState, DebugOutput, FileReadResult } from '@shared/ipc'
 
@@ -855,6 +856,61 @@ function loadRecents(): RecentWorkspace[] {
   }
 }
 
+let sessionRestoringRoot: string | null = null
+let sessionInteractionEpoch = 0
+let workspaceGeneration = 0
+const directoryReadTokens = new Map<string, object>()
+function savedSessions(): WorkspaceSession[] {
+  try { return decodeSessions(localStorage.getItem(SESSION_STORAGE_KEY)) } catch { return [] }
+}
+function rememberSession(state: State): void {
+  const session = captureSession(state)
+  if (!session) return
+  try { localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updateSessions(savedSessions(), session))) } catch { /* Editing still works when local storage is full or unavailable. */ }
+}
+
+async function restoreSession(session: WorkspaceSession, baseline: State, interactionEpoch: number): Promise<void> {
+  const root = baseline.workspaceRoot!
+  const current = (): boolean => {
+    const state = useStore.getState()
+    return sessionInteractionEpoch === interactionEpoch && state.workspaceRoot === root && state.tree === baseline.tree && state.childrenCache === baseline.childrenCache && state.tabs === baseline.tabs && state.expanded === baseline.expanded &&
+      state.activeGroup === baseline.activeGroup && state.groupActive === baseline.groupActive
+  }
+  if (!current()) return
+  const tabs: Tab[] = []
+  const expanded = new Set<string>()
+  const childrenCache: Record<string, FileNode[]> = {}
+  let bytes = 0
+  let skipped = 0
+  for (const entry of session.tabs) {
+    if (!current()) return
+    const path = sessionPath(root, entry.path)
+    if (!path) continue
+    try {
+      const read = await window.api.readWorkspaceFile(root, path)
+      if (!current()) return
+      bytes += read.kind === 'text' ? new TextEncoder().encode(read.content).length : 0
+      if (bytes > 32 * 1024 * 1024) { skipped += session.tabs.length - tabs.length; break }
+      tabs.push({ path, name: baseName(path), ...readTabState(read), language: langFromPath(path), group: entry.group })
+    } catch { skipped++ }
+  }
+  for (const entry of session.expanded) {
+    if (!current()) return
+    const path = sessionPath(root, entry)
+    if (!path) continue
+    try {
+      childrenCache[path] = await window.api.readWorkspaceDir(root, path)
+      if (!current()) return
+      expanded.add(path)
+    } catch { skipped++ }
+  }
+  if (!current()) return
+  useStore.setState({ ...groupPatch(resolveGroups({ tabs, activeGroup: session.activeGroup, groupActive: {
+    0: sessionPath(root, session.groupActive[0] ?? ''), 1: sessionPath(root, session.groupActive[1] ?? '')
+  } })), expanded, childrenCache })
+  if (skipped) useStore.getState().notify('info', 'Some saved project items were not reopened', `${skipped} missing, unreadable or oversized items were skipped. Files on disk were not changed.`)
+}
+
 const pendingSaves = new Map<string, Promise<void>>()
 let simStartToken: object | null = null
 let runStartToken: object | null = null
@@ -1095,7 +1151,14 @@ export const useStore = create<State>((set, get) => ({
         if (previousRoot) await window.api.watchStart(previousRoot)
         throw error
       }
+      rememberSession(get())
+      const session = savedSessions().find(entry => normPath(entry.root) === normPath(path))
+      sessionRestoringRoot = path
+      directoryReadTokens.clear()
+      workspaceGeneration++
       set({ ...workspaceScopedReset(), workspaceRoot: path, workspaceName: baseName(path), tree })
+      const sessionBaseline = get()
+      const sessionEpoch = sessionInteractionEpoch
       window.__cortexTerminal?.dispose()
       void window.api.lspDisposeRoot(path)
 
@@ -1111,12 +1174,16 @@ export const useStore = create<State>((set, get) => ({
 
       await get().loadProjectConfig()
       await get().loadDiagram()
+      if (session) await restoreSession(session, sessionBaseline, sessionEpoch)
+      sessionRestoringRoot = null
+      if (get().workspaceRoot === path) rememberSession(get())
       void get().refreshBoardStatus()
       void get().refreshProjectModel()
       void window.api.lspServers(true).then((a) => {
         if (get().workspaceRoot === path) set({ lspServers: a })
       })
     } finally {
+      if (sessionRestoringRoot === path) sessionRestoringRoot = null
       complete()
     }
   },
@@ -1163,6 +1230,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async refreshTree() {
+    directoryReadTokens.clear()
     const token = {}
     treeRefreshToken = token
     const { workspaceRoot, expanded, tree: previousTree } = get()
@@ -1191,20 +1259,39 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async toggleDir(node) {
-    const { expanded, childrenCache } = get()
+    sessionInteractionEpoch++
+    const { workspaceRoot, expanded, childrenCache } = get()
     const next = new Set(expanded)
     if (next.has(node.path)) {
+      directoryReadTokens.delete(node.path)
       next.delete(node.path)
       set({ expanded: next })
     } else {
       next.add(node.path)
-      const cache = { ...childrenCache }
-      if (!cache[node.path]) cache[node.path] = await window.api.readDir(node.path)
-      set({ expanded: next, childrenCache: cache })
+      set({ expanded: next })
+      if (childrenCache[node.path]) return
+      const token = {}
+      directoryReadTokens.set(node.path, token)
+      const current = (): boolean => get().workspaceRoot === workspaceRoot && directoryReadTokens.get(node.path) === token && get().expanded.has(node.path)
+      try {
+        const children = await window.api.readDir(node.path)
+        if (current()) set({ childrenCache: { ...get().childrenCache, [node.path]: children } })
+      } catch (error) {
+        if (current()) {
+          const remaining = new Set(get().expanded)
+          remaining.delete(node.path)
+          set({ expanded: remaining })
+          get().notify('error', 'Could not open folder', String(error))
+        }
+      } finally {
+        if (directoryReadTokens.get(node.path) === token) directoryReadTokens.delete(node.path)
+      }
     }
   },
 
   async openFile(path) {
+    sessionInteractionEpoch++
+    const generation = workspaceGeneration
     const { tabs, workspaceRoot } = get()
     // Match case-insensitively / separator-insensitively so a diagnostic path
     // (forward slashes, from gcc) focuses the existing tab instead of duplicating.
@@ -1215,7 +1302,7 @@ export const useStore = create<State>((set, get) => ({
       return
     }
     const read = await window.api.readFile(path)
-    if (get().workspaceRoot !== workspaceRoot) return
+    if (workspaceGeneration !== generation || get().workspaceRoot !== workspaceRoot) return
     // Re-read tabs AFTER the await: the captured list is stale if another file
     // was opened while this read was in flight, which would drop that tab.
     const raced = get().tabs.find((t) => normPath(t.path) === normPath(path))
@@ -1267,9 +1354,13 @@ export const useStore = create<State>((set, get) => ({
   },
 
   async closeTab(path) {
+    const root = get().workspaceRoot
+    const generation = workspaceGeneration
     const pending = pendingSaves.get(normPath(path))
     if (pending) await pending.catch(() => {})
+    if (workspaceGeneration !== generation || get().workspaceRoot !== root) return
     const closing = get().tabs.find((t) => t.path === path)
+    if (!closing) return
     // Guard against silent data loss on unsaved edits (themed confirm).
     if (closing && closing.content !== closing.savedContent) {
       const ok = await get().confirm({
@@ -1281,6 +1372,7 @@ export const useStore = create<State>((set, get) => ({
       })
       if (!ok) return
     }
+    if (workspaceGeneration !== generation || get().workspaceRoot !== root || get().tabs.find(tab => tab.path === path) !== closing) return
     set(groupPatch(removeTabFromGroups(get(), path)))
   },
 
@@ -2851,3 +2943,12 @@ export const useStore = create<State>((set, get) => ({
     if (get().debug.status !== 'idle') void window.api.debugSetBreakpoints(file, next)
   }
 }))
+
+useStore.subscribe((state, previous) => {
+  if (state.workspaceRoot !== previous.workspaceRoot) { directoryReadTokens.clear(); workspaceGeneration++ }
+  if (previous.workspaceRoot && state.workspaceRoot !== previous.workspaceRoot) rememberSession(previous)
+  if (!state.workspaceRoot || state.workspaceRoot !== previous.workspaceRoot || state.workspaceRoot === sessionRestoringRoot) return
+  // Source edits do not change layout and must never be stored in session metadata.
+  const sameTabs = state.tabs.length === previous.tabs.length && state.tabs.every((tab, index) => tab.path === previous.tabs[index].path && tab.group === previous.tabs[index].group)
+  if (!sameTabs || state.expanded !== previous.expanded || state.activeGroup !== previous.activeGroup || state.groupActive !== previous.groupActive) rememberSession(state)
+})

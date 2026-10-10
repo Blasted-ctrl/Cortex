@@ -27,6 +27,51 @@ folder names matching the Arduino build convention. An existing sketch is opened
 without replacing its contents. This convenience does not prevent opening a
 project that contains your own firmware, headers, scripts, and configuration.
 
+## Reopen your editor session
+
+Cortex remembers project-local tabs, their left/right groups and selection, and
+expanded Explorer folders in this installation's local profile. Reopening the
+project reads the current files from disk; the saved layout never contains source
+text or unsaved edits. Missing, renamed, unreadable or escaped linked items are
+skipped and the surviving tab layout is repaired. Opening or navigating yourself
+while restoration is pending takes precedence over the saved layout.
+
+Session metadata is versioned and bounded: 20 recent layouts, at most 50 tabs
+and 100 expanded folders per project, 128 Ki characters per layout and 512 Ki
+characters total. Restored text has a 32 MiB aggregate budget in addition to the
+normal 8 MiB per-file limit. Only relative project paths are accepted, and the
+main process checks the admitted project and real filesystem targets before
+automatic reads. Explicitly opened files outside the folder are not restored.
+Unavailable/full local storage does not prevent editing. This is convenient
+layout restoration, not unsaved crash recovery or a durable backup.
+
+## Keyboard navigation
+
+The Explorer has one keyboard entry point for its visible file tree. Up/Down
+move focus, Home/End reach the first/last visible entry, Right expands a folder
+or enters its first child, and Left collapses a folder or returns to its parent.
+Enter or Space opens a file or toggles a folder. Moving focus does not open files.
+Shift+F10 or the context-menu key opens that entry's file actions; Tab reaches the
+actions and Escape closes them and restores focus. Inline names have explicit
+labels; Enter commits and Escape cancels without invoking tree shortcuts.
+
+Each editor pane has its own tab list. Left/Right move tab focus and wrap at the
+ends; Home/End reach the first/last tab. Enter or Space selects the focused tab.
+Delete closes it through the existing unsaved-changes confirmation. **Keep
+editing** preserves the buffer and returns focus to the tab; a completed close
+focuses the surviving selection, or the empty editor when no tabs remain.
+The close control is also visible while its tab has keyboard focus. Keyboard
+focus inside a split pane makes that pane active, just as a mouse click does.
+
+Tree hierarchy, expansion, file selection, tab selection and panel relationships
+are exposed to assistive technology. These controls follow the
+[W3C tree](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/) and
+[manual-activation tab](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) interaction
+patterns; this is not a claim of complete screen-reader or WCAG certification.
+Real React/store behavior is covered by `test/explorerAccessibility.test.ts` and
+`test/editorAccessibility.test.ts`; native keyboard and rendering verification
+is a separate release check.
+
 ## When something changes outside Cortex
 
 An editor save checks the disk contents against the version the tab originally
@@ -95,8 +140,8 @@ Hardware uploads still need validation on intentionally selected physical boards
   itself cannot be renamed or deleted through the Explorer.
 - Delete is permanent and requires confirmation. Use Git or another backup
   system for recovery; Cortex is not a backup service.
-- Recent history persists locally, not across computers. Open editor tabs are
-  not restored across application launches yet.
+- Recent history and editor layout persist locally, not across computers. Source
+  edits still require saving to disk; unsaved buffers are not crash-recovered.
 - Atomic replacement is per file, not a transaction across Save All. A sudden
   crash can leave a staging file. Network filesystems, hardware power loss,
   filesystem permissions and ACL behavior, and hostile concurrent changes to
@@ -109,5 +154,9 @@ editor store in `test/filePersistence.test.ts`, `test/fileRead.test.ts`, and
 in `test/runLifecycleStore.test.ts`, without compiling or flashing hardware.
 Native serial lifecycle and timeout regressions use mocked ports in
 `test/serialLifecycle.test.ts`.
+Session metadata and actual-store restoration races are covered by
+`test/workspaceSession.test.ts` and `test/workspaceSessionStore.test.ts`;
+`test/workspaceRead.test.ts` uses actual files and directory links to verify the
+automatic-read boundary.
 Hardware and platform release testing
 remain part of the [production readiness checklist](PRODUCTION-READINESS.md).

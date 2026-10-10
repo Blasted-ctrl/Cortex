@@ -3,6 +3,11 @@
 Legend: ✅ implemented (v0.1) · 🟡 partial · ⬜ planned
 
 ## Editor & workspace
+
+Saved project layouts reopen disk-backed tabs, split-pane selections and expanded
+folders safely; tree/tab controls support roving keyboard focus and ARIA
+relationships. See [Projects](PROJECTS.md) for controls, budgets and recovery limits.
+
 - ✅ Open folder as workspace; lazy file tree
 - ✅ Live filesystem watching (external changes refresh the tree)
 - ✅ Monaco editor: tabs, dirty indicators, close guard, syntax highlighting, minimap, bracket colorization
