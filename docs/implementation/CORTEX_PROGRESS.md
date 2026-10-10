@@ -3,6 +3,28 @@
 Newest first. One entry per completed slice: what shipped, how it was verified,
 and what it unblocks. See `CORTEX_IMPLEMENTATION_PLAN.md` for the full plan.
 
+## PDF parser worker isolation
+
+The documented main-thread parsing gap below is now implemented as a disposable
+Node worker. The existing `extractPdf` result, `loadPDF(file)` parser API and
+page/line citations are retained. Electron's main thread owns the 25-second
+watchdog and waits for termination after each result/error/timeout, including a
+CPU-stuck worker. The 20 MiB input and 400-page limits now reject rather than
+silently import the first 400 pages. Extracted text is limited to the existing
+8 MiB readable-document bound, with a 20 MiB serialized result cap before posting.
+The 256 MiB worker V8 heap limit is not a total-memory or security sandbox; the
+input precheck is not a locked snapshot of a concurrently changing file.
+
+Verification: a generated 401-page PDF first failed its regression because the
+old adapter returned partial success. Worker parsing, the existing genuine PDF
+and corpus integration tests, and real worker lifecycle tests then passed. The
+deliberate infinite loop is terminated at the full 25-second deadline while the
+main-loop heartbeat remains responsive. Build-path adaptation for Vitest emits
+the real worker in owned Temp and removes that generated bundle on close. No
+main-thread parsing fallback, dependency upgrade, renderer IPC expansion or new
+type suppression was added. Native dev/production smoke and installer validation
+remain distinct gates. Current capabilities and limits: `docs/DATASHEETS.md`.
+
 ## Datasheet intelligence: PDF adapter
 
 Extended document intelligence to PDFs - the format datasheets actually ship in

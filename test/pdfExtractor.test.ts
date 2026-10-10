@@ -81,6 +81,28 @@ describe('pdfExtractor', () => {
     expect(res.text).toContain('100% done')
     expect(res.text.includes('\u0002')).toBe(false) // no injected STX control byte
   })
+
+  it('refuses more than 400 pages instead of silently importing a partial document', async () => {
+    const p = await writePdf('over-page-limit.pdf', Array.from({ length: 401 }, (_, page) => [`Page ${page + 1} register data`]))
+    const res = await extractPdf(p)
+    expect(res.ok).toBe(false)
+    if (res.ok) return
+    expect(res.error).toMatch(/400 pages|page limit/i)
+  })
+
+  it('refuses a file above the 20 MiB input bound before parsing', async () => {
+    const p = join(d, 'oversized.pdf')
+    const file = await fs.open(p, 'w')
+    try {
+      await file.truncate(20 * 1024 * 1024 + 1)
+    } finally {
+      await file.close()
+    }
+    const res = await extractPdf(p)
+    expect(res).toMatchObject({ ok: false })
+    if (res.ok) return
+    expect(res.error).toMatch(/too large.*20971521/i)
+  })
 })
 
 describe('joinLineRuns (gap-aware token reconstruction)', () => {

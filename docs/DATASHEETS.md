@@ -32,11 +32,27 @@ src/main/services/datasheetService.ts   IO: import (copy into the corpus),
   dependency, so a missing/broken install degrades to `isPdfAvailable()=false`
   and never blocks app start (the serialport/node-pty pattern). It reads the
   structured per-page text runs, rebuilds lines by their x/y coordinates, splits
-  pages into blocks on vertical gaps, and is bounded (bytes/pages/time). A
+  pages into blocks on vertical gaps. Parsing and reconstruction run in a
+  disposable Node worker, not Electron's main thread. The main process enforces
+  a 25-second wall deadline and waits for the worker to terminate on every
+  outcome, including a CPU-stuck parser, malformed reply or exit without a
+  result. Imports reject files above 20 MiB, more than 400 pages, text above
+  8 MiB (the existing readable-document limit), or a serialized text/section
+  result above 20 MiB; they do not silently truncate pages or store partial
+  extraction. File size is checked before `loadPDF(file)`; it is not a locked
+  snapshot of a file being edited concurrently. A
   scanned / image-only PDF has no text layer, so extraction yields nothing and
   reports it honestly - OCR is out of scope, empty is never dressed up as
   success. pdfjs-dist was avoided: its `Promise.withResolvers` needs Node 22,
   and Electron's Node is 20.
+- **Worker limits**: the worker has a 256 MiB V8 old-generation heap limit.
+  This is not a whole-process memory cap or a security sandbox: external buffers
+  and total process memory are not bounded by Node's `resourceLimits`. OCR,
+  faithful PDF layout rendering and recovery from global out-of-memory remain
+  outside this text-extraction feature. The worker is emitted using
+  [electron-vite's module-path import](https://electron-vite.org/guide/dev#multi-threading);
+  its lifecycle uses the supported
+  [Node 20 worker termination API](https://nodejs.org/download/release/v20.18.3/docs/api/worker_threads.html#workerterminate).
 - **Retrieval**: a local **BM25** lexical index over the documents' sections. No
   embeddings and no network - offline, deterministic, and unable to make a claim
   it cannot back. The tokenizer keeps technical tokens whole (`0x68`, `GPIO5`,
@@ -103,5 +119,14 @@ formatter so citations render identically:
   cache invalidation on re-import.
 - `test/pdfExtractor.test.ts` - real PDF extraction (pdf2json runs, no mock):
   page + line provenance, honest empty result for a no-text PDF, graceful failure
-  on a malformed/missing file. `test/makePdf.ts` generates valid PDFs for both.
+  on a malformed/missing file, and genuine 401-page / 20 MiB input rejection.
+  `test/makePdf.ts` generates valid PDFs for both.
+- `test/pdfWorker.test.ts` - real Node workers: the full 25-second CPU-loop
+  watchdog with a responsive main-loop heartbeat, termination after success or
+  failure, crashes, exit-without-result and malformed replies. Pure layout cases
+  cover exact 8 MiB and 400-page boundaries, UTF-8 byte accounting, aggregate
+  output limits and unchanged page/line provenance. Vitest builds the same worker
+  source in owned Temp; only the build-time worker path is adapted, not its
+  parser or lifecycle. Production dev/preview and packaged-installer validation
+  are separate evidence, not inferred from these Node tests.
 - `test/agentTools.test.ts` - `search_docs` is registered read-only.

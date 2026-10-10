@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'node:path'
+import { pdfWorkerTestPath } from './test/pdfWorkerBuild'
 
 export default defineConfig({
+  plugins: [pdfWorkerTestPath()],
   resolve: { alias: { '@shared': resolve(__dirname, 'src/shared') } },
   test: {
     include: ['test/**/*.test.ts'],
