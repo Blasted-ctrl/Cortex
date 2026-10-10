@@ -21,11 +21,33 @@ extra flags it was last built with.
 |---|---|---|
 | `compiler` | C, C++ | Stored as the **C++** driver; a `.c` file maps it down to the C one |
 | `std` / `cStd` | C++ / C | Also reach gdb's debug build and clangd's `.clangd` |
-| `optimization` | C, C++, Rust | Rust maps anything but `-O0` to `--release` |
+| `optimization` | C, C++, Rust | Host Run level; Rust maps non-`-O0` to Cargo `--release` or rustc `-O` |
 | `extraArgs` | C, C++ | Applied to Run **and** Debug |
 | `rustEdition` | Rust | Loose `.rs` files; a Cargo project uses its own `Cargo.toml` |
 | `pythonPath` | Python | A venv. Wins over the app-wide interpreter |
 | `boardFqbn` | Arduino | Last selected board |
+
+## Choose optimization in Cortex
+
+Open the host C/C++ target control in the toolbar and use **Optimization**.
+The normal presets remain Debug (`-O0`), Balanced (`-O2`), Release (`-O3`) and
+Size (`-Os`). **Advanced optimization** reveals the existing allowlisted
+technical choices `-O`, `-O1`, `-Og` and `-Ofast`. An already selected advanced
+level is shown by its actual flag and revealed when the menu opens; selecting a
+level uses the same per-project persistence as the presets. There is no free-form
+argument entry, and unsupported stored levels show the host Run fallback to
+`-O0` instead of being presented as valid choices.
+
+Optimization can change debugging behavior, speed and size; a higher level is
+not a guaranteed performance improvement. In GCC, `-Ofast` also enables changes
+outside strict standards compliance, including fast-math behavior, so verify
+floating-point and firmware behavior before using it. Details vary by compiler
+and target. See the [GCC optimization reference](https://gcc.gnu.org/onlinedocs/gcc-14.2.0/gcc/Optimize-Options.html).
+
+These levels configure native host **Run**, not Arduino-core or deterministic
+scenario build options. Host **Debug** intentionally compiles with `-g -O0`;
+choosing `-Og` here does not change that debugger policy. Rust retains its
+separate Debug/Release profile control and Cargo/rustc mapping above.
 
 ## This file is attacker-controlled
 
@@ -95,10 +117,10 @@ discards the archive and the link then fails on the user's own source.
 > hostile `python.exe` in the workspace beside the script: the interpreter that
 > ran was the one on `PATH`.
 
-## Run and Debug apply the same settings
+## Shared Run and Debug settings
 
-They are separate code paths, and every setting that reached only one of them
-has been a bug: the C driver, the C standard, and `extraArgs` were each fixed
+They are separate code paths. The compiler/standard, `extraArgs` and working
+directory must stay aligned: the C driver, the C standard, and `extraArgs` were each fixed
 separately after each was found missing from Debug. Debug also runs the program
 with the **workspace root** as its working directory, the same as Run, so a
 program that opens `data.txt` relative to the project finds it under both.

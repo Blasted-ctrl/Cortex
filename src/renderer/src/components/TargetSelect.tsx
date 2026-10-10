@@ -1,33 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ChevronDown, Check, SlidersHorizontal } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { cDriver, cppDriver } from '@shared/languages'
-import { isHostCpp } from '@shared/security'
+import { isHostCpp, OPT_LEVELS } from '@shared/security'
+import { OPT_PRESETS, OPT_ADVANCED, optimizationSummary } from '@shared/optimizationOptions'
 import type { CppStandard, CStandard } from '@shared/ipc'
 
 const CPP_STANDARDS: CppStandard[] = ['c++11', 'c++14', 'c++17', 'c++20', 'c++23', 'c++2c']
 const C_STANDARDS: CStandard[] = ['c99', 'c11', 'c17', 'c23']
 const RUST_EDITIONS = ['2015', '2018', '2021', '2024']
 
-// Optimization presets in product language. Each maps to a REAL -O flag the
-// build uses, so the label never lies about what the compiler is told. A
-// project whose stored flag is not one of these (e.g. -O1 / -Ofast / -Og) is
-// shown by its raw flag instead of being forced into a preset.
-const OPT_PRESETS: { label: string; flag: string; hint: string }[] = [
-  { label: 'Debug', flag: '-O0', hint: 'no optimization, best for debugging' },
-  { label: 'Balanced', flag: '-O2', hint: 'moderate optimization (-O2)' },
-  { label: 'Release', flag: '-O3', hint: 'maximum speed (-O3)' },
-  { label: 'Size', flag: '-Os', hint: 'optimize for smaller binaries (-Os)' }
-]
-
 /** GCC / Clang from the actual driver binary; the binary itself is shown as a
  *  subtitle so the product label never hides which compiler runs. */
 function compilerLabel(bin: string): string {
   return /clang/i.test(bin) ? 'Clang' : 'GCC'
-}
-
-function optSummary(flag: string): string {
-  return OPT_PRESETS.find((p) => p.flag === flag)?.label ?? flag
 }
 
 /** A section heading inside the popover. */
@@ -87,6 +73,11 @@ export default function TargetSelect({ kind }: { kind: 'c' | 'cpp' | 'rust' }): 
   const toolchains = useStore((s) => s.toolchains)
 
   const [open, setOpen] = useState(false)
+  const [advanced, setAdvanced] = useState(false)
+  const advancedId = useId()
+  useEffect(() => {
+    if (open && OPT_ADVANCED.some((option) => option.flag === optimization)) setAdvanced(true)
+  }, [open, optimization])
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {
@@ -111,15 +102,13 @@ export default function TargetSelect({ kind }: { kind: 'c' | 'cpp' | 'rust' }): 
 
   const summary = isRust
     ? `Rust ${rustEdition} / ${optimization === '-O0' ? 'Debug' : 'Release'}`
-    : `${compilerLabel(shownCompiler)} / ${isC ? cStd : std} / ${optSummary(optimization)}`
+    : `${compilerLabel(shownCompiler)} / ${isC ? cStd : std} / ${optimizationSummary(optimization)}`
 
   const title = isRust
     ? 'Rust build target: edition and profile'
     : `Build target: ${shownCompiler}, ${isC ? cStd : std}, optimization ${optimization}`
 
-  // Show a raw-flag row when the current optimization is not one of the presets,
-  // so a custom -O value is represented honestly instead of mislabeled.
-  const optIsPreset = OPT_PRESETS.some((p) => p.flag === optimization)
+  const optAllowed = OPT_LEVELS.includes(optimization)
 
   return (
     <div className="no-drag relative shrink-0">
@@ -224,14 +213,29 @@ export default function TargetSelect({ kind }: { kind: 'c' | 'cpp' | 'rust' }): 
                       <span className="mono text-[10px] text-ide-faint">{p.flag}</span>
                     </Row>
                   ))}
-                  {!optIsPreset && (
-                    // The project pins a level with no preset; show it honestly
-                    // rather than snapping the label to the nearest preset.
-                    <Row selected onClick={() => setOpen(false)} title={`Custom optimization ${optimization}`}>
-                      <span>Custom</span>
-                      <span className="mono text-[10px] text-ide-faint">{optimization}</span>
-                    </Row>
+                  <button
+                    role="menuitem"
+                    className="row w-full items-center justify-between rounded px-2 py-1 text-left text-[12px] text-ide-muted hover:bg-ide-hover hover:text-ide-text"
+                    aria-expanded={advanced}
+                    aria-controls={advancedId}
+                    onClick={() => setAdvanced((value) => !value)}
+                  >
+                    Advanced optimization
+                    <ChevronDown size={12} className={advanced ? 'rotate-180' : ''} />
+                  </button>
+                  {advanced && (
+                    <div id={advancedId}>
+                      {OPT_ADVANCED.map((option) => (
+                        <Row key={option.flag} selected={optimization === option.flag} onClick={() => setOptimization(option.flag)} title={option.hint}>
+                          <span>{option.label}</span>
+                          <span className="mono text-[10px] text-ide-faint">{option.flag}</span>
+                        </Row>
+                      ))}
+                      <p className="px-2 py-1 text-[10px] text-ide-muted">Run uses the selected level. Host Debug uses -O0.</p>
+                      <p className="px-2 py-1 text-[10px] text-ide-amber">-Ofast may change floating-point results and standards compliance. Verify behavior before using it.</p>
+                    </div>
                   )}
+                  {!optAllowed && <p className="px-2 py-1 text-[10px] text-ide-amber">Stored level {optimization} is not allowed. Run falls back to -O0; choose a supported option.</p>}
                 </Group>
               </>
             )}
