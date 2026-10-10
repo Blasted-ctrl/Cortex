@@ -207,6 +207,10 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   document. The full combined regression remains a separate gate.
 - [ ] Finish combined verification of separately approved Vite 7.3.7 and its
   demonstrated Vitest config/typing/packaging migrations; keep Electron unchanged.
+- [ ] After that combined/fresh-install baseline finishes, execute the separately
+  approved Vitest 2.1.9 to 4.1.11 test-stack migration. Preserve isolation,
+  scheduling, assertions, timeouts and skips; rerun checks and audit before any
+  other major upgrade. Electron/PDF remain unchanged.
 - [x] Close the discovered manual release-script bypass of CI quality/audit and
   draft-only guards; verify exact-target rejection without real publication.
   All 84 focused guard cases pass, including fail-closed fake gate/API paths and

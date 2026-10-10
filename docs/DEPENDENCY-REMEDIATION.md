@@ -164,9 +164,10 @@ Nested old test tooling still contributes affected paths. No forced Vitest
 upgrade or security waiver follows from this step; verify every remaining gate
 before proposing another major.
 
-## Proposed next isolated step: Vitest 4.1.11
+## Approved next isolated step: Vitest 4.1.11
 
-This is reviewed, not approved or installed. The official registry lists Node
+The user approved this isolated step on 2026-10-10, after the current combined
+and fresh-install gates finish. It is not installed yet. The official registry lists Node
 20/22/24 and Vite 6/7/8 compatibility, so the pinned Node 22.20.0/root Vite 7.3.7
 meet its prerequisites. The maintainer still supports the 4.1 line with important
 and security backports; versions below 4.1 are unsupported. See the
@@ -180,7 +181,7 @@ vite-node with Vite's module runner and removes tinypool, whose retained older
 versions have an [options advisory](https://github.com/tinylibs/tinypool/security/advisories/GHSA-85c8-ppgw-ccpr).
 This is not a claim that it clears every release finding.
 
-If separately approved, change only the test-tool stack and required fixtures,
+When those gates finish, change only the test-tool stack and required fixtures,
 commands and documentation. Remove the obsolete `--minWorkers` CLI option;
 retain file isolation, serial native scheduling, the worker ceiling, all
 deadlines, assertions, compiler prerequisites and explicit platform skips.

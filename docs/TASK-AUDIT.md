@@ -140,6 +140,11 @@ Do not force test dependencies onto an incompatible Vite or waive findings as
 dev-only. The last recorded audit remains red: 31 findings, including three
 critical and 19 high. A local feature checkpoint is not a release approval.
 
+The user subsequently approved the isolated Vitest 2.1.9 to 4.1.11 migration,
+to start after this combined/fresh-install baseline finishes. Its versioned
+v3/v4 migration and registry/advisory preflight is documented; it is not installed
+yet. Electron/PDF and all existing verification floors stay unchanged.
+
 ## External release gates
 
 These require real external state, explicit authority or human participation:
