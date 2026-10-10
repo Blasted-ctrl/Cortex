@@ -2705,7 +2705,7 @@ export const useStore = create<State>((set, get) => ({
   appendDebugOutput(o: DebugOutput) {
     const stream: 'stdout' | 'stderr' | 'system' =
       o.stream === 'program' ? 'stdout' : o.stream === 'gdb' ? 'stderr' : 'system'
-    set((st) => ({ output: [...st.output, { stream, text: o.text }].slice(-5000) }))
+    set((st) => ({ output: appendConsoleEntry(st.output, { stream, text: o.text }, 5000) }))
   },
   async startDebug() {
     const { activePath, tabs, workspaceRoot, running, debug, compiler, std, breakpoints } = get()

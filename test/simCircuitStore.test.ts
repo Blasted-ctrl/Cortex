@@ -12,15 +12,38 @@ beforeEach(() => {
   useStore.setState({ ...workspaceScopedReset(), workspaceRoot: 'C:/fixture', notifications: [] })
 })
 describe('production circuit store persistence', () => {
-  it.each(['simulator', 'run'])('bounds actual %s console text as well as its entry count', (console) => {
+  it.each(['simulator', 'run', 'program', 'gdb', 'system'] as const)('bounds actual %s console text as well as its entry count', (console) => {
     useStore.setState({ simRunId: 'fixture-run', simSerial: [], runId: 'fixture-run', output: [] })
     const text = 'x'.repeat(CONSOLE_TEXT_LIMIT * 2) + 'end'
     if (console === 'simulator') useStore.getState().handleSimEvent({ id: 'fixture-run', kind: 'serial', text })
-    else useStore.getState().appendOutput({ id: 'fixture-run', stream: 'stdout', data: text })
+    else if (console === 'run') useStore.getState().appendOutput({ id: 'fixture-run', stream: 'stdout', data: text })
+    else useStore.getState().appendDebugOutput({ stream: console, text })
     const entries = console === 'simulator' ? useStore.getState().simSerial : useStore.getState().output
     expect(entries.reduce((total, entry) => total + entry.text.length, 0)).toBeLessThanOrEqual(CONSOLE_TEXT_LIMIT)
     expect(entries[0].text.startsWith(OMITTED_OUTPUT)).toBe(true)
     expect(entries.at(-1)?.text.endsWith('end')).toBe(true)
+  })
+  it('bounds accumulated debugger output across mixed streams without losing the latest text', () => {
+    useStore.setState({ output: [] })
+    for (const stream of ['program', 'gdb', 'system'] as const) {
+      useStore.getState().appendDebugOutput({ stream, text: 'x'.repeat(200_000) + stream })
+      expect(useStore.getState().output.reduce((total, entry) => total + entry.text.length, 0)).toBeLessThanOrEqual(CONSOLE_TEXT_LIMIT)
+    }
+    const entries = useStore.getState().output
+    expect(entries[0].text.startsWith(OMITTED_OUTPUT)).toBe(true)
+    expect(entries.map((entry) => entry.text).join('').split(OMITTED_OUTPUT)).toHaveLength(2)
+    expect(entries.at(-1)).toMatchObject({ stream: 'system' })
+    expect(entries.at(-1)?.text.endsWith('system')).toBe(true)
+  })
+  it('preserves ordinary debugger text and its console stream mapping', () => {
+    useStore.setState({ output: [{ stream: 'stdout', text: 'existing run output' }] })
+    for (const stream of ['program', 'gdb', 'system'] as const) useStore.getState().appendDebugOutput({ stream, text: stream })
+    expect(useStore.getState().output).toEqual([
+      { stream: 'stdout', text: 'existing run output' },
+      { stream: 'stdout', text: 'program' },
+      { stream: 'stderr', text: 'gdb' },
+      { stream: 'system', text: 'system' }
+    ])
   })
   it('resets missing layouts to fresh connected defaults, not previous project parts', async () => {
     useStore.setState({ simParts: [led()], sim3dBoard: 'teensy41', simDiagramDirty: true })
