@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, ChevronDown, Folder, FolderOpen, RefreshCw, FilePlus, FolderPlus } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import PanelHeader from './PanelHeader'
 import EmptyState from './EmptyState'
 import type { FileNode } from '@shared/ipc'
+import { visibleTreeEntries, type VisibleTreeEntry } from '@shared/treeNavigation'
 import FileIcon from './FileIcon'
 
 const parentDir = (p: string): string => p.replace(/[\\/][^\\/]+$/, '')
@@ -34,6 +35,7 @@ function InlineEditRow({
   depth,
   value,
   isDir,
+  label,
   onChange,
   onCommit,
   onCancel
@@ -41,6 +43,7 @@ function InlineEditRow({
   depth: number
   value: string
   isDir: boolean
+  label: string
   onChange: (v: string) => void
   onCommit: () => Promise<void>
   onCancel: () => void
@@ -74,6 +77,7 @@ function InlineEditRow({
       </span>
       <input
         ref={inputRef}
+        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={commitOnce}
@@ -104,55 +108,81 @@ interface EditProps {
   onCancel: (target: DialogState) => void
 }
 
+interface NavigationProps {
+  focusedPath: string | null
+  entries: Map<string, VisibleTreeEntry>
+  bind: (path: string, element: HTMLDivElement | null) => void
+  focus: (path: string) => void
+  remember: (path: string) => void
+  activate: (node: FileNode) => void
+  keyDown: (event: React.KeyboardEvent<HTMLDivElement>, node: FileNode) => void
+}
+
 function TreeRow({
   node,
   depth,
   onContext,
-  edit
+  edit,
+  navigation
 }: {
   node: FileNode
   depth: number
   onContext: OnContext
   edit: EditProps
+  navigation: NavigationProps
 }): JSX.Element {
-  const { expanded, childrenCache, toggleDir, openFile, activePath, notify } = useStore()
+  const { expanded, childrenCache, activePath } = useStore()
   const isOpen = expanded.has(node.path)
   const isActive = activePath === node.path
   const children = childrenCache[node.path]
   const { dialog, onChangeValue, onCommit, onCancel } = edit
 
-  const onClick = (): void => {
-    if (node.isDir) void toggleDir(node)
-    else void openFile(node.path).catch((error) => notify('error', 'Could not open file', String(error)))
-  }
+  const entry = navigation.entries.get(node.path)
 
   const renaming = !!dialog && dialog.mode === 'rename' && dialog.path === node.path
   const creatingHere = !!dialog && dialog.mode !== 'rename' && dialog.dir === node.path && node.isDir && isOpen
 
   return (
-    <>
+    <div
+      ref={(element) => navigation.bind(node.path, element)}
+      role="treeitem"
+      tabIndex={navigation.focusedPath === node.path && !renaming ? 0 : -1}
+      aria-label={node.name}
+      aria-level={entry?.level ?? depth + 1}
+      aria-posinset={entry?.position}
+      aria-setsize={entry?.siblings}
+      aria-expanded={node.isDir ? isOpen : undefined}
+      aria-selected={node.isDir ? undefined : isActive}
+      title={node.path}
+      className="outline-none [&:focus-visible>div:first-child]:outline [&:focus-visible>div:first-child]:outline-1 [&:focus-visible>div:first-child]:-outline-offset-1 [&:focus-visible>div:first-child]:outline-ide-accent"
+      onFocus={(event) => {
+        if (event.target === event.currentTarget) navigation.remember(node.path)
+      }}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget) navigation.keyDown(event, node)
+      }}
+    >
       {renaming && dialog ? (
         <InlineEditRow
           depth={depth}
           value={dialog.value}
           isDir={node.isDir}
+          label={`Rename ${node.isDir ? 'folder' : 'file'} ${node.name}`}
           onChange={onChangeValue}
           onCommit={() => onCommit(dialog)}
           onCancel={() => onCancel(dialog)}
         />
       ) : (
-        // A real button, not a click-only div: this is the primary open-file
-        // action and it was unreachable by keyboard, and the shared focus ring
-        // in styles/index.css only matches real controls.
-        <button
-          type="button"
-          onClick={onClick}
+        <div
+          onClick={() => {
+            navigation.focus(node.path)
+            navigation.activate(node)
+          }}
           onContextMenu={(e) => {
             e.preventDefault()
             e.stopPropagation()
             onContext(e.clientX, e.clientY, node)
           }}
-          title={node.path}
           className={`row h-[24px] w-full cursor-pointer select-none gap-1 pr-2 text-left text-[13px] hover:bg-ide-hover ${
             isActive ? 'bg-ide-active' : ''
           }`}
@@ -171,26 +201,27 @@ function TreeRow({
             <TreeIcon node={node} />
           </span>
           <span className="truncate">{node.name}</span>
-        </button>
+        </div>
       )}
       {node.isDir && isOpen && (
-        <>
+        <div role="group">
           {creatingHere && dialog && (
             <InlineEditRow
               depth={depth + 1}
               value={dialog.value}
               isDir={dialog.mode === 'newFolder'}
+              label={`New ${dialog.mode === 'newFolder' ? 'folder' : 'file'} name`}
               onChange={onChangeValue}
               onCommit={() => onCommit(dialog)}
               onCancel={() => onCancel(dialog)}
             />
           )}
           {children?.map((child) => (
-            <TreeRow key={child.path} node={child} depth={depth + 1} onContext={onContext} edit={edit} />
+            <TreeRow key={child.path} node={child} depth={depth + 1} onContext={onContext} edit={edit} navigation={navigation} />
           ))}
-        </>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -206,6 +237,9 @@ export default function FileExplorer(): JSX.Element {
     createNewFile,
     createNewFolder,
     expanded,
+    childrenCache,
+    activePath,
+    openFile,
     toggleDir,
     confirm,
     notify
@@ -213,6 +247,66 @@ export default function FileExplorer(): JSX.Element {
   const [busy, setBusy] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode } | null>(null)
   const [dialog, setDialog] = useState<DialogState | null>(null)
+  const [focusedPath, setFocusedPath] = useState<string | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLDivElement>())
+  const menuRef = useRef<HTMLDivElement>(null)
+  const entries = useMemo(() => visibleTreeEntries(tree, expanded, childrenCache), [tree, expanded, childrenCache])
+  const entryMap = useMemo(() => new Map(entries.map((entry) => [entry.node.path, entry])), [entries])
+  const entryPath = focusedPath && entryMap.has(focusedPath) ? focusedPath
+    : activePath && entryMap.has(activePath) ? activePath : entries[0]?.node.path ?? null
+
+  useEffect(() => { setFocusedPath(null); setMenu(null); setDialog(null) }, [workspaceRoot])
+  useEffect(() => { if (menu) menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus() }, [menu])
+
+  const focusRow = (path: string): void => {
+    setFocusedPath(path)
+    const element = rowRefs.current.get(path)
+    element?.focus()
+  }
+  const activate = (node: FileNode): void => {
+    void (node.isDir ? toggleDir(node) : openFile(node.path)).catch((error) =>
+      notify('error', node.isDir ? 'Could not open folder' : 'Could not open file', String(error)))
+  }
+  const keyDown = (event: React.KeyboardEvent<HTMLDivElement>, node: FileNode): void => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    const index = entries.findIndex((entry) => entry.node.path === node.path)
+    const current = entries[index]
+    if (!current) return
+    let next: string | undefined
+    switch (event.key) {
+      case 'ArrowDown': next = entries[Math.min(index + 1, entries.length - 1)]?.node.path; break
+      case 'ArrowUp': next = entries[Math.max(0, index - 1)]?.node.path; break
+      case 'Home': next = entries[0]?.node.path; break
+      case 'End': next = entries.at(-1)?.node.path; break
+      case 'ArrowRight':
+        if (node.isDir) {
+          if (!expanded.has(node.path)) activate(node)
+          else if (entries[index + 1]?.parentPath === node.path) next = entries[index + 1].node.path
+        }
+        break
+      case 'ArrowLeft':
+        if (node.isDir && expanded.has(node.path)) activate(node)
+        else next = current.parentPath ?? undefined
+        break
+      case 'Enter':
+      case ' ': activate(node); break
+      case 'ContextMenu':
+      case 'F10': {
+        if (event.key === 'F10' && !event.shiftKey) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        setMenu({ x: rect.left, y: rect.top + 24, node })
+        break
+      }
+      default: return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    focusRow(next ?? node.path)
+  }
+  const navigation: NavigationProps = {
+    focusedPath: entryPath, entries: entryMap, focus: focusRow, remember: setFocusedPath, activate, keyDown,
+    bind: (path, element) => { if (element) rowRefs.current.set(path, element); else rowRefs.current.delete(path) }
+  }
 
   useEffect(() => {
     const close = (): void => setMenu(null)
@@ -318,6 +412,7 @@ export default function FileExplorer(): JSX.Element {
               className="rounded p-1 hover:bg-ide-hover hover:text-ide-text"
               onClick={() => workspaceRoot && startCreate('newFile', null)}
               title="New file"
+              aria-label="New file"
             >
               <FilePlus size={14} />
             </button>
@@ -325,6 +420,7 @@ export default function FileExplorer(): JSX.Element {
               className="rounded p-1 hover:bg-ide-hover hover:text-ide-text"
               onClick={() => workspaceRoot && startCreate('newFolder', null)}
               title="New folder"
+              aria-label="New folder"
             >
               <FolderPlus size={14} />
             </button>
@@ -342,6 +438,7 @@ export default function FileExplorer(): JSX.Element {
                 setBusy(false)
               }}
               title="Refresh"
+              aria-label="Refresh project files"
             >
               <RefreshCw size={14} className={busy ? 'animate-spin' : ''} />
             </button>
@@ -363,30 +460,41 @@ export default function FileExplorer(): JSX.Element {
             No folder is open.
           </EmptyState>
         ) : (
-          <>
+          <div role="tree" aria-label="Project files">
             {creatingAtRoot && dialog && (
               <InlineEditRow
                 depth={0}
                 value={dialog.value}
                 isDir={dialog.mode === 'newFolder'}
+                label={`New ${dialog.mode === 'newFolder' ? 'folder' : 'file'} name`}
                 onChange={edit.onChangeValue}
                 onCommit={() => edit.onCommit(dialog)}
                 onCancel={() => edit.onCancel(dialog)}
               />
             )}
             {tree.map((node) => (
-              <TreeRow key={node.path} node={node} depth={0} onContext={(x, y, n) => setMenu({ x, y, node: n })} edit={edit} />
+              <TreeRow key={node.path} node={node} depth={0} onContext={(x, y, n) => setMenu({ x, y, node: n })} edit={edit} navigation={navigation} />
             ))}
-          </>
+          </div>
         )}
       </div>
 
       {/* context menu */}
       {menu && (
         <div
+          ref={menuRef}
+          role="group"
+          aria-label="File actions"
           className="fixed z-50 min-w-[220px] overflow-hidden rounded-md border border-ide-border bg-ide-bar py-1.5 text-[13px] shadow-2xl"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            setMenu(null)
+            focusRow(menu.node.path)
+          }}
         >
           {menuGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? 'mt-1.5 border-t border-ide-border pt-1.5' : ''}>
@@ -395,6 +503,7 @@ export default function FileExplorer(): JSX.Element {
                   key={a.label}
                   className={`block w-full px-4 py-1.5 text-left hover:bg-ide-hover ${a.danger ? 'text-ide-red' : ''}`}
                   onClick={() => {
+                    focusRow(menu.node.path)
                     a.run()
                     setMenu(null)
                   }}

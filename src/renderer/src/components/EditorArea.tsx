@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { X, FileCode2, FileWarning } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import CodeEditor from './CodeEditor'
@@ -23,12 +23,76 @@ export default function EditorArea(): JSX.Element {
   const closeTab = useStore((s) => s.closeTab)
   const moveTabToGroup = useStore((s) => s.moveTabToGroup)
   const reorderTab = useStore((s) => s.reorderTab)
+  const workspaceRoot = useStore((s) => s.workspaceRoot)
+  const notify = useStore((s) => s.notify)
 
   const split = tabs.some((t) => t.group === 1)
   const [dragActive, setDragActive] = useState(false)
   const [dropZone, setDropZone] = useState<{ group: number; half: 'left' | 'right' } | null>(null)
   const [ratio, setRatio] = useState(0.5)
   const containerRef = useRef<HTMLDivElement>(null)
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>())
+  const closing = useRef(new Set<string>())
+  const mounted = useRef(true)
+  const [focusedTabs, setFocusedTabs] = useState<Record<number, string | null>>({})
+  const [focusRequest, setFocusRequest] = useState<{ root: string | null; path: string | null } | null>(null)
+  const id = useId()
+  const pathToken = (path: string): string => Array.from(path, (character) => character.codePointAt(0)!.toString(16)).join('-')
+  const tabId = (path: string): string => `${id}-tab-${pathToken(path)}`
+  const panelId = (path: string): string => `${id}-panel-${pathToken(path)}`
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  useEffect(() => { setFocusedTabs({}); setFocusRequest(null) }, [workspaceRoot])
+  useEffect(() => {
+    if (!focusRequest || focusRequest.root !== workspaceRoot) return
+    if (focusRequest.path) tabRefs.current.get(focusRequest.path)?.focus()
+    else containerRef.current?.focus()
+  }, [focusRequest, workspaceRoot])
+
+  const focusTab = (group: number, path: string): void => {
+    setFocusedTabs((current) => ({ ...current, [group]: path }))
+    tabRefs.current.get(path)?.focus()
+  }
+  const close = async (path: string): Promise<void> => {
+    if (closing.current.has(path)) return
+    closing.current.add(path)
+    try {
+      await closeTab(path)
+      if (!mounted.current || useStore.getState().workspaceRoot !== workspaceRoot) return
+      const current = useStore.getState()
+      const remaining = current.tabs.find((tab) => tab.path === path)
+      const nextPath = remaining?.path ?? current.activePath
+      const nextGroup = remaining?.group ?? current.activeGroup
+      setFocusedTabs((previous) => ({ ...previous, [nextGroup]: nextPath }))
+      setFocusRequest({ root: workspaceRoot, path: nextPath })
+    } catch (error) {
+      if (mounted.current && useStore.getState().workspaceRoot === workspaceRoot) notify('error', 'Could not close file', String(error))
+    } finally {
+      closing.current.delete(path)
+    }
+  }
+  const tabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, group: number, path: string): void => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    const siblings = tabs.filter((tab) => tab.group === group)
+    const index = siblings.findIndex((tab) => tab.path === path)
+    let next: string | undefined
+    switch (event.key) {
+      case 'ArrowLeft': next = siblings[(index + siblings.length - 1) % siblings.length]?.path; break
+      case 'ArrowRight': next = siblings[(index + 1) % siblings.length]?.path; break
+      case 'Home': next = siblings[0]?.path; break
+      case 'End': next = siblings.at(-1)?.path; break
+      case 'Enter':
+      case ' ': setActiveInGroup(group, path); break
+      case 'Delete': if (!event.repeat) void close(path); break
+      default: return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    if (next) focusTab(group, next)
+  }
 
   const endDrag = (): void => {
     dragPath = null
@@ -82,6 +146,8 @@ export default function EditorArea(): JSX.Element {
     const paneActivePath = groupActive[group] ?? null
     const paneActiveTab = groupTabs.find((t) => t.path === paneActivePath)
     const focused = activeGroup === group
+    const entryPath = groupTabs.some((tab) => tab.path === focusedTabs[group]) ? focusedTabs[group]
+      : paneActivePath ?? groupTabs[0]?.path
 
     return (
       <div
@@ -90,15 +156,19 @@ export default function EditorArea(): JSX.Element {
         onMouseDownCapture={() => {
           if (!focused) focusGroup(group)
         }}
+        onFocusCapture={() => {
+          if (!focused) focusGroup(group)
+        }}
       >
         {/* Tab strip */}
-        <div className="row h-9 shrink-0 overflow-x-auto border-b border-ide-border bg-ide-panel">
+        <div role="tablist" aria-label={split ? `${group === 0 ? 'Left' : 'Right'} editor tabs` : 'Editor tabs'} className="row h-9 shrink-0 overflow-x-auto border-b border-ide-border bg-ide-panel">
           {groupTabs.map((tab, index) => {
             const active = tab.path === paneActivePath
             const dirty = tab.content !== tab.savedContent
             return (
               <div
                 key={tab.path}
+                role="presentation"
                 draggable
                 onDragStart={(e) => {
                   dragPath = tab.path
@@ -130,8 +200,18 @@ export default function EditorArea(): JSX.Element {
                   <span className={`absolute inset-x-0 top-0 h-0.5 ${focused ? 'bg-ide-accent' : 'bg-ide-faint'}`} />
                 )}
                 <button
+                  ref={(element) => { if (element) tabRefs.current.set(tab.path, element); else tabRefs.current.delete(tab.path) }}
                   type="button"
+                  role="tab"
+                  id={tabId(tab.path)}
+                  aria-controls={panelId(tab.path)}
+                  aria-selected={active}
+                  aria-label={`${tab.name}${dirty ? ', unsaved changes' : ''}`}
+                  aria-describedby={`${id}-tab-help`}
+                  tabIndex={entryPath === tab.path ? 0 : -1}
                   onClick={() => setActiveInGroup(group, tab.path)}
+                  onFocus={() => setFocusedTabs((current) => ({ ...current, [group]: tab.path }))}
+                  onKeyDown={(event) => tabKeyDown(event, group, tab.path)}
                   title={tab.path}
                   className="row h-full min-w-0 flex-1 cursor-pointer gap-1.5 pl-3 pr-1 text-left"
                 >
@@ -142,13 +222,15 @@ export default function EditorArea(): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  onClick={() => closeTab(tab.path)}
+                  aria-label={`Close ${tab.name}`}
+                  tabIndex={-1}
+                  onClick={() => void close(tab.path)}
                   title={dirty ? 'Unsaved changes. Click to close' : 'Close'}
                   className="shrink-0 rounded p-0.5 text-ide-faint hover:bg-ide-hover hover:text-ide-text"
                 >
                   {/* No unsaved dot next to the tab (removed by the user's
                       request); dirtiness is conveyed by the title only. */}
-                  <X size={14} className="opacity-0 group-hover:opacity-100" />
+                  <X size={14} className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" />
                 </button>
               </div>
             )
@@ -166,9 +248,16 @@ export default function EditorArea(): JSX.Element {
             }}
           />
         </div>
+        {groupTabs.filter((tab) => tab.path !== paneActivePath).map((tab) => (
+          <div key={tab.path} hidden role="tabpanel" id={panelId(tab.path)} aria-labelledby={tabId(tab.path)} />
+        ))}
 
         {/* Editor surface, with a split/move drop overlay while dragging a tab. */}
         <div
+          role="tabpanel"
+          id={paneActivePath ? panelId(paneActivePath) : undefined}
+          aria-labelledby={paneActivePath ? tabId(paneActivePath) : undefined}
+          tabIndex={paneActiveTab?.readOnlyReason ? 0 : undefined}
           className="relative min-h-0 flex-1"
           onDragOver={(e) => {
             if (!dragPath) return
@@ -227,7 +316,7 @@ export default function EditorArea(): JSX.Element {
 
   if (tabs.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-bg">
+      <div ref={containerRef} role="region" tabIndex={-1} aria-label="Editor" className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-bg">
         <div className="h-9 shrink-0 border-b border-ide-border bg-ide-panel" />
         <div className="min-h-0 flex-1">
           <EmptyState icon={<FileCode2 size={24} />}>
@@ -243,8 +332,12 @@ export default function EditorArea(): JSX.Element {
     // fill the full height instead of centering.
     <div
       ref={containerRef}
+      role="region"
+      tabIndex={-1}
+      aria-label="Editor"
       className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-ide-border"
     >
+      <span id={`${id}-tab-help`} className="sr-only">Use Left and Right arrows to focus tabs, Enter or Space to select, and Delete to close.</span>
       {pane(0)}
       {split && <Splitter dir="x" title="Resize editor split" onDelta={onSplitterDelta} />}
       {split && pane(1)}
