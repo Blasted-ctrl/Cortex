@@ -1,7 +1,8 @@
 # Contributing / Developer guide
 
 ## Prerequisites
-- Node 18+ (Node 24 verified)
+- Node 22.20.0 recommended (CI pin; Node 24.12.0 also verified). Build tooling
+  requires `^20.19.0 || >=22.12.0`; Node 18 is no longer supported.
 - npm (or pnpm)
 - For compiling user programs: `g++`/`clang++`, `python`, `node` on your `PATH`
 
@@ -22,7 +23,7 @@ npm run dev
 | `npm run dev` | Launch with hot reload (electron-vite) |
 | `npm run build` | Build main + preload + renderer into `out/` |
 | `npm run typecheck` | Type-check node (main/preload) and web (renderer) projects |
-| `npm test` | Run the Vitest unit suite (pure logic in `src/shared`) |
+| `npm test` | Run unit/store regressions and native filesystem, Git and compiler integration checks |
 | `npm start` | Preview the production build |
 | `npm run dist:win` | Package a Windows installer into `release/` |
 

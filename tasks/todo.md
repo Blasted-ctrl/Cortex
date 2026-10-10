@@ -153,10 +153,16 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 - [x] Finish rebuilt save/conflict/watcher/editor/3D verification after compatible
   fixes; retain screenshots/reports. Whole-root native fault remains unverified
   because Windows blocked the fixture rename; store-level error cases passed.
+- [x] Verify the separately approved electron-vite 4.0.1 migration, ESM tooling
+  config and Node 22.20.0 CI alignment; retain CommonJS desktop/native externals.
+  Types/full 83-suite regression/firmware checks pass under Node 24.12 and the
+  exact portable Node 22.20 pin. Actual dev/rebuilt-production save, watcher,
+  editor, native terminal/serial/PDF and 3D smoke pass; owned processes cleaned
+  up. Audit remains blocking at 31; no runtime replacement or release.
 - [ ] Continue the approved cautious dependency strategy by reviewing and verifying
   each major upgrade individually. Do not replace a
   runtime still used by the user's open Cortex window.
-- [ ] Remediate/triage remaining audit findings: 32 total (19 high, 3 critical).
+- [ ] Remediate/triage remaining audit findings: 31 total (19 high, 3 critical).
 - [ ] Run the three-platform release workflow and validate real clean-install artifacts.
 - [ ] Validate real hardware, advanced Git/conflicts, recovery and human/outside-team trials.
 - [ ] Expand actual MCU/peripheral/electrical coverage; do not market inspection models

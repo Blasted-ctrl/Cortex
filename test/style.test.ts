@@ -22,7 +22,7 @@ const SKIP = new Set(['node_modules', 'out', 'dist', 'release', '.git', '.vscode
 // Dependency metadata, not our copy: other people's package descriptions are
 // not ours to hold to this rule.
 const SKIP_FILES = new Set(['package-lock.json'])
-const SOURCE = /\.(ts|tsx|css|md|js|json|yml|yaml|ino|cpp|h|hpp|py|rs|toml)$/
+const SOURCE = /\.(ts|mts|tsx|css|md|js|json|yml|yaml|ino|cpp|h|hpp|py|rs|toml)$/
 
 function walk(dir: string, acc: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

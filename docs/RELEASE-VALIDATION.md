@@ -1,6 +1,7 @@
 # Customer-release validation evidence
 
-Date: 2026-10-09. This is local Windows evidence, not release approval, a claim
+Started 2026-10-09; updated 2026-10-10 after tooling verification. This is local
+Windows evidence, not release approval, a claim
 of zero edge cases, or proof that every supported platform/board works.
 The evidence below was collected before the local source checkpoint commits;
 no release was published. Verified source changes are committed on `main` under
@@ -95,6 +96,86 @@ rejection handlers. Review/removal is required when an editor upgrade changes
 those calls. Ordinary errors still surface; no global cancellation filter or
 disabled highlighting was used. References: [reported upstream bug](https://github.com/microsoft/monaco-editor/issues/4859),
 [upstream source](https://github.com/microsoft/vscode/blob/main/src/vs/editor/contrib/wordHighlighter/browser/wordHighlighter.ts).
+
+## First approved tooling major: electron-vite 4.0.1
+
+The user separately approved this migration after the compatible pass. Exact
+current manifests/configuration were backed up outside the dirty workspace;
+only electron-vite changed among existing installed packages. Its esbuild 0.25.12
+dependency was added. Electron 33.4.11, Vite 5.4.21, Vitest 2.1.9 and the native
+and PDF modules are unchanged; install scripts were not run. Independent review
+confirmed lockfile/installed-tree agreement, peers, unchanged package-manager
+guards and byte-identical tooling config under its new `.mts` filename.
+
+General CI now uses the existing exact Node 22.20.0 pin. Source development
+requires `^20.19.0 || >=22.12.0`; the initial local checks used Node 24.12.0.
+A separate official portable Node 22.20.0/npm 10.9.3 copy was downloaded to an
+owned Temp directory and SHA256-verified against the official release manifest.
+With a process-local PATH, types, tools build, all 29 firmware assertions,
+broken/hang self-tests and the full 83-suite/1466-pass/five-skip regression also
+passed (214.43 seconds for Vitest). Each gate recorded unchanged manifest/lock
+hashes; no global install or `.npmrc` was created. This exercised the installed
+tree, not a fresh `npm ci`; actual remote CI remains a separate release gate.
+Main/preload output
+is still CommonJS, with native/PDF dynamic imports external. The production
+renderer entry hash remains `index-7JHEgUxf.js`.
+
+| Check | Result |
+|---|---|
+| Full regression suite | Exit 0: 83 suites, 1466 passes, five explicit local/platform skips |
+| Both type checks | Exit 0 |
+| Desktop/tools build | Exit 0; real `.mts` config loaded |
+| Firmware behavior suite | Exit 0: three scenarios, 29 assertions |
+| Broken fixture/hang watchdog | Exit 0: both expected failures caught |
+| `npm audit --audit-level=high --json` | Exit 1: 31 findings; 3 critical, 19 high, 9 moderate |
+
+Each automated npm gate had a separate 15-minute host watchdog. Logs/results
+and audit JSON are retained locally under `.cortex/release-smoke/ev4-*`.
+The existing style scanner was extended to `.mts` so the config rename does not
+remove coverage. An owned temporary `.mts` containing a deliberate violation
+failed the expected assertion and named that file; removing only the fixture
+restored all four style cases. No assertion was disabled or suppressed.
+
+Separately, the development smoke helper initially generated its third-party
+dependency cache inside the source tree, causing an unchanged style assertion
+to catch upstream font-encoding tables. The failed logs were preserved; only
+that owned generated cache moved to the owned Temp fixture and the helper now
+keeps its cache outside the repository. All four style cases pass again, with
+no new ignored directories or relaxed rules.
+
+Actual isolated development and rebuilt production checks both pass. Development
+loads the real `.mts` config through an ignored wrapper changing only output/cache
+paths and loopback ports; production uses actual `preview --skipBuild` against
+the successful production build. That preview does not reload the config itself.
+Each mode passes real disk Save, external-conflict preservation/Reload, automatic
+create/rename/immediate-delete watcher updates, and 30 Monaco switch rounds with
+zero renderer exceptions. Served development source confirms both cancellation
+handlers. Native terminal echo/normal exit, actual SerialPort import/class/list
+and PDF `loadPDF(file)` text parsing also pass; no physical port was opened.
+Top/underside, native zoom and Teensy pads 48-54/GND were inspected and captured.
+Fit-scale labeling remains dense and the model is not CAD-accurate.
+
+Earlier helper-only expression/selector/soft-wrap failures and the parser's pooled
+buffer probe are preserved separately. Controls confirmed the PDF fixture's xref
+and text were valid; matching Cortex's existing `loadPDF` API passes inside
+Electron. The buffer-only defect is consistent with the upstream
+[pdf2json report](https://github.com/modesty/pdf2json/issues/427), not a failing
+application import. The native OS PDF-picker UI remains unverified. The terminal
+helper now reports unavailable coverage as a failure, not successful validation.
+
+Both owned groups closed normally, with all observed descendants exited and
+ports 9342/9344/9742 released. Existing user/packaged instances were untouched.
+Retained logs include the deliberately rejected Save, PDF fake-worker warning and
+Three context-disposal information. Development also reports a missing Monaco
+source map and development CSP warning; no errors were suppressed. Startup
+observations (65.287 seconds under concurrent load for dev, 7.253 for production)
+are not benchmarks or before/after comparisons.
+
+Reports and inspected PNGs are retained in the owned Temp artifacts directory
+under `evite-dev/` and `evite-production/`; pinned Node logs/results are in the
+separate owned `cortex-node22-*` Temp directory. No runtime was replaced and no
+user process was terminated. This functional migration does not clear the audit
+or other customer-release gates.
 
 ## Native desktop checks
 

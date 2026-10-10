@@ -6,9 +6,12 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
 
 ## Release blockers
 
-1. Dependency remediation. After compatible updates, local
-   `npm audit --audit-level=high` still fails with 32 findings: 3 critical,
-   19 high and 10 moderate (initially 43). This includes desktop and
+1. Dependency remediation. After compatible fixes and the first approved tooling
+   major, local
+   `npm audit --audit-level=high` still fails with 31 findings: 3 critical,
+   19 high and 9 moderate (initially 43, then 32 after compatible fixes).
+   The separately approved electron-vite 4.0.1 upgrade removes one moderate
+   affected dependency group. This includes desktop and
    build/test tooling; dev-only is not automatically unreachable. The audit remains
    a blocking CI gate. Major Electron/Vite/Vitest/packaging changes need version-by-
    version review and verification; no forced upgrade or advisory waiver was applied.

@@ -45,6 +45,10 @@ One honest caveat: the build isn't code-signed yet, so on Windows you'll hit a S
 
 ## Getting started
 
+For source development, use Node.js 22.20.0 (the CI pin) or a newer compatible
+version. The build tools require `^20.19.0 || >=22.12.0`; installed desktop
+builds use their bundled Electron runtime.
+
 ```bash
 npm install
 npm run dev

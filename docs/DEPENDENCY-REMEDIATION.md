@@ -36,33 +36,75 @@ Post-install audit: 32 findings, comprising 3 critical, 19 high and 10 moderate
 (initially 43: 3 critical, 27 high, 13 moderate). The high/critical release gate
 still fails. Counts include affected dependency groups, not just unique exploits.
 
-Node type definitions remain on major 22 to match the firmware/release CI pin;
-the older general CI workflow still uses Node 20 and needs alignment. Electron
-metadata and native runtime are both 33.4.11 and are not included in this pass.
-The user's normal window is running that binary; replacement requires saving
-and closing it, not terminating it as a test shortcut. Each major update needs
+Node type definitions remain on major 22 to match the firmware/release CI pin.
+General CI's older Node 20 pin is aligned by the separately approved tooling
+upgrade below. Electron metadata and native runtime are both 33.4.11 and are not
+included in either pass. The user reported saving/closing Cortex, but a read-only
+process check still found its existing instance; it was left untouched. Runtime
+replacement requires verifying that it has closed, not terminating it as a test
+shortcut. Each major update needs
 its migration/peer review and a separate confirmation before installation.
 
-## First proposed major upgrade (not installed)
+## First approved major upgrade: electron-vite
 
-Propose `electron-vite` 2.3.0 to 4.0.1 first, keeping Vite/Vitest and the desktop
-runtime unchanged during that step. Its published peer range admits Vite 5/6/7.
+The user separately approved `electron-vite` 2.3.0 to 4.0.1. It is installed,
+keeping Vite 5.4.21, Vitest 2.1.9 and Electron 33.4.11 unchanged. Its published
+peer range admits Vite 5/6/7; `npm ls --depth=0` has no peer errors.
 The v3 preload-resolution changes and v4 ESM-only tooling/Node floor were reviewed
 against the [tagged changelog](https://raw.githubusercontent.com/alex8088/electron-vite/v4.0.1/CHANGELOG.md)
 and [published package metadata](https://raw.githubusercontent.com/alex8088/electron-vite/v4.0.1/package.json).
 
-Required migration: rename `electron.vite.config.ts` to `.mts`, update its
-`tsconfig.node.json` inclusion and documentation, and align general CI with the
-existing exact Node 22.20.0 pin. Keep the application's CommonJS output, optional
-native/PDF externals and Monaco backport; do not add global `type: module`.
+Applied migration: renamed `electron.vite.config.ts` to `.mts`, updated its
+`tsconfig.node.json` inclusion and documentation, and aligned general CI with the
+existing exact Node 22.20.0 pin. The application's CommonJS output, optional
+native/PDF externals and Monaco backport are preserved; no global `type: module`
+was added. Exact pre-upgrade files were backed up outside the workspace, and
+installation used `--ignore-scripts`; no runtime replacement or native rebuild.
 See the [maintainer's config guidance](https://electron-vite.org/guide/troubleshooting).
 Affected files: manifest/lockfile, config rename, `tsconfig.node.json`,
 `.github/workflows/ci.yml` and the architecture documentation.
 
-This proposal still needs separate user confirmation after the compatible pass
-has green functional checks. It will not clear the remaining Vite/Vitest,
-Electron or packaging audit findings by itself. Later majors require their own
-peer/migration review and checks, not a single forced install.
+Types, all 83 suites (1466 passes, five explicit skips), desktop/tools build,
+firmware suite (29 assertions) and broken/hanging-fixture checks pass. Types,
+tools, firmware/self-test and all 83 suites also pass under the exact Node
+22.20.0 CI pin using a verified portable copy, with unchanged manifests and
+no global install; fresh installation and remote CI remain unverified. Actual
+development/production save/conflict/watcher/editor/terminal/3D checks and native
+external-module controls pass; owned processes and debugging listeners closed
+normally. Native PDF-picker and hardware/installer paths remain unverified.
+See [validation evidence](RELEASE-VALIDATION.md). The existing style
+scanner now includes `.mts`, with a deliberate negative fixture caught and
+removed before a passing rerun. The current audit is 31 findings:
+3 critical, 19 high and 9 moderate. This upgrade does not clear the remaining
+Vite/Vitest, Electron or packaging findings. Later majors require their own
+confirmation, peer/migration review and checks, not a single forced install.
+
+## Next proposed major: Vite (not installed)
+
+Propose Vite 5.4.21 to 7.3.7, subject to separate user confirmation after the
+current step finishes. Vite 7.3 receives important/security fixes; 6.4.4 remains
+a smaller security-only alternative. Vite 7.3.7 contains the current filesystem
+advisory fixes. See [support policy](https://vite.dev/releases) and the
+[maintainer's advisory](https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22).
+
+Both [Vite 6](https://v6.vite.dev/guide/migration) and
+[Vite 7](https://v7.vite.dev/guide/migration) migrations were reviewed, including
+resolver conditions, stricter CommonJS evaluation, CSS configuration and browser
+targets. Keep the `.mts` tooling config, Node pin, native/PDF externals and Monaco
+backport/exclusion. Electron-vite 4.0.1 and installed React plugin 4.7.0 admit Vite
+7; raise that plugin's manifest floor from `^4.3.4` to `^4.7.0` to encode the
+already installed compatible version, not to introduce a plugin major.
+
+Vitest/vite-node 2.1.9 still depend on Vite 5, and mocker 2 has an optional Vite 5
+peer. A valid isolated upgrade must preserve their compatible nested resolution;
+never force them onto Vite 7. This leaves those security findings until a separately
+reviewed Vitest upgrade. Check [Vitest metadata](https://raw.githubusercontent.com/vitest-dev/vitest/v2.1.9/packages/vitest/package.json)
+and [mocker metadata](https://raw.githubusercontent.com/vitest-dev/vitest/v2.1.9/packages/mocker/package.json).
+
+Expected scope: manifest/lockfile, version/support documentation, and only config
+changes required by demonstrated incompatibilities. Verify the installed graph,
+types/full tests/build, firmware, native dev/production startup and a fresh audit
+before proposing another major. Electron runtime/packaging remain unchanged.
 
 ## Triage by code path
 

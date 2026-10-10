@@ -79,7 +79,9 @@ it in `main/index.ts`, expose it in `preload/index.ts`, and consume it via `wind
 ## Build & module format
 
 - **electron-vite** builds three targets (main, preload, renderer) from one config
-  (`electron.vite.config.ts`).
+  (`electron.vite.config.mts`). The tooling config is ESM; this does not change
+  the application's CommonJS package/output format. Build tooling requires Node
+  `^20.19.0 || >=22.12.0`; CI is pinned to Node 22.20.0.
 - Main and preload are emitted as **CommonJS** on purpose - Electron's ESM entry loader is fragile
   with native/CJS dependencies (e.g. `serialport`), so CJS is the reliable choice. The renderer is
   ESM (bundled by Vite).
