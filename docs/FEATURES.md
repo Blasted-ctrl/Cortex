@@ -40,6 +40,11 @@ relationships. See [Projects](PROJECTS.md) for controls, budgets and recovery li
 - ✅ Streamed build + program output with stdout/stderr coloring and exit codes
 - ✅ Stop a running program
 - ✅ **stdin to running programs** (input box in the Output console)
+- ✅ **Bounded build/run console delivery:** acknowledged packets, fixed pending
+  display budgets, explicit per-stream omissions and ordered compile/run exits.
+  Busy or duplicate admission reports an error instead of silently starting.
+  See [transport limits and measurements](ARCHITECTURE.md#bounded-buildrun-console-delivery);
+  compiler diagnostic buffers are a separate path, not a total-memory guarantee.
 - ✅ **Per-project run configuration** persisted to `.cortex/config.json` (compiler/std/opt/board)
 - ✅ **Compiler diagnostics** parsed into a **Problems panel** (click to jump) + **inline Monaco squiggles**
 - ⬜ CMake / PlatformIO project builds (multi-file)

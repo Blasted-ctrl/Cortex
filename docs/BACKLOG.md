@@ -37,7 +37,7 @@ records the actual checks.
 | 5c | F5 / palette handed `.ino` sketches to host g++ | functional | critical | S | **done** |
 | 5d | Simulator compiled any file ("multiple definition of main" on the default file) | functional | critical | S | **done** |
 | 5e | Native unstyled selects beside Run; dirty-tab dot hidden until hover; `ide.faint` failed AA | visual | critical | S | **done** |
-| 6 | Run-output backpressure: ring buffer + batch send + virtualize | production | critical | M | partial (ring cap done) |
+| 6 | Run-output backpressure: ring buffer + batch send + virtualize | production | critical | M | ring cap + bounded acknowledged delivery done; virtualization remains future |
 | 7 | Crash reporting + opt-in telemetry | production | high | M | todo |
 | 8 | Main resilience: global error handlers, single-instance, per-handler try/catch | production | high | M | partial (handlers + lock done) |
 | 9 | Flip Rust to runnable (backend already works) | language | high | S | **done** |
@@ -51,9 +51,11 @@ records the actual checks.
 | 17 | Extract sim protocol parser to shared; fix malformed-line drops + tests | testing | medium | M | **done** |
 
 Output from ordinary runs and debugging now retains a bounded recent display
-tail, with explicit omission markers. Producer-to-renderer backpressure,
-batching and virtualized rendering in row 6 remain separate work, not completed
-by that retention cap.
+tail, with explicit omission markers. Build/run console delivery now also has
+bounded coalescing and acknowledgements, with measured stalled-consumer behavior
+in [the architecture ledger](ARCHITECTURE.md#bounded-buildrun-console-delivery).
+Virtualized rendering remains separate future work; console delivery is lossy
+under overload and does not bound raw compiler diagnostic buffers.
 
 ## Simulator expansion (research direction, partially implemented)
 

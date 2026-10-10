@@ -16,7 +16,7 @@ None of those tools talk to each other. You end up being the integration layer y
 
 Cortex is an attempt to be that integration layer instead of you. It's one workspace where:
 
-- You write and compile modern C++ (up to C++23) using whatever compiler you already have installed (GCC, Clang, ARM-GCC, AVR-GCC), not something bundled and outdated.
+- You compile host C++ (up to C++23) with an installed GCC or Clang. Real-board builds use the selected board core and its toolchain; a cross-compiler does not make a host executable runnable.
 - You can drop Python, Rust, or JavaScript files into the same project for tests, data analysis, or a small dashboard, and run them the same way you run your firmware.
 - The editor is Monaco, the same engine behind VS Code, wired up to clangd for real completion, hover docs, and go-to-definition when clangd is available on your machine.
 - Missing C++ standard headers are added as you type: `std::mutex` inserts `<mutex>` at the top without moving your caret. See [automatic includes](docs/CPP-AUTO-INCLUDES.md).
@@ -41,7 +41,9 @@ This is an early, actively developed project, not a finished product. C++23 comp
 
 Check the [Releases page](https://github.com/Blasted-ctrl/Cortex/releases) for available Windows, macOS, and Linux installers.
 
-One honest caveat: the build isn't code-signed yet, so on Windows you'll hit a SmartScreen "unrecognized app" prompt on first launch. Click "More info" then "Run anyway." A signed, notarized build is on the list, just not there yet.
+Signing and clean-machine installer validation remain open release gates. A
+successful source build is not a verified customer installer; see
+[production readiness](docs/PRODUCTION-READINESS.md) before distribution.
 
 ## Getting started
 
