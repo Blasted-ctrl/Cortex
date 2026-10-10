@@ -28,6 +28,8 @@ interface Pending {
 
 class GdbSession {
   private gdb: ChildProcess | null = null
+  private outputChild: ChildProcess | null = null
+  private disposed = false
   private buf = ''
   private token = 1
   private readonly pending = new Map<number, Pending>()
@@ -50,8 +52,13 @@ class GdbSession {
     this.gdb?.stdin?.write(cmd + '\n')
   }
 
+  private isActive(child: ChildProcess | null = this.gdb): boolean {
+    return !this.disposed && child !== null && this.gdb === child
+  }
+
   /** Send an MI command and resolve with its result record. */
   private command(cmd: string): Promise<MiTuple> {
+    if (!this.isActive() || this.win.isDestroyed()) return Promise.reject('debug session ended')
     return new Promise((resolve, reject) => {
       const t = this.token++
       this.pending.set(t, { resolve, reject })
@@ -67,10 +74,11 @@ class GdbSession {
   }
 
   private out(stream: 'program' | 'gdb' | 'system', text: string): void {
-    if (!this.win.isDestroyed()) this.win.webContents.send(IPC.DEBUG_OUTPUT, { stream, text })
+    if (!this.disposed && !this.win.isDestroyed()) this.win.webContents.send(IPC.DEBUG_OUTPUT, { stream, text })
   }
 
   async start(): Promise<void> {
+    if (this.disposed) return
     let gdb: ChildProcess
     try {
       // PATH-resolved, never cwd-resolved: this cwd is the user's project and
@@ -83,36 +91,55 @@ class GdbSession {
       return
     }
     this.gdb = gdb
+    this.outputChild = gdb
+    const current = (): boolean => this.isActive(gdb) && !this.win.isDestroyed()
+    const ownsOutput = (): boolean => !this.disposed && this.outputChild === gdb && !this.win.isDestroyed()
     // Decode across chunk boundaries: a multi-byte character split by a pipe
     // read would otherwise be two U+FFFD before the MI parser ever sees it.
     gdb.stdout?.setEncoding('utf8')
     gdb.stderr?.setEncoding('utf8')
-    gdb.stdout?.on('data', (d: string) => this.onData(d))
-    gdb.stderr?.on('data', (d: string) => this.out('gdb', d))
+    gdb.stdout?.on('data', (d: string) => { if (ownsOutput()) this.onData(d) })
+    gdb.stderr?.on('data', (d: string) => { if (ownsOutput()) this.out('gdb', d) })
     gdb.stdin?.on('error', () => {})
     gdb.on('error', (e) => {
+      if (!this.isActive(gdb)) return
+      this.gdb = null
+      this.status = 'exited'
       this.rejectAllPending(String(e))
       this.pushState({ status: 'exited', error: String(e) })
     })
     gdb.on('exit', () => {
-      this.rejectAllPending('gdb exited')
-      if (this.status !== 'exited') this.pushState({ status: 'exited' })
+      if (!this.isActive(gdb)) return
       this.gdb = null
+      this.rejectAllPending('gdb exited')
+      if (this.status !== 'exited') {
+        this.status = 'exited'
+        this.pushState({ status: 'exited' })
+      }
+    })
+    gdb.on('close', () => {
+      if (this.outputChild !== gdb) return
+      this.outputChild = null
+      this.buf = ''
     })
 
     // Windows: keep the inferior in this console so its stdout reaches us as MI
     // target-stream records rather than a detached window.
     if (IS_WIN) await this.command('-gdb-set new-console off').catch(() => ({}))
+    if (!current()) return
     // Async so gdb keeps reading MI while the inferior runs, which is what lets
     // -exec-interrupt (Pause) actually work.
     await this.command('-gdb-set mi-async on').catch(() => ({}))
+    if (!current()) return
     for (const bp of this.breakpoints) {
       if (/[\r\n]/.test(bp.file)) continue
       await this.command(`-break-insert ${miPath(bp.file)}:${bp.line}`).catch(() => ({}))
+      if (!current()) return
     }
     this.out('system', 'Starting debugger...\n')
     // -exec-run starts the program; it stops at the first breakpoint or exits.
     this.command('-exec-run').catch(() => ({}))
+    if (!current()) return
     this.status = 'running'
     this.pushState({ status: 'running' })
   }
@@ -147,6 +174,7 @@ class GdbSession {
       return
     }
     if (rec.kind === 'async' && rec.type === 'exec') {
+      if (!this.isActive()) return
       if (rec.class === 'stopped') void this.onStopped(rec.results)
       else if (rec.class === 'running') {
         this.status = 'running'
@@ -182,7 +210,9 @@ class GdbSession {
     const stack = await this.command('-stack-list-frames')
       .then((r) => parseFrames(r.stack))
       .catch(() => [] as DebugFrame[])
+    if (!this.isActive()) return
     const vars = await this.variablesForFrame(this.selectedFrame)
+    if (!this.isActive()) return
     const top = stack[this.selectedFrame] ?? stack[0]
     this.pushState({
       status: 'stopped',
@@ -200,14 +230,15 @@ class GdbSession {
       .then((r) => parseVariables(r.variables))
       .catch(() =>
         // Older gdb rejects the --frame form; fall back to the current frame.
-        this.command('-stack-list-variables --all-values')
+        this.isActive() ? this.command('-stack-list-variables --all-values')
           .then((r) => parseVariables(r.variables))
           .catch(() => [] as DebugVariable[])
+          : [] as DebugVariable[]
       )
   }
 
   private pushState(partial: Partial<DebugState>): void {
-    if (this.win.isDestroyed()) return
+    if (this.disposed || this.win.isDestroyed()) return
     const state: DebugState = {
       status: this.status,
       stack: [],
@@ -241,12 +272,16 @@ class GdbSession {
   }
 
   async selectFrame(level: number): Promise<void> {
+    if (!this.isActive()) return
     this.selectedFrame = level
     await this.command(`-stack-select-frame ${level}`).catch(() => ({}))
+    if (!this.isActive()) return
     const vars = await this.variablesForFrame(level)
+    if (!this.isActive()) return
     const stack = await this.command('-stack-list-frames')
       .then((r) => parseFrames(r.stack))
       .catch(() => [] as DebugFrame[])
+    if (!this.isActive()) return
     const f = stack[level]
     this.pushState({
       status: 'stopped',
@@ -268,6 +303,7 @@ class GdbSession {
       .then(async (r) => {
         const rows = asArray(asTuple(r.BreakpointTable).body)
         for (const row of rows) {
+          if (!this.isActive()) return
           const t = asTuple(row)
           if (basename(asString(t.fullname) || asString(t.file)) === basename(file)) {
             await this.command(`-break-delete ${asString(t.number)}`).catch(() => ({}))
@@ -276,6 +312,7 @@ class GdbSession {
       })
       .catch(() => ({}))
     for (const line of lines) {
+      if (!this.isActive()) return
       this.breakpoints.push({ file, line })
       await this.command(`-break-insert ${miPath(file)}:${line}`).catch(() => ({}))
     }
@@ -288,19 +325,23 @@ class GdbSession {
   }
 
   dispose(): void {
-    this.pending.forEach((p) => p.reject('debug session ended'))
-    this.pending.clear()
+    if (this.disposed) return
+    this.disposed = true
+    this.outputChild = null
+    this.buf = ''
+    this.rejectAllPending('debug session ended')
     try {
       this.send('-gdb-exit')
     } catch {
       /* already gone */
     }
+    const child = this.gdb
+    this.gdb = null
     try {
-      this.gdb?.kill()
+      child?.kill()
     } catch {
       /* already gone */
     }
-    this.gdb = null
   }
 }
 
@@ -347,6 +388,7 @@ let compileChild: ChildProcess | null = null
 export async function start(win: BrowserWindow, req: DebugStartRequest): Promise<void> {
   stop() // one session at a time; stop() bumps startGen
   const myGen = startGen // the generation this start owns
+  const current = (): boolean => myGen === startGen && !win.isDestroyed()
   const compiler = req.compiler || 'g++'
   // Gate exactly as Run does (isAllowedCommand alone). Requiring a BARE name
   // here refused the one form app settings exist to hold: an absolute path to a
@@ -367,6 +409,7 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
   }
   const buildDir = join(req.cwd, '.cortex', 'debug')
   await mkdir(buildDir, { recursive: true }).catch(() => {})
+  if (!current()) return
   const base = basename(req.filePath).replace(/\.[^.]+$/, '')
   const exe = join(buildDir, IS_WIN ? `${base}.exe` : base)
   const isC = /\.c$/i.test(req.filePath)
@@ -416,16 +459,18 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
     cp.stderr?.setEncoding('utf8')
     cp.stdin?.on('error', () => {})
     cp.stderr?.on('data', (d: string) => {
+      if (!current() || compileChild !== cp) return
       buf += d
       win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: d })
     })
     cp.on('error', (e) => {
-      win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: `${String(e)}
+      if (current() && compileChild === cp) win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: `${String(e)}
 ` })
+      if (compileChild === cp) compileChild = null
       done({ ok: false, stderr: buf })
     })
     cp.on('close', (code) => {
-      compileChild = null
+      if (compileChild === cp) compileChild = null
       done({ ok: code === 0, stderr: buf })
     })
   })
@@ -437,14 +482,14 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
   // a dead build's terminal state would otherwise overwrite the live session's
   // (the renderer applies DEBUG_STATE unconditionally), flipping a running
   // session to "Build failed" for a build nobody is waiting on.
-  if (myGen !== startGen) return
+  if (!current()) return
   emitDiagnostics(win, req.runId, build.stderr, req.cwd)
   if (!build.ok) {
     win.webContents.send(IPC.DEBUG_STATE, blank('exited', 'Build failed. Fix the errors and try again.'))
     return
   }
   // Stop pressed, or a newer start() superseded us, during the compile: abandon.
-  if (myGen !== startGen) return
+  if (!current()) return
   // The inferior's cwd, and it must match Run's (req.cwd, the workspace root).
   // Using the file's directory meant a program opening "data.txt" relative to
   // the project found it under Run and not under Debug.
@@ -458,16 +503,18 @@ function blank(status: DebugState['status'], error?: string): DebugState {
 
 export function stop(): void {
   startGen++ // cancel any in-flight compile awaiting its generation
-  if (compileChild) {
+  const child = compileChild
+  compileChild = null
+  if (child) {
     try {
-      compileChild.kill()
+      child.kill()
     } catch {
       /* already gone */
     }
-    compileChild = null
   }
-  session?.dispose()
+  const stopped = session
   session = null
+  stopped?.dispose()
 }
 export function cont(): void {
   session?.cont()

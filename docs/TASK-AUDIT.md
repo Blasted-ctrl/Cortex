@@ -68,6 +68,7 @@ Do not infer completion from this inventory's status prose alone.
 | 9 | Advanced optimization control | Provide validated project-level advanced choices and honest defaults, round-trip them through persistence and Run/Debug as applicable; retain the safe argument allowlist |
 | 10 | Renderer sandbox/navigation hardening as a separately tested security slice | Review preload/module compatibility, then verify sandboxed dev/production startup and an explicit navigation allowlist without breaking valid file/editor/tool workflows; do not merely flip a flag |
 | 11 | Close local publication bypass discovered during final inspection | Default local packaging never publishes; manual publication must pass quality/audit checks, refuse public or ambiguous exact-target releases and create drafts only. Exercise fake failure paths, not a real publication |
+| 12 | Protect existing reviewed AI-edit approval from data loss | Deferred actual-store regressions preserve new typing and disk changes across approval reads/writes, prevent duplicates/stale project writes, and retain valid reviewed edit behavior. This is a safety fix, not autonomous/repository-wide AI scope |
 
 Implementation evidence for these remaining boundaries:
 
@@ -89,8 +90,9 @@ Implementation evidence for these remaining boundaries:
   across tool switches and follows an explicit session reset policy. Nine real
   React state/race checks pass; actual GDB Watch/Console and sidebar preservation
   also pass. Native Stop exposes a late disposed-process exit overwriting idle;
-  this service lifecycle defect is being fixed separately, not waived by UI state
-  tests. [DEBUGGING.md](DEBUGGING.md) states the limits.
+  lifecycle regressions and the rebuilt real Stop/restart control now pass.
+  Independent review adds natural-exit drain coverage; latest combined/native
+  acceptance remains separate. [DEBUGGING.md](DEBUGGING.md) states the limits.
 - [FileExplorer](../src/renderer/src/components/FileExplorer.tsx) and
   [EditorArea](../src/renderer/src/components/EditorArea.tsx) now expose tree/tablist
   semantics and roving keyboard focus, with 19 actual React behavior cases.
@@ -125,7 +127,8 @@ deadlines and within-case races. Types/build, repeated CLI behavior, negative
 self-tests and the benchmark pass. Final native/fresh-source acceptance remains
 open; native reopen exposed a separate Windows expansion-key mismatch, now fixed
 in `c2ec69b` with failing-then-passing store/React/native checks. Native GDB Stop
-has since exposed a separate disposed-callback lifecycle defect under repair. Follow
+has since exposed a separate disposed-callback lifecycle defect, now fixed with
+focused and real Stop/restart controls; final combined checks remain open. Follow
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for separate major review,
 peer/engine compatibility, migration scope and approval before each install.
 Do not force test dependencies onto an incompatible Vite or waive findings as

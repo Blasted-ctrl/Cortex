@@ -370,6 +370,30 @@ These screenshots were personally inspected. Owned windows and captured children
 close normally and release port 9342; the unrelated user instance is untouched.
 Combined later-source, debugger-fix, dev/HMR and fresh-install gates remain open.
 
+### Debugger lifecycle implementation and native control
+
+Actual-service fake-MI regressions reproduce disposed output/exit/error,
+initialization/evaluation settlement, late frame results and compiler ownership
+races before the fix. Fourteen lifecycle cases plus the unchanged parser and
+style checks pass (32 total); types and the production build pass. That build's
+main SHA256 is `737b8c172df523420d3b834cb8ed7300f839675d27cb28835ac57c84ecd9b548`.
+Its actual native three-session control passes in 15.23 seconds: each Stop waits
+for the exact GDB child to exit before requiring Idle, restart clears old Console
+results/drafts, and project switching clears prior Watch/Console state. The
+inspected screenshot and `gdb-native-stop-restart-project-green-main737b.json`
+retain this precise pre-drain-correction build boundary.
+
+Independent review then finds an introduced natural-exit output-tail regression:
+Node can emit exit before stdio closes. A new actual-service case fails before
+the correction, then passes with all original controls. Command settlement stays
+at exit/error while separate exact-child output ownership lasts until close;
+late async records cannot revive the session, and Stop/supersession mutes it.
+All 33 lifecycle/parser/style cases and node types pass, with watchdogs unused.
+See Node's [exit/close contract](https://nodejs.org/download/release/v22.20.0/docs/api/child_process.html#event-exit).
+Receipts are in owned `cortex-debug-lifecycle-*`, `cortex-debug-final-checks-*`
+and `cortex-debug-drain-*` Temp directories. The final combined build/native
+recheck must include this correction and the separately pending AI-approval fix.
+
 ## Manual publication guard follow-up
 
 Final inspection found that the old `npm run release` invoked electron-builder

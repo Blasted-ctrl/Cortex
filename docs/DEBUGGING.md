@@ -93,6 +93,12 @@ same way the filesystem is:
   gdb MI command) or fall outside the workspace;
 - pressing **Stop** during the compile actually cancels the launch, and overlapping starts
   cannot orphan a gdb process (each start owns a generation token).
+- A stopped session rejects pending MI commands and ignores its late child output,
+  errors, exits and frame-refresh results. Cleanup checks exact child ownership,
+  so an old compiler cannot remove a newer compiler's Stop handle. Natural exits
+  and errors from the active child still report normally. A natural process exit
+  rejects commands immediately while its owned output streams drain until close;
+  that tail cannot restart or repause the ended session.
 
 ## Files
 
