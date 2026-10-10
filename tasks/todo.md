@@ -183,7 +183,9 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [ ] Restore saved workspace tabs/expanded folders without overwriting unsaved data.
 - [ ] Expose persisted advanced optimization choices without losing custom values.
 - [ ] Harden renderer sandbox/navigation and verify native dev/production workflows.
-- [ ] Verify a fresh locked source installation in an owned temporary directory.
+- [x] Verify a fresh locked source installation in an owned temporary directory.
+- [ ] Bound producer-to-renderer output delivery and verify stalled consumers.
+- [ ] Verify bottom-panel fitting and dragging in a short native window.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
 Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,
@@ -198,5 +200,7 @@ fixture Stop passed in an isolated project. Genuine built PDF-worker import and
 termination passed with only the OS file picker substituted by an owned fixture;
 the picker itself remains unverified. The recorded WebM still requires playback
 validation before its demonstration checkbox is checked. Fresh locked source
-installation/build/native terminal passed; its full suite is still running.
+installation/build/native terminal passed; its full suite also passed: 89 suites,
+1610 tests and the same five existing skips on the archived `f89dce0` snapshot.
+This fresh-install result does not substitute for verification of later source.
 These statements are local evidence, not human trials or customer release approval.

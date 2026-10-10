@@ -45,8 +45,9 @@ Arduino shim; this is firmware logic testing, not AVR instruction emulation.
 
 ## Later release
 
-Desktop Run Tests/results/replay UI, a recorded demonstration, two fresh-install
-teammate trials and one external-team trial remain tracked in tasks/todo.md.
+Desktop Run Tests/results/replay is implemented and locally exercised. Playback
+validation of its recorded demonstration, two fresh-install teammate trials and
+one external-team trial remain tracked in tasks/todo.md.
 Human validation cannot be marked complete based on local agent tests.
 # Customer release hardening follow-up
 

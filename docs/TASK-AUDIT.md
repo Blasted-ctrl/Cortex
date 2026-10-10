@@ -30,7 +30,10 @@ config now excludes `.mts`/`.cts` tooling configs; that is a local packaging
 guard, not installer validation. Its actual electron-builder matcher regression
 is in [releaseGuard.test.ts](../test/releaseGuard.test.ts); the fix is checkpoint
 `30f6421`. A normal fresh `npm ci` now passes in an owned copy of `f89dce0`;
-its independent full regression and later-snapshot runtime checks are still running.
+its independent full regression passed: 89 suites, 1610 tests and five existing
+skips. It uses exact Node 22.20.0/npm 10.9.3 with normal optional dependencies and
+install scripts. Genuine Electron/native terminal startup passed in its isolated
+profile. Later-snapshot runtime checks are still running.
 
 ## Finite local queue
 
@@ -39,7 +42,9 @@ isolation and debugger state have matching implementation and acceptance evidenc
 their firmware/local checklist entries are checked. Keyboard navigation, sessions,
 advanced choices and renderer guards are committed and have focused checks, with
 final native verification pending. The recorded demo needs playback validation;
-fresh-install full regression and output/panel hardening are still in progress.
+fresh-install full regression passed, and output/panel hardening is still in
+progress. The panel fix is committed as `6b55381`, with six failing-then-passing
+actual React geometry cases; native short-window validation remains open.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
