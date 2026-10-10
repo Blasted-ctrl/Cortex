@@ -191,7 +191,10 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 - [x] Verify persisted advanced optimization choices without losing custom values.
   Focused allowlist/persistence tests and actual native -O0/-O1 compiler arguments,
   executable markers, disk round-trip and visible -Ofast warning pass.
-- [ ] Verify hardened renderer sandbox/navigation in native dev/production workflows.
+- [x] Verify hardened renderer sandbox/navigation in native dev/production workflows.
+  Genuine sandbox/preload/file/terminal/PDF workflows and dev HMR pass. Negative
+  navigation/IPC controls exercise constructed handlers, not native exploit
+  attempts; remaining dependency findings are not waived.
 - [x] Verify a fresh locked source installation in an owned temporary directory.
 - [x] Verify bounded producer-to-renderer output delivery with stalled consumers.
   Actual native 16 MiB stdout with a 2000 ms renderer stall exits 0, retains
@@ -209,12 +212,16 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   All 84 focused guard cases pass, including fail-closed fake gate/API paths and
   actual installed CLI/Packager/schema/publisher construction without publication.
   Documented default packaging never publishes; the audit still blocks release.
-- [ ] Fix the native debugger Stop lifecycle failure: a disposed process's late
+- [x] Fix the native debugger Stop lifecycle failure: a disposed process's late
   exit must not overwrite idle or a new session; verify real Stop/restart after
-  focused callback/command ownership regressions.
-- [ ] Protect reviewed AI-edit approval from concurrent typing, disk changes,
+  focused callback/command ownership regressions. Fifteen lifecycle cases,
+  final types/build and genuine latest-build Stop/restart/natural program exit
+  controls pass; final stdout is retained. Combined verification is separate.
+- [x] Protect reviewed AI-edit approval from concurrent typing, disk changes,
   duplicate approvals and stale project/proposal callbacks; prove deferred
-  actual-store failures before fixing the existing approval path.
+  actual-store failures before fixing the existing approval path. All 31 cases
+  and neighbors (171 total), renderer types, independent review and four genuine
+  Electron approval controls pass. Seeded proposals do not prove provider access.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
 Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,

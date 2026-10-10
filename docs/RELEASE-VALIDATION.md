@@ -391,8 +391,34 @@ late async records cannot revive the session, and Stop/supersession mutes it.
 All 33 lifecycle/parser/style cases and node types pass, with watchdogs unused.
 See Node's [exit/close contract](https://nodejs.org/download/release/v22.20.0/docs/api/child_process.html#event-exit).
 Receipts are in owned `cortex-debug-lifecycle-*`, `cortex-debug-final-checks-*`
-and `cortex-debug-drain-*` Temp directories. The final combined build/native
-recheck must include this correction and the separately pending AI-approval fix.
+and `cortex-debug-drain-*` Temp directories. The final production build includes
+this correction and the AI approval fix; its additional native control is below.
+
+### Final production source and debugger acceptance
+
+Exact Node 22.20.0 typechecks and production/tools build pass on implementation
+checkpoint `c15627f` (24666/97461 ms; independent watchdogs unused). Main SHA256
+is `c0c49e617e5c64b86f91de03393b12794a893df1a48235cb78e843eb00c642ab`;
+preload is unchanged, and renderer `index-CM13FjqO.js` has SHA256
+`a55ade87792b987fc583d62b978d2ba835d68bc204885a2e70630ebd75b5a556`.
+
+Two genuine g++/GDB controls pause at line 5. Stop reaps exact GDB child 27864
+and leaves Idle; restart/Continue produces a real inferior exit 0 and retains
+`CORTEX_NATIVE_DEBUG_NATURAL_EXIT 48` in the shared stdout output. The actual
+output screenshot was personally inspected. This proves a real program exit,
+not a synthesized OS GDB-process exit-before-stdio-close race; the latter remains
+the separately passing 15-case actual-service regression. The first native
+helper queried a nonexistent debug-output field; that failed harness receipt
+is retained alongside the paired control observing the unchanged actual shared
+output, without recompilation or forced state.
+
+`native-debug-natural-exit-output-control.json` and
+`debug-natural-shared-output-helper-error.json` are in the owned production
+artifacts directory. Normal close reaps Electron 25988/CLI 18264 and all captured
+children, including the remaining GDB session; ports 9342/9344/9742 are free and
+the unrelated user instance remains untouched. Runtime exceptions are empty;
+deliberate missing-file approval errors remain logged as fixture controls.
+Final combined regression and fresh-install gates remain separate.
 
 ## Manual publication guard follow-up
 
@@ -485,8 +511,24 @@ settlements. Already-dispatched native writes cannot be undone by Reject or
 project switching; late UI effects are suppressed. The native comparison is not
 atomic CAS, and an absent unopened empty-old-content proposal cannot distinguish
 new creation from a formerly empty deleted file. These tests do not call a model
-provider. Genuine Electron approval controls and final combined gates remain
-separate; [AI assistant usage](AI-ASSISTANT.md) records the supported contract.
+provider. [AI assistant usage](AI-ASSISTANT.md) records the supported contract.
+
+The final production build's four genuine Electron approval controls pass in
+4.663 seconds: CRLF disk contents and the retained-CRLF Monaco model synchronize
+with normalized clean store text; newer disk contents are refused and preserved;
+real keyboard unsaved changes are refused and retained, then Ctrl+S saves; and
+an absent unopened file crosses a real serialized Electron ENOENT and is created
+with exact approved bytes. Proposals and local-configured UI state are explicit
+seeded fixtures; Approve clicks and preload/IPC/native file operations are real,
+with no provider/model call or mocked filesystem API. Deferred races remain the
+separate actual-store tests, not a native probe claim.
+
+`latest-native-agent-approval.json` and four screenshots are retained in owned
+production artifacts; applied-CRLF and dirty-refusal screenshots were personally
+inspected. Two raw-versus-normalized EOL expectation mistakes in the helper are
+retained separately; correcting the fixture did not change source or deadlines.
+Runtime exceptions are empty. Final combined/fresh-install verification remains
+open.
 
 ## Native desktop checks
 

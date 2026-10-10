@@ -53,5 +53,5 @@ review or reverse them. This is not an atomic multi-file transaction.
   register/test-execution tools are not implemented by this workflow.
 
 Provider connectivity is not established by local fixture tests. Current
-verification and remaining native/combined checks are in
+verification and remaining combined/fresh-install checks are in
 [Release validation](RELEASE-VALIDATION.md).

@@ -51,8 +51,11 @@ with actual native stalled-output and panel acceptance now passing. The panel fi
 is `6b55381`, with six failing-then-passing actual React geometry cases and genuine
 short-window resize/zoom/drag/detail-scroll controls. The manual publication
 bypass is closed with 84 focused cases and actual installed builder validation,
-without a real publication. Debugger Stop, dev/HMR and latest-source installation
-are separate final gates.
+without a real publication. Debugger Stop/natural program exit and dev/HMR now
+pass on their explicitly recorded source boundaries. AI approval has 31
+actual-store regressions, independent review and four final-production native
+controls. Combined latest-source regression and fresh installation are final
+local gates; external release requirements remain unfinished.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
@@ -91,8 +94,9 @@ Implementation evidence for these remaining boundaries:
   React state/race checks pass; actual GDB Watch/Console and sidebar preservation
   also pass. Native Stop exposes a late disposed-process exit overwriting idle;
   lifecycle regressions and the rebuilt real Stop/restart control now pass.
-  Independent review adds natural-exit drain coverage; latest combined/native
-  acceptance remains separate. [DEBUGGING.md](DEBUGGING.md) states the limits.
+  Independent review adds natural-exit drain coverage; final-build native Stop
+  and normal program exit preserve output. Latest combined verification remains
+  separate. [DEBUGGING.md](DEBUGGING.md) states the limits.
 - [FileExplorer](../src/renderer/src/components/FileExplorer.tsx) and
   [EditorArea](../src/renderer/src/components/EditorArea.tsx) now expose tree/tablist
   semantics and roving keyboard focus, with 19 actual React behavior cases.
@@ -108,8 +112,9 @@ Implementation evidence for these remaining boundaries:
   executable sink checks now pass, with the visible -Ofast warning.
 - [Window setup](../src/main/index.ts) now uses `sandbox: true`, an exact renderer
   document navigation policy and main-frame/window IPC guards. Security tests and
-  actual production sandbox/bridge/native controls pass; dev/HMR and final source
-  checks remain separate gates. No dependency security waiver follows from this.
+  actual production sandbox/bridge/native controls and dev/HMR pass; final source
+  regression/fresh-install checks remain separate gates. Constructed negative
+  handlers are not native exploit tests. No dependency security waiver follows.
 
 ## Security majors requiring individual review/approval
 
