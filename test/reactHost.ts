@@ -8,7 +8,7 @@ export type HostNode = {
   parent: HostNode | Container | null
   focus: () => void
   select: () => void
-  getBoundingClientRect: () => { left: number; top: number; bottom: number; width: number }
+  getBoundingClientRect: () => { left: number; top: number; bottom: number; width: number; height: number }
   querySelector: (selector: string) => HostNode | null
 }
 type Container = { children: HostNode[] }
@@ -46,7 +46,7 @@ export function createHost(): {
     const node: HostNode = {
       type, props, children: [], parent: null,
       select: () => undefined,
-      getBoundingClientRect: () => ({ left: 10, top: 10, bottom: 34, width: 200 }),
+      getBoundingClientRect: () => ({ left: 10, top: 10, bottom: 34, width: 200, height: 24 }),
       querySelector: (selector) => descendants(node).find((child) => child.type === selector) ?? null,
       focus: () => {
         focused = node

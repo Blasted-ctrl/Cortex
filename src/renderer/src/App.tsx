@@ -18,6 +18,7 @@ import SimulatorView from './components/SimulatorView'
 import SettingsView from './components/SettingsView'
 import Welcome from './components/Welcome'
 import Splash from './components/Splash'
+import { useBottomPanelLayout } from './lib/useBottomPanelLayout'
 
 /** Run an action on the focused Monaco editor (used by the Ctrl+T format
  *  accelerator). No-op when no editor is mounted. */
@@ -77,6 +78,7 @@ export default function App(): JSX.Element {
   // the fade finishes (an invisible full-screen overlay still eats clicks).
   const [booting, setBooting] = useState(true)
   const [splashMounted, setSplashMounted] = useState(true)
+  const panelLayout = useBottomPanelLayout(bottomHeight, setBottomHeight, workspaceRoot, mainView === 'editor')
 
   // Subscribe to streamed events from the main process.
   useEffect(() => {
@@ -283,7 +285,7 @@ export default function App(): JSX.Element {
         <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
           <SideBar />
           {sidebarVisible && <Splitter dir="x" title="Resize sidebar" onDelta={(d) => setSidebarWidth(sidebarWidth + d)} />}
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The editor stays MOUNTED across view switches (hidden, not
                 unmounted) so Monaco keeps each file's undo history, scroll and
                 cursor when you dip into the Simulator or Settings and come back
@@ -294,13 +296,14 @@ export default function App(): JSX.Element {
                 would override. */}
             {workspaceRoot && (
               <div
+                ref={panelLayout.columnRef}
                 className={mainView === 'editor' ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-2' : 'hidden'}
               >
                 <EditorArea />
                 {bottomVisible && (
                   <>
-                    <Splitter dir="y" title="Resize panel" onDelta={(d) => setBottomHeight(bottomHeight - d)} />
-                    <BottomPanel />
+                    <Splitter dir="y" title="Resize panel" onDelta={panelLayout.onDelta} />
+                    <BottomPanel height={panelLayout.height} panelRef={panelLayout.panelRef} />
                   </>
                 )}
               </div>

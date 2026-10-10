@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, lazy, Suspense, type RefObject } from 'react'
 import { Terminal, Radio, AlertTriangle, ScrollText, X, Trash2, FlaskConical } from 'lucide-react'
 import { useStore, type BottomView } from '../store/useStore'
 import OutputConsole from './OutputConsole'
@@ -21,8 +21,8 @@ const TABS: { view: BottomView; icon: typeof Terminal; label: string }[] = [
   { view: 'tests', icon: FlaskConical, label: 'Firmware Tests' }
 ]
 
-export default function BottomPanel(): JSX.Element {
-  const { bottomView, setBottom, toggleBottom, clearOutput, clearSerial, diagnostics, bottomHeight, workspaceRoot } = useStore()
+export default function BottomPanel({ height, panelRef }: { height: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
+  const { bottomView, setBottom, toggleBottom, clearOutput, clearSerial, diagnostics, workspaceRoot } = useStore()
   const problemCount = diagnostics.length
   // Mount the terminal lazily on first open, then keep it mounted (hidden when
   // another tab is active) so a running shell and its scrollback are not torn
@@ -42,8 +42,9 @@ export default function BottomPanel(): JSX.Element {
 
   return (
     <div
-      className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
-      style={{ height: bottomHeight }}
+      ref={panelRef}
+      className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
+      style={{ height }}
     >
       {/* A narrow panel must never make a tab unreachable. Without nowrap the
           "Serial Monitor" label wrapped to two lines and broke the bar height,

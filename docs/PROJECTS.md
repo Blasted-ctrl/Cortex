@@ -63,6 +63,14 @@ focuses the surviving selection, or the empty editor when no tabs remain.
 The close control is also visible while its tab has keyboard focus. Keyboard
 focus inside a split pane makes that pane active, just as a mouse click does.
 
+The bottom panel remembers its preferred height, but its displayed height fits
+the actual editor column after window resizing, zoom, or returning from another
+view. Automatic fitting does not replace the saved preference. The editor keeps
+space above the panel where possible, and a small splitter drag starts from the
+displayed height rather than an offscreen saved size. Layout behavior is covered
+by `test/bottomPanelLayout.test.ts`; native overflow and focus checks remain
+separate from those controlled React geometry tests.
+
 Tree hierarchy, expansion, file selection, tab selection and panel relationships
 are exposed to assistive technology. These controls follow the
 [W3C tree](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/) and
