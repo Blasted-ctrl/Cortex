@@ -1387,6 +1387,133 @@ public release or new push is exercised. Other installed-server payloads, fresh
 installers, exact-revision remote CI and human trials remain unverified. Dependency
 findings still block release. Bounded compiler diagnostics are the next local task.
 
+## Bounded compiler diagnostics (2026-10-11)
+
+Local source checkpoints are `0dd10fe` (structured Rust/Cargo validation),
+`c107f86` (collector), `39f1b03` (compiler services) and `a779077` (Problems state
+and presentation). Each compiler child owns its capture. Complete physical records
+and the cwd-normalized diagnostic JSON array each have a 1,048,576-byte UTF-8
+budget; the array includes brackets, commas and complete fields, not the IPC
+envelope. The existing 500-item ceiling remains. Oversized records are discarded
+through their newline, later records remain eligible, and fields are never
+shortened to fit. Known omitted diagnostics and unparsed input bytes are separate;
+unparsed bytes cannot establish how many problems were lost. Console retention,
+transient/peak/total heap and Debug transport are different boundaries.
+
+The defaults follow genuine GCC 14.2.0 and Rust/Cargo 1.97.1 controls, an old-service
+baseline and a configurable collector comparison. Genuine maximum record size is
+2,363 bytes in these fixtures. Both compared profiles retain all 500 short problems;
+the selected 1MiB/1MiB profile retains 31 of 500 large messages versus seven with
+64KiB/256KiB. Whole-record and normalized-array boundary tests enforce the selected
+budgets. No universal compiler-output coverage or speed improvement is inferred.
+
+Actual native Run pressure uses the real compile path, collector and publisher,
+substituting only an owned real Node output producer for the compiler subprocess.
+Five workloads each run three times and preserve the intentional failure exit:
+
+| Workload | Input bytes | Retained / known omitted | Unparsed bytes | Array bytes |
+|---|---:|---:|---:|---:|
+| 4MiB record plus late error | 4,194,349 | 1 / 0 | 4,194,304 | 178 |
+| 16MiB record plus late error | 16,777,261 | 1 / 0 | 16,777,216 | 179 |
+| 500 short problems | 19,784 | 500 / 0 | 0 | 87,785 |
+| 501 short problems | 19,824 | 500 / 1 | 0 | 87,785 |
+| 500 messages of about 32KiB | 16,395,892 | 31 / 469 | 0 | 1,020,884 |
+
+The independent audit compares all 15 complete literal results, raw bytes, source
+copies and sampled process birth identities. Endpoint heap/RSS and wall timing
+include harness bookkeeping; they are not internal peaks or controlled speedups.
+Artifacts are `D:/cortex-diagnostic-measurements/service-integrated-dzivCq/`;
+the configurable comparison is `collector-comparison-IEaPgu/` in the same root.
+The later Cargo-only repair leaves the measured native path byte-identical.
+
+A separately repeated genuine compiler run replays actual GCC/rustc/Cargo output
+through the final collector in whole and split chunks: 11 complete literal
+diagnostics, exact locations/messages/codes, no capture omissions. Compiler exits
+remain 1/0/1/0/101. This is real-output collector replay, not full service/runtime
+acceptance. Receipt `collector-genuine-NATLbA/collector-genuine-report.json` has
+SHA256 `734F41BD7D1122DC436C3A1E0F91D11CA18AFCBF0FDC011D8EBD316CA25EEEF7`.
+Fast-child sampling is incomplete; no complete descendant census is claimed.
+
+Controlled-boundary tests exercise actual native/Rust/Cargo/board/Debug producers,
+the real collector/publisher, actual store and mounted Problems view. They cover
+late errors, successful warnings, UTF-8 splits, terminal residue, stale ownership,
+all diagnostic resets, conditional notices and retained location navigation.
+Two separately owned mutations remove only the record or array guard: the same
+54 collected cases yield six or ten assertion failures respectively, while the
+unmodified control passes all 54. No collection errors or watchdog expiries count
+as mutation detection. Receipt `collector-mutation-GQHB63/` is independently
+audited; no checkout restoration is needed because only copied sources mutate.
+
+Read-only feature review identifies two Cargo defects and actual RED regressions
+precede their fixes: ordinary procedural-macro output is not compile success, and
+a timed-out brace prefix must keep forwarding its suffix through the physical
+newline. Only genuine `build-finished` with boolean `success: true` enters Run;
+either boolean outcome finalizes capture and ends machine classification. The
+250ms prompt hold remains. Resuming the same independent reviewer against the
+revised exact diff finds no qualifying issue across all five quality axes.
+Existing assertions, deadlines, skips and verification floors are preserved.
+
+Final Node 22.20.0 checks use owned `verification-rCMCUB`: HEAD `6e26074` plus the
+17 exact reviewed source/test overlays. All 390 snapshot files are recorded;
+the root independently matches all 285 protected live source/test/config paths.
+The dependency junction uses the existing installation, not a fresh install.
+Live concurrent README/builder/website changes remain outside this work.
+
+| Gate | Actual result |
+|---|---|
+| Types | Both processes pass; 62,047 ms |
+| Full regression/style | 116 suites; 2311 passes, five unchanged skips; 798,583 ms |
+| Desktop/tools build | Pass; 96,271 ms |
+| Serial firmware | Nine passes, 87 assertions, matching per-scenario traces; 27,348 ms |
+| Serial negative self-test | Broken shutdown and independent hang timeout caught; 19,719 ms |
+| Serial advisory benchmark | Ten passes/two warmups, identical traces; 13,036 ms |
+
+Serial receipts are `compiler-recheck-serial-final-*` in the measurement root.
+Three earlier supplemental CLI attempts were interrupted before final exit
+receipts; their partial logs remain uncredited. The benchmark records Windows/x64,
+i5-1035G1, GCC 14.2.0 and Node 22.20.0: host median 50.87ms and p95 61.90ms,
+separate from virtual throughput. Its internal revision is `unknown` because the
+physical export has no Git metadata; the enclosing manifest ties the exact source
+above. The saved workload/shim/Node baseline remains incompatible and unchanged.
+
+Actual desktop acceptance uses original Electron 33.4.11/Node 20.18.3, the owned
+built app and genuine GCC, with sandbox/context isolation and renderer Node
+disabled. A disposable physical project/profile exercises trusted Run, compiler
+problem clicks, editor input and Ctrl+S. Successful warning and intentional error
+controls retain exact locations and exit policies. Forty real large GCC errors
+retain 31, report nine known omissions and serialize to 1,021,969 bytes. The
+conditional notice is visible; clicking a retained problem still reveals 1:2.
+A native edit saves the independently expected 25-byte clean source; its rerun
+clears the array/summary/notice and exits normally. Ordinary builds gain no
+persistent tutorial banner and an empty list does not certify build success.
+
+Final receipt:
+`D:/cortex-diagnostic-measurements/compiler-native-retry-ZiFILu/artifacts/compiler-capture-native-retry-report.json`,
+SHA256 `B5ED60CC9D6BCF1E73A61033B099254E2C63DDAD69C266F94E26E4A31D87A875`.
+Root parses the complete receipt, compares all 550 protected file/binary/helper
+hashes and inspects all four PNGs. App PID 16308, parent 16556, creation
+`2026-10-11T17:14:25.8161030Z`, exits normally with code 0. All 14 observed owned
+identities disappear and loopback ports 9861/9862 are released. Exception arrays
+and provider transitions are empty. Raw stderr retains expected inspector
+attachment messages; no clean-stderr claim is made. Source/build/runtime guards
+are exact; subsequent checkpoint commits change Git metadata, not these bytes.
+
+Earlier native attempts remain failed and immutable: `compiler-native-pANVwV`
+times out at screenshot capture/attached-inspector close; the next retry completes
+controls but fails helper invariance after an overlapping helper edit. Neither is
+credited. The final separately frozen helper captures the actual viewport and
+disconnects its inspector before the unchanged natural-close deadline. Disk-full
+interruption artifacts are also retained. Only owned old logs/cache are moved
+recoverably to `D:/cortex-verification-archives/`, with byte/hash equality; no
+user/global runtime or dependency installation is deleted or replaced.
+
+The inclusive audit still blocks release at 17 findings: seven high, ten moderate,
+zero critical. No provider credentials, customer repositories, hardware flashing,
+new installer/human-trial/remote-CI pass, public release or new push is implied.
+The next local queue is More-tools navigation, keyboard splitters and the separately
+recorded long-filename review badge. JetBrains reference inspection is design
+evidence, not a production acceptance substitute.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

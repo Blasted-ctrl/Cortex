@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 date: 2026-10-11
 ---
 
@@ -9,7 +9,14 @@ Reviewed in three rounds: internal structure/scope and the read-only Codex peer
 report no new qualifying defects in the final round. Accepted revisions separate
 format recognition from retention, close both Cargo terminal outcomes, and make
 the baseline/configurable-collector/comparison/default-selection order explicit.
-Implementation and production byte defaults are not yet verified.
+Implementation and production defaults are locally verified. Genuine compiler
+controls and the configurable comparison select 1MiB physical records and a
+1MiB normalized diagnostic array, with the existing 500-item ceiling. Guard
+mutations, actual producer/store/view regressions, same-reviewer feature refinement,
+final types/build/116-suite regression, serial CLI checks and actual GCC desktop
+controls pass. See [release evidence](../../docs/RELEASE-VALIDATION.md#bounded-compiler-diagnostics-2026-10-11).
+No peak/total-memory, Debug-transport, fresh-install or external-release pass is
+claimed. The original design below remains the implementation rationale.
 
 ## Context
 

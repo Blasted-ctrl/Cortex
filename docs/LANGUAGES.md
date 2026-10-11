@@ -36,6 +36,22 @@ language ids**, so a server has to be registered against every id it serves.
 Registering only `cpp` left every `.c` file with a green clangd badge, working
 squiggles, and completely dead completion/hover/go-to-definition.
 
+## Compiler diagnostics
+
+Native Run, standalone rustc, Cargo, board Verify/Upload and Debug compilation
+retain whole source-located diagnostics with three limits: 500 diagnostics,
+1,048,576 UTF-8 bytes per physical input record, and 1,048,576 bytes for the
+normalized diagnostic JSON array. Paths/messages/codes are never shortened to fit.
+An oversized record is skipped through its newline; later errors can still appear.
+Compiler exit codes and successful warning builds are unchanged.
+
+Problems displays `Diagnostics incomplete.` only when something was omitted.
+It distinguishes counted additional diagnostics from discarded input with an
+unknown problem count. The notice survives Stop and Console clearing, and a new
+complete result removes it. An empty list says `No located compiler diagnostics.`;
+it is not proof of a clean build. Console retention and whole-process memory have
+different boundaries; see [Architecture](ARCHITECTURE.md#bounded-compiler-diagnostic-capture).
+
 ## Rust
 
 Run picks the right tool for the shape of the project:
@@ -71,17 +87,19 @@ two consequences worth stating:
   program that prints its own JSON (telemetry with a `reason` field) reaches the
   Output panel untouched.
 
-cargo builds and runs in a single process, so there is no second spawn to mark
-the end of compiling. Cortex reads cargo's own `build-finished` record (or the
-program's first line of output, whichever lands first) and moves the run into
-its run phase then. Without it the status bar said "Compiling..." for the
-program's whole life and the stdin box, which is gated on the run phase, never
-appeared, so an interactive cargo program could not be given input.
+cargo builds and runs in a single process. Only its successful `build-finished`
+record enables the run phase and stdin controls; ordinary text is not evidence
+of success because procedural macros can print during compilation. Both terminal
+outcomes finalize diagnostics and end machine-message filtering, so subsequent
+program JSON cannot inject compiler problems. This follows the
+[Cargo protocol](https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages).
+A timed-out potential record remains visible through its newline but is not
+parsed in fragments or used to manufacture compile success.
 
 Diagnostics are emitted as each record arrives, not at exit, so a long-running
 binary or a server still populates Problems, and pressing Stop does not discard
-them. They are capped at 500 per run, and when the cap is hit Cortex says so in
-the Output panel rather than letting a truncated Problems list look complete.
+them. They use the capture limits and persistent Problems notice above, rather
+than relying on an evictable Output message to describe missing diagnostics.
 
 > Both paths are verified end-to-end against rustc/cargo 1.97.1, and the parsers
 > are tested against captured real output (`test/cargo.test.ts`,

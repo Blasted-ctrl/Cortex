@@ -138,8 +138,8 @@ window's runner reservations/children. Late child cleanup checks child identity
 so it cannot erase a newer same-id run in another window.
 
 Compiler diagnostic parsing remains independent of console omissions. Raw
-compiler/Arduino stderr accumulation and diagnostic IPC are separate existing
-paths; this change does not claim to bound total main-process memory. Headless
+compiler capture and diagnostic IPC have their own bounds below; neither console
+delivery nor diagnostic retention bounds total main-process memory. Headless
 firmware reports and their complete traces are unchanged.
 
 #### Measurement ledger (2026-10-10)
@@ -169,6 +169,38 @@ shows explicit stdout/stderr omissions and leaves the preload bridge responsive.
 Another real compile/run safely reuses `run-1` after renderer reload. These are
 native behavior controls, not allocator/RSS measurements or a speed comparison;
 they do not extend the console bound to structured compiler diagnostics.
+
+### Bounded compiler diagnostic capture
+
+`compilerDiagnostics.ts` owns one collector per compiler child for native Run,
+standalone rustc, Cargo, board Verify/Upload and Debug compilation. Its production
+limits are 1,048,576 UTF-8 bytes per physical record, 1,048,576 bytes for the
+serialized normalized diagnostic JSON array, and 500 retained diagnostics.
+The array budget includes resolved paths and JSON separators, not the IPC envelope.
+Records or diagnostics are omitted whole; no shortened message or invented path.
+The compiler keeps draining and its exit status is unchanged. UTF-8 decoding,
+CRLF, final residue and parser precedence are preserved. Discarded records break
+textual Rust header/location adjacency; recognized higher-priority formats replace
+fallback retention even when their diagnostics cannot fit.
+
+The existing `run:diagnostics` envelope optionally carries `capture` with
+`omittedDiagnostics` (recognized problems) and `unparsedBytes` (discarded input
+whose problem count is unknown). The store accepts/resets this alongside the
+diagnostics under its existing ID/workspace guards. Problems shows a conditional,
+accessible incompleteness notice, including with an empty retained array; Stop
+and Console clearing preserve it. Complete later results remove it.
+
+Cargo ends machine classification on either valid `build-finished` outcome.
+Only `success:true` permits compile-success/run transition: ordinary output can
+come from procedural macros during compilation. Prompt prefixes remain visible;
+a timed-out potential record forwards its suffix without parsing fragments or
+certifying success. Post-terminal compiler-shaped program JSON stays raw output.
+Queued snapshots and close callbacks check exact child ownership.
+
+These are capture bounds, not a transient/peak/whole-process memory guarantee,
+lossless output transport, or a Debug MI/output IPC bound. Simulation retains its
+separate bounded compile-failure policy and string-taking diagnostic interface.
+Measured controls and verification boundaries are in [release validation](RELEASE-VALIDATION.md).
 
 ## Build & module format
 

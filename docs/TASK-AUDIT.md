@@ -64,8 +64,14 @@ covering queue item 4. Qualified ownership, accepted raw resolution state and
 cursor-specific lexical hardware help now pass 182 focused cases, final types/build,
 112 suites/2138 passes with five unchanged skips, serial CLI checks and genuine
 clangd hover/completion/save controls. Native evidence is limited to the documented
-fixtures, not every installed-server payload. Diagnostic capture is the next local
-slice; keyboard work remains queued. Native inspection also
+fixtures, not every installed-server payload. The completed compiler follow-up
+uses the [reviewed capture plan](../.turbo/plans/cortex-bounded-compiler-diagnostics.md):
+measured whole-record/normalized-array budgets, strict structured Rust data,
+authoritative Cargo terminal outcomes and conditional persistent omission evidence.
+Final types/build, 116 suites/2311 passes with five unchanged skips, serial CLI
+checks, guard mutations and actual GCC desktop controls pass. These are diagnostic
+capture bounds, not peak/total heap or Debug transport limits. Keyboard work is
+the next local slice. Native inspection also
 found that a long review-card filename can clip its new-file badge; retain this
 visible layout follow-up without claiming every badge was readable.
 
@@ -87,8 +93,9 @@ Remaining executable queue, in priority order:
    closed/reopened tab cannot adopt an older asynchronous read.
 4. Completed locally: require library provenance before applying supplemental stdlib documentation
    to ambiguous completion labels such as a user-defined `clear` or `size`.
-5. Measure and bound compiler-diagnostic captures, retaining real diagnostics and
-   explicit omission signals. Display retention alone is not a producer-memory bound.
+5. Completed locally: measure and bound compiler-diagnostic captures, retaining real
+   diagnostics and explicit omission signals. Display retention alone is not a
+   producer-memory bound; full-process/peak memory remains a separate claim.
 6. Complete More-tools menu focus/navigation and keyboard splitter resizing.
 
 Policy-dependent work remains unsaved-draft Restore/Discard and retention,

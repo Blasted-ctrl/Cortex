@@ -190,6 +190,16 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   clangd hover/completion/save. Other server payloads and release gates stay open.
 - [ ] Keep review-card state badges visible beside long filenames; preserve the
   full-path tooltip and compact layout. Native evidence is in the release ledger.
+- [x] Measure and bound compiler-diagnostic capture per child. Preserve complete
+  fields, late errors, successful warnings and genuine Cargo terminal authority;
+  show conditional known/unknown omission evidence beside navigable Problems.
+  Verify: genuine compiler replay, integrated native pressure, guard mutations,
+  actual producer/store/view tests, independent review, types/build, 116 suites/
+  2311 passes with five unchanged skips, serial CLI and actual GCC desktop checks.
+  This is not peak/total memory, fresh-install or external release acceptance.
+- [ ] Complete More-tools keyboard focus/navigation and keyboard splitter resizing.
+  Use the existing compact design; consult the authorized local JetBrains reference
+  without reading or modifying user projects/settings.
 - [x] Complete the reviewed workbench integrity slice: serialized global settings,
   fitted docks/notifications, keyboard recents, retained mounted settings drafts
   and exact BOM/CRLF approval/editor saves. Final types/build, 107 suites/1939

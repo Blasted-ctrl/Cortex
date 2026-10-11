@@ -53,6 +53,10 @@ the shell usable. See [terminal controls and limits](PROJECTS.md#integrated-term
   compiler diagnostic buffers are a separate path, not a total-memory guarantee.
 - ✅ **Per-project run configuration** persisted to `.cortex/config.json` (compiler/std/opt/board)
 - ✅ **Compiler diagnostics** parsed into a **Problems panel** (click to jump) + **inline Monaco squiggles**
+- ✅ **Bounded compiler capture:** whole-record and normalized-array byte budgets,
+  up to 500 retained problems, and a conditional persistent incompleteness notice.
+  Later errors survive oversized input; warnings and actual failure codes remain.
+  See [diagnostic limits](LANGUAGES.md#compiler-diagnostics).
 - ⬜ CMake / PlatformIO project builds (multi-file)
 
 ## Boards & embedded (ESP32 / RP2040 / Arduino)

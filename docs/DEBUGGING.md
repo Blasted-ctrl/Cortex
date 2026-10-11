@@ -29,6 +29,12 @@ The shared Output view retains a recent tail bounded by 5,000 entries and
 retain their existing stdout/stderr/system labels. This is bounded display
 retention, not lossless producer-to-renderer IPC backpressure or a durable log.
 
+Compilation uses the shared [bounded diagnostic collector](LANGUAGES.md#compiler-diagnostics),
+including successful warnings and a persistent Problems incompleteness notice.
+Stopped/superseded builds retain the existing generation and exact-child fences;
+they cannot publish over the current session. These capture limits do not bound
+GDB/MI parsing or producer-to-renderer `DEBUG_OUTPUT` transport.
+
 ## How it works
 
 ```
