@@ -182,10 +182,12 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   serial firmware/self-test/benchmark and owned actual approval/Git controls.
   Seeded native cards do not prove provider access; delayed races remain fixture
   evidence. A long-path review-card badge is clipped in one retained screenshot.
-- [ ] Implement the reviewed library-documentation provenance plan. Preserve raw
+- [x] Implement the reviewed library-documentation provenance plan. Preserve raw
   server text, lazy-resolution ownership, auto-includes and insertion behavior;
-  make hardware hover use the actual cursor and lexical code view. Plan reviews
-  pass; implementation and actual-server compatibility are not yet verified.
+  make hardware help use the actual cursor and lexical code view. Verify 182
+  focused cases, guard omissions, independent review, final types/build and
+  112 suites/2138 passes with the same five skips, serial CLI checks and genuine
+  clangd hover/completion/save. Other server payloads and release gates stay open.
 - [ ] Keep review-card state badges visible beside long filenames; preserve the
   full-path tooltip and compact layout. Native evidence is in the release ledger.
 - [x] Complete the reviewed workbench integrity slice: serialized global settings,
@@ -194,10 +196,10 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   passes with the same five skips, repeated firmware/self-test, advisory benchmark
   and original sandboxed native desktop checks pass. Retain earlier failures;
   dependency advisories, new remote CI and external release gates remain open.
-- [ ] Execute the reviewed file-ownership slice: main-derived proposal existence,
+- [x] Execute the reviewed file-ownership slice: main-derived proposal existence,
   conservative legacy review, owned Git tab reloads/save-wait closes and VCS
-  reconciliation. Prove negative cases and normal creation/save/branch controls;
-  preserve exact bytes, existing guards and the separate release blockers.
+  reconciliation. Negative and normal controls pass; completed evidence is in
+  the earlier ownership entry and release ledger. Preserve separate release blockers.
 - [x] Remove simulator tutorial clutter without hiding useful controls or errors.
   Acceptance: no empty-canvas or duplicate wiring instruction banners in 2D/3D;
   concise connection state, wiring/Cancel/Escape, pin details and warnings remain.

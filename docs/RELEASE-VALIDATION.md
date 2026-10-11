@@ -1299,6 +1299,94 @@ wait for complete same-PID identity before unchanged identity assertions. No
 in-run retry, source patch, forced app kill, signing/hook override or old receipt
 overwrite turns a failure into a pass. No new remote CI or release pass is claimed.
 
+## Library documentation ownership (2026-10-11)
+
+Source checkpoint `8b93a74` follows the separate mechanical lexical extraction
+`2bafd3c`. Supported qualified vector/chrono completions retain library ownership;
+bare, foreign, contradictory and unsupported payloads retain raw server text.
+Lazy resolution preserves accepted raw fields and rejects cancelled/superseded
+responses before committing presentation or edits. Hardware help uses the masked
+code view and the immediate receiver at the selected word. Scope, shadowing,
+aliases and conditional includes remain unsupported inference, not C++ semantics.
+
+Actual registered-provider tests use nonempty dictionaries with controlled
+transport/Monaco. The original behavior fails 48 cases while 120 pass. Additional
+owner-loss/prose cases fail four; a faithful owner-condition omission fails two
+and receiver-guard omission fails three. Exact restorations pass. Independent
+read-only Codex review found that completion still used a raw receiver prefix;
+six comment/literal regressions fail before the fix. The final focused run passes
+182 cases across five suites, including 86 new documentation cases. A second
+actual read-only Codex review reports no qualifying findings. No existing tests,
+assertions, timeouts, skips or type-check floor were weakened.
+
+Final Node 22.20.0 checks close without watchdog expiry:
+
+| Gate | Actual result |
+|---|---|
+| Types | Both processes pass; 24,421 ms |
+| Full regression/style | 112 suites; 2138 passes, five unchanged skips; 605,127 ms |
+| Desktop/tools build | Pass; 81,104 ms |
+| Serial firmware | Nine passes, 87 assertions, reproducible traces; 22,109 ms |
+| Serial negative self-test | Broken shutdown and independent hang timeout caught; 16,648 ms |
+| Advisory benchmark | Ten measured passes and two warmups, identical traces; 11,580 ms |
+| Inclusive audit | Still fails: 17 findings, seven high, ten moderate, zero critical; 20,180 ms |
+
+Types/tests/build use the owned `D:/cortex-library-verification-6MCbR1` snapshot:
+HEAD `2bafd3c` plus the exact six reviewed feature overlays. All 384 snapshot
+files and 282 in-scope checkout files match its receipt. Dependencies are linked
+to the existing installation; this is not a fresh install. Concurrent live
+README, builder and website work is excluded. Historical committed README/builder
+copies in the owned snapshot are permitted inputs, not that live work. Serial
+CLI receipts are `.cortex/release-smoke/library-final-serial-d-*`.
+
+The benchmark records GCC 14.2.0, Windows/x64, i5-1035G1, Node 22.20.0 and dirty
+revision `2bafd3c`. Compilation/warmups are excluded; host median is 109.88 ms
+and p95 209.55 ms. Virtual throughput is separate. All measured traces are
+`aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75`.
+The workload/shim/Node baseline is incompatible, advisory and unchanged; this
+is not a measured regression or a controlled-host performance improvement.
+
+Actual native acceptance uses the original Electron 33.4.11/Node 20.18.3 runtime
+and the exact owned build, with sandbox/context isolation and no renderer Node
+integration. A fresh physical project/profile and genuine clangd 22.1.8 exercise
+trusted Open, hover, completion-selection and Ctrl+S controls. User-defined
+`clear()` keeps its unique server documentation and no vector badge. Completion
+inserts `clear()` and saves independently expected 155-byte LF/no-BOM source.
+Servo's curated fallback is visibly distinct from Widget's actual documentation
+on the same line. The ESP32Servo header is genuinely absent: no download or stub
+turns this into successful embedded compilation. The library source remains
+exactly 237 bytes and the hand-authored `.clangd` remains 34 bytes.
+
+Receipt: `D:/cortex-lsp-documentation-acceptance/native-8ch6ng/artifacts/lsp-documentation-native-report.json`,
+SHA256 `EADE1ECE9B1A1A3BAF55CAD88A897479CB55ADCD22BC2F1293EE4C53F9336F2C`.
+The executor reads all 1819 receipt lines and raw logs; the root reads all semantic
+fields, parses the complete receipt and independently compares every protected
+manifest. Both inspect all five PNGs and independently check exact disk bytes,
+process absence and bindable ports 9841/9842. Root also matches all 26 starting
+build hashes to its frozen GO receipt. App PID 8948 (parent 29812, creation
+`2026-10-11T15:20:23.5937200Z`) exits normally with code 0; all 12 observed owned
+identities, wrapper and driver are absent. Source/config/native/build/helper
+guards, scoped Git diffs/index, branch and HEAD are unchanged. Full Git status
+names also have no delta during this run. Main/renderer exception arrays and
+provider transitions are empty. Raw stdout is CRLF only; stderr retains expected
+inspector/DevTools attachment messages, not a clean-stderr claim. Conditional
+programmatic dirty cleanup is not native Save All acceptance.
+
+Earlier failed gates/partial snapshots remain preserved: the first snapshot
+typecheck catches the wrong Monaco word-type namespace and a later copy catches
+C: exhaustion. Final gates use corrected, separately named snapshots/receipts,
+not overwritten failures. Owned old cache/failed-install artifacts are moved
+recoverably to `D:/cortex-verification-archives/` with verified byte/hash equality;
+none is deleted. The interrupted reviewer with an unexpected sandbox banner is
+uncredited; the final resume explicitly uses read-only mode. A separate read-only
+survey accidentally returned a few excluded README lines through Windows argument
+quoting; those observations are unused and no excluded file is modified or staged.
+
+No provider credentials, customer files/repositories, remote operations, hardware,
+public release or new push is exercised. Other installed-server payloads, fresh
+installers, exact-revision remote CI and human trials remain unverified. Dependency
+findings still block release. Bounded compiler diagnostics are the next local task.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

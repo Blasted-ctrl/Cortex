@@ -58,12 +58,14 @@ advisory benchmark and fresh native approval/ordinary Git controls now pass.
 The actual producer tests substitute provider transport; native cards are seeded.
 Neither establishes live provider connectivity or native race timing.
 
-The next executable slice is the separately
+The completed next slice is the separately
 [reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md),
-covering queue item 4. Two internal review rounds and actual read-only Codex peer
-review converged after tightening resolution-token cleanup and shared lexical
-inference. This is a ready plan, not implemented or installed-server validation.
-Diagnostic capture and keyboard slices remain queued. Native inspection also
+covering queue item 4. Qualified ownership, accepted raw resolution state and
+cursor-specific lexical hardware help now pass 182 focused cases, final types/build,
+112 suites/2138 passes with five unchanged skips, serial CLI checks and genuine
+clangd hover/completion/save controls. Native evidence is limited to the documented
+fixtures, not every installed-server payload. Diagnostic capture is the next local
+slice; keyboard work remains queued. Native inspection also
 found that a long review-card filename can clip its new-file badge; retain this
 visible layout follow-up without claiming every badge was readable.
 
@@ -83,7 +85,7 @@ Remaining executable queue, in priority order:
    original is not proof that creation was reviewed; retain absence/conflict guards.
 3. Completed locally: fence delayed Git-triggered tab reloads by workspace and tab ownership, so a
    closed/reopened tab cannot adopt an older asynchronous read.
-4. Require library provenance before applying supplemental stdlib documentation
+4. Completed locally: require library provenance before applying supplemental stdlib documentation
    to ambiguous completion labels such as a user-defined `clear` or `size`.
 5. Measure and bound compiler-diagnostic captures, retaining real diagnostics and
    explicit omission signals. Display retention alone is not a producer-memory bound.

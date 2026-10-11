@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 date: 2026-10-11
 ---
 
@@ -93,3 +93,17 @@ Follow the existing owner-preserving dictionary and private completion-origin pa
 - `src/shared/stdlib/cpp.json`, `src/shared/stdlib/cpp-libraries.json` - finite curated owners and supported hardware entries.
 - `test/lspCompletionEdits.test.ts`, `test/libraryComplete.test.ts` - actual provider and pure helper test conventions.
 - `docs/LSP.md`, `docs/STDLIB-DICTIONARY-WORKFLOW.md` - capability and recurring curation claims.
+
+## Completion evidence
+
+Source `8b93a74` follows mechanical extraction `2bafd3c`. Test-first failures,
+faithful owner/receiver omissions, an independently found raw-completion-prefix
+defect and its six red regressions precede final 182 focused passes. Actual
+read-only peer review converges. Final Node 22.20.0 types/build and full 112-suite
+regression pass (2138 tests, five unchanged skips), as do serial firmware,
+negative self-test and advisory benchmark. Genuine clangd 22.1.8 desktop hover,
+completion and exact save controls pass in an owned project/profile; all five
+screenshots and cleanup evidence are inspected. See docs/RELEASE-VALIDATION.md
+for exact boundaries, hashes, retained failures and external release blockers.
+The audit still fails at 17 findings (seven high). No fresh-install, universal
+server support, customer release or later push is claimed.

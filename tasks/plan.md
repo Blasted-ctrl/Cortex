@@ -12,11 +12,14 @@ main-derived proposal existence and lifetime-safe Git/editor reconciliation.
 Its final 111-suite regression, types/build, repeated firmware, negative self-test,
 advisory benchmark and isolated native approval/Git controls pass. These are
 separate from the completed workbench checks, not inherited evidence.
-The next execution uses the
+The completed library follow-up uses the
 [reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md):
 conservative stdlib provenance, accepted raw resolution state and cursor-specific
-hardware help. Its plan reviews are complete; implementation verification remains
-pending. Keep the current compact embedded IDE layout.
+hardware help. Final 112-suite regression (2138 passes and five unchanged skips),
+types/build, serial firmware/self-test/benchmark and genuine clangd desktop
+hover/completion/save controls pass. The next slice measures and bounds compiler
+diagnostic capture with explicit omission evidence. Keep the current compact
+embedded IDE layout; no universal server or total-memory guarantee is implied.
 The firmware design below remains implemented historical context, not a fresh
 unstarted task list. Remote Windows and firmware CI failures and the red
 dependency audit remain open; see [Task audit](../docs/TASK-AUDIT.md).
