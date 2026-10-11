@@ -82,15 +82,27 @@ export function parseRustJsonDiagnostics(stdout: string, max = 500): Diagnostic[
     } catch {
       continue // not a diagnostic record (rustc also emits artifact lines)
     }
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) continue
     const level = msg.level
     if (level !== 'error' && level !== 'warning') continue
+    if (msg.message != null && typeof msg.message !== 'string') continue
+    if (msg.code != null && (
+      typeof msg.code !== 'object' || Array.isArray(msg.code) ||
+      (msg.code.code !== undefined && typeof msg.code.code !== 'string')
+    )) continue
+    if (!Array.isArray(msg.spans)) continue
     // The primary span is the one to point at; secondary spans are context.
-    const span = (msg.spans ?? []).find((s) => s.is_primary) ?? (msg.spans ?? [])[0]
-    if (!span?.file_name || !span.line_start) continue
+    const span = msg.spans.find((s) => s && typeof s === 'object' && s.is_primary === true) ?? msg.spans[0]
+    if (!span || typeof span !== 'object' || Array.isArray(span) ||
+      typeof span.file_name !== 'string' || !span.file_name ||
+      (span.is_primary !== undefined && typeof span.is_primary !== 'boolean') ||
+      typeof span.line_start !== 'number' || !Number.isSafeInteger(span.line_start) || span.line_start < 1 ||
+      (span.column_start != null && (!Number.isSafeInteger(span.column_start) || span.column_start < 1))
+    ) continue
     out.push({
       file: span.file_name,
-      line: Math.max(1, span.line_start),
-      column: Math.max(1, span.column_start ?? 1),
+      line: span.line_start,
+      column: span.column_start ?? 1,
       severity: level,
       message: msg.message ?? '',
       code: msg.code?.code
@@ -127,20 +139,25 @@ export function isCargoJsonLine(line: string): boolean {
   }
 }
 
+export function getCargoBuildOutcome(line: string): boolean | null {
+  const t = line.trim()
+  if (!t.startsWith('{')) return null
+  try {
+    const rec = JSON.parse(t) as { reason?: unknown; success?: unknown }
+    if (rec.reason !== 'build-finished' || typeof rec.success !== 'boolean') return null
+    return rec.success
+  } catch {
+    return null
+  }
+}
+
 /**
  * True for cargo's terminal `{"reason":"build-finished","success":true}` record.
  * cargo builds and runs in ONE process, so this is the only in-band signal that
  * compiling is over and whatever comes next is the program itself.
  */
 export function isBuildFinished(line: string): boolean {
-  const t = line.trim()
-  if (!t.startsWith('{')) return false
-  try {
-    const rec = JSON.parse(t) as { reason?: string; success?: unknown }
-    return rec.reason === 'build-finished' && rec.success === true
-  } catch {
-    return false
-  }
+  return getCargoBuildOutcome(line) === true
 }
 
 /**
