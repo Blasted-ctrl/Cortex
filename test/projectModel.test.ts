@@ -1,9 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { parsePlatformioIni, scanPins, scanBuses, scanIncludes, buildProjectModel } from '../src/main/services/projectModelService'
 import type { PinUsage, BusUsage, LibraryUsage } from '../src/shared/ipc'
+
+const electron = vi.hoisted(() => ({ userData: '' }))
+vi.mock('electron', () => ({ app: {
+  isPackaged: false,
+  getPath: (name: string) => {
+    if (name !== 'userData' || !electron.userData) throw new Error('Unexpected Electron path')
+    return electron.userData
+  }
+} }))
 
 describe('parsePlatformioIni', () => {
   it('reads board/platform/framework from a single env', () => {
@@ -192,6 +201,7 @@ describe('buildProjectModel', () => {
   let root: string
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cortex-model-'))
+    electron.userData = join(root, 'owned-user-data')
   })
   afterEach(() => rmSync(root, { recursive: true, force: true }))
 

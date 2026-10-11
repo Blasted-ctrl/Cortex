@@ -4,7 +4,7 @@ import { readFile, lstat, readlink, realpath } from 'fs/promises'
 import { join, isAbsolute, relative, dirname } from 'path'
 import type { GitStatus, GitFileDiff, GitDiffKind, GitOpResult, GitBranches } from '../../shared/ipc'
 import { parsePorcelain } from '../../shared/gitStatus'
-import { getWorkspaceRoot, withinWorkspace } from './fsService'
+import { getWorkspaceRoot, getPhysicalWorkspaceRoot } from './fsService'
 import { safeCommand, needsShell } from './commandResolver'
 import { isWithin } from '../../shared/security'
 
@@ -59,14 +59,26 @@ async function runGit(cwd: string, args: string[]): Promise<{ ok: boolean; stdou
   }
 }
 
-/** Repository root, null for a non-repository, undefined for a failed probe. */
-async function repoRoot(): Promise<string | null | undefined> {
+interface RepositoryContext { root: string; workspace: string }
+
+/** Physical repository/workspace roots, null for a non-repository, undefined for a failed probe. */
+async function repoRoot(): Promise<RepositoryContext | null | undefined> {
   const ws = getWorkspaceRoot()
   if (!ws) return null
   const r = await runGit(ws, ['rev-parse', '--show-toplevel'])
   if (!r.ok) return /not a git repository/i.test(r.error ?? '') ? null : undefined
-  const top = r.ok ? r.stdout.trim() : ''
-  return top && isWithin(top, ws) && ws === getWorkspaceRoot() ? top : undefined
+  try {
+    const top = await realpath(r.stdout.trim())
+    const workspace = await getPhysicalWorkspaceRoot()
+    return workspace && isWithin(top, workspace) && ws === getWorkspaceRoot() ? { root: top, workspace } : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function currentRepository(repo: RepositoryContext, admittedRoot: string | null): Promise<boolean> {
+  const physical = await getPhysicalWorkspaceRoot()
+  return !!admittedRoot && admittedRoot === getWorkspaceRoot() && physical === repo.workspace
 }
 
 function gitRunnable(): boolean {
@@ -78,18 +90,19 @@ export async function status(): Promise<GitStatus> {
   const ws = getWorkspaceRoot()
   if (!ws) return NOT_REPO
   if (!gitRunnable()) return { isRepo: false, ahead: 0, behind: 0, files: [], error: 'git is not available on PATH.' }
-  const root = await repoRoot()
-  if (root === undefined) return { ...NOT_REPO, error: 'Could not locate the repository. Check Git permissions and refresh.' }
-  if (!root) return NOT_REPO // rev-parse said this is not a work tree
+  const repo = await repoRoot()
+  if (repo === undefined) return { ...NOT_REPO, error: 'Could not locate the repository. Check Git permissions and refresh.' }
+  if (!repo) return NOT_REPO // rev-parse said this is not a work tree
+  const { root, workspace } = repo
   // -uall lists untracked files individually so an untracked directory is not
   // collapsed to a single un-diffable "dir/" row.
   const res = await runGit(root, ['status', '--porcelain=v1', '-z', '--branch', '-uall'])
   if (!res.ok) return { isRepo: true, ahead: 0, behind: 0, files: [], error: 'Could not read git status.' }
-  if (ws !== getWorkspaceRoot()) return { ...NOT_REPO, error: 'The open project changed. Refresh its status.' }
+  if (!await currentRepository(repo, ws)) return { ...NOT_REPO, error: 'The open project changed. Refresh its status.' }
   const parsed = parsePorcelain(res.stdout)
   // Porcelain paths are repo-root-relative; keep only those inside the open
   // workspace (which may be a subdirectory of the repo).
-  const files = parsed.files.filter((f) => withinWorkspace(join(root, f.path)))
+  const files = parsed.files.filter((f) => isWithin(workspace, join(root, f.path)))
   return {
     isRepo: true,
     branch: parsed.branch,
@@ -121,18 +134,18 @@ async function readWorking(abs: string): Promise<string> {
   }
 }
 
-async function safePath(root: string, path: unknown): Promise<boolean> {
+async function safePath(repo: RepositoryContext, path: unknown): Promise<boolean> {
   if (typeof path !== 'string' || !path || path.includes('\0') || isAbsolute(path)) return false
   const normalized = gp(path)
   if (normalized.split('/').some((part) => part === '.' || part === '..' || part.toLowerCase() === '.git')) return false
-  const abs = join(root, normalized)
-  if (!withinWorkspace(abs) || abs === getWorkspaceRoot()) return false
+  const abs = join(repo.root, normalized)
+  if (!isWithin(repo.workspace, abs) || abs === repo.workspace) return false
   try {
-    const ws = await realpath(getWorkspaceRoot()!)
+    if (await getPhysicalWorkspaceRoot() !== repo.workspace) return false
     let parent = dirname(abs)
     for (;;) {
       try {
-        return isWithin(ws, await realpath(parent))
+        return isWithin(repo.workspace, await realpath(parent))
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false
         const next = dirname(parent)
@@ -148,11 +161,12 @@ async function safePath(root: string, path: unknown): Promise<boolean> {
 export async function fileDiff(relPath: string, kind: GitDiffKind, orig?: string): Promise<GitFileDiff | null> {
   const ws = getWorkspaceRoot()
   if (!ws || !['staged', 'unstaged', 'untracked'].includes(kind)) return null
-  const root = await repoRoot()
-  if (!root) return null
-  if (!await safePath(root, relPath) || (orig !== undefined && !await safePath(root, orig))) return null
+  const repo = await repoRoot()
+  if (!repo) return null
+  const { root, workspace } = repo
+  if (!await safePath(repo, relPath) || (orig !== undefined && !await safePath(repo, orig))) return null
   const abs = join(root, relPath)
-  if (!withinWorkspace(abs)) return null
+  if (!isWithin(workspace, abs)) return null
   // An untracked directory (should not occur with -uall) is not a file to diff.
   if (relPath.endsWith('/')) return { path: relPath, oldContent: '', newContent: '', binary: false, directory: true }
 
@@ -171,7 +185,7 @@ export async function fileDiff(relPath: string, kind: GitDiffKind, orig?: string
   } catch {
     return null
   }
-  if (Buffer.byteLength(oldContent, 'utf8') > DIFF_LIMIT || Buffer.byteLength(newContent, 'utf8') > DIFF_LIMIT || ws !== getWorkspaceRoot()) return null
+  if (Buffer.byteLength(oldContent, 'utf8') > DIFF_LIMIT || Buffer.byteLength(newContent, 'utf8') > DIFF_LIMIT || !await currentRepository(repo, ws)) return null
   const binary = oldContent.includes('\0') || newContent.includes('\0')
   return { path: relPath, oldContent: binary ? '' : oldContent, newContent: binary ? '' : newContent, binary }
 }
@@ -182,15 +196,15 @@ export async function fileDiff(relPath: string, kind: GitDiffKind, orig?: string
  *  first line only and length-capped, so the panel can show it honestly. */
 let mutationRunning = false
 
-async function runMutation(cwd: string, args: string[], workspace = getWorkspaceRoot()): Promise<GitOpResult> {
-  if (!workspace || workspace !== getWorkspaceRoot()) return { ok: false, error: 'The open project changed. Try again.' }
+async function runMutation(repo: RepositoryContext, args: string[], workspace = getWorkspaceRoot()): Promise<GitOpResult> {
+  if (!await currentRepository(repo, workspace)) return { ok: false, error: 'The open project changed. Try again.' }
   if (mutationRunning) return { ok: false, error: 'A git operation is already running.' }
   const bin = safeCommand('git', getWorkspaceRoot())
   if (!bin || needsShell(bin)) return { ok: false, error: 'git is not available on PATH.' }
   mutationRunning = true
   try {
     await execFileAsync(bin, [...GIT_ARGS, ...args], {
-      cwd,
+      cwd: repo.root,
       windowsHide: true,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
@@ -233,13 +247,13 @@ async function runMutation(cwd: string, args: string[], workspace = getWorkspace
   }
 }
 
-async function safePaths(root: string, paths: unknown): Promise<string[] | null> {
+async function safePaths(repo: RepositoryContext, paths: unknown): Promise<string[] | null> {
   if (!Array.isArray(paths) || paths.length === 0 || paths.length > 10000) return null
   const out: string[] = []
   for (const p of paths) {
-    if (!await safePath(root, p)) return null
+    if (!await safePath(repo, p)) return null
     try {
-      if ((await lstat(join(root, p))).isDirectory()) return null
+      if ((await lstat(join(repo.root, p))).isDirectory()) return null
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return null
     }
@@ -250,42 +264,42 @@ async function safePaths(root: string, paths: unknown): Promise<string[] | null>
 
 export async function stage(paths: string[]): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  const ps = await safePaths(root, paths)
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  const ps = await safePaths(repo, paths)
   if (!ps) return { ok: false, error: 'Invalid path.' }
   // `--` ends options, so a path beginning with '-' is a path, never a flag.
-  return runMutation(root, ['add', '--', ...ps], ws)
+  return runMutation(repo, ['add', '--', ...ps], ws)
 }
 
 export async function unstage(paths: string[]): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  const ps = await safePaths(root, paths)
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  const ps = await safePaths(repo, paths)
   if (!ps) return { ok: false, error: 'Invalid path.' }
   // `git reset` needs a HEAD to reset the index against; before the first commit
   // there is none, so an added path is dropped from the index instead.
-  const head = await runGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD'])
+  const head = await runGit(repo.root, ['rev-parse', '--verify', '--quiet', 'HEAD'])
   if (!head.ok && head.error) return { ok: false, error: 'Could not verify the current commit. Nothing was unstaged.' }
   // -f only overrides the "staged content differs" refusal for an added-then-
   // edited file; --cached keeps it index-only, so the working file is never
   // touched (it becomes untracked, matching what `git reset` does with a HEAD).
   return head.ok
-    ? runMutation(root, ['reset', '--quiet', '--', ...ps], ws)
-    : runMutation(root, ['rm', '--cached', '-f', '--quiet', '--', ...ps], ws)
+    ? runMutation(repo, ['reset', '--quiet', '--', ...ps], ws)
+    : runMutation(repo, ['rm', '--cached', '-f', '--quiet', '--', ...ps], ws)
 }
 
 export async function commit(message: string): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
   if (typeof message !== 'string' || !message.trim() || message.includes('\0') || message.length > 65536) return { ok: false, error: 'Enter a valid commit message (up to 64 KB).' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before committing. Other staged files may be outside this project.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before committing. Other staged files may be outside this project.' }
   // The message is a single argv (no shell), so newlines and metacharacters in
   // it are literal text, never interpretable as commands. git itself rejects an
   // empty index ("nothing to commit") or a missing identity, surfaced as-is.
-  return runMutation(root, ['commit', '-m', message], ws)
+  return runMutation(repo, ['commit', '-m', message], ws)
 }
 
 /** Push the current branch to its configured upstream. Outward-facing: the
@@ -293,24 +307,24 @@ export async function commit(message: string): Promise<GitOpResult> {
  *  or configured push refspecs from publishing other branches. */
 export async function push(): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before pushing its commits.' }
-  const current = await runGit(root, ['branch', '--show-current'])
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before pushing its commits.' }
+  const current = await runGit(repo.root, ['branch', '--show-current'])
   if (!current.ok || !current.stdout.trim()) return { ok: false, error: 'Switch to a local branch before pushing.' }
-  const upstream = await runGit(root, ['for-each-ref', '--format=%(upstream:remotename)%00%(upstream:remoteref)', `refs/heads/${current.stdout.trim()}`])
+  const upstream = await runGit(repo.root, ['for-each-ref', '--format=%(upstream:remotename)%00%(upstream:remoteref)', `refs/heads/${current.stdout.trim()}`])
   const [remote, ref] = upstream.stdout.trimEnd().split('\0')
   if (!upstream.ok || !remote || remote.startsWith('-') || !ref?.startsWith('refs/heads/')) return { ok: false, error: 'This branch has no upstream. Configure it in the terminal first.' }
-  return runMutation(root, ['push', remote, `HEAD:${ref}`], ws)
+  return runMutation(repo, ['push', remote, `HEAD:${ref}`], ws)
 }
 
 /** Local branches + the current one. Branch names cannot contain a newline, so
  *  newline-splitting for-each-ref output is safe. */
 export async function branches(): Promise<GitBranches> {
-  const root = await repoRoot()
-  if (!root) return { current: null, branches: [] }
-  const cur = await runGit(root, ['branch', '--show-current'])
-  const list = await runGit(root, ['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+  const repo = await repoRoot()
+  if (!repo) return { current: null, branches: [] }
+  const cur = await runGit(repo.root, ['branch', '--show-current'])
+  const list = await runGit(repo.root, ['for-each-ref', '--format=%(refname:short)', 'refs/heads'])
   if (!cur.ok || !list.ok) throw new Error('Could not read local branches.')
   const names = list.ok ? list.stdout.split('\n').map((s) => s.trim()).filter(Boolean) : []
   return { current: cur.ok ? cur.stdout.trim() || null : null, branches: names }
@@ -321,17 +335,17 @@ export async function branches(): Promise<GitBranches> {
  *  caller separately guards unsaved editor buffers (invisible to git). */
 export async function switchBranch(name: string): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before switching branches. Other project files may change.' }
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before switching branches. Other project files may change.' }
   // The name comes from branches() (git's own output), but validate anyway: no
   // control chars, not empty/oversized, and never a leading '-' (which would be
   // read as an option since there is no shell to abuse).
   if (typeof name !== 'string' || name.length === 0 || name.length > 255 || /[\r\n\0]/.test(name) || name.startsWith('-'))
     return { ok: false, error: 'Invalid branch name.' }
-  const local = await runGit(root, ['show-ref', '--verify', `refs/heads/${name}`])
+  const local = await runGit(repo.root, ['show-ref', '--verify', `refs/heads/${name}`])
   if (!local.ok) return { ok: false, error: 'That local branch no longer exists. Refresh the branch list.' }
-  return runMutation(root, ['switch', '--no-guess', name], ws)
+  return runMutation(repo, ['switch', '--no-guess', name], ws)
 }
 
 export async function init(): Promise<GitOpResult> {
@@ -340,39 +354,41 @@ export async function init(): Promise<GitOpResult> {
   const root = await repoRoot()
   if (root === undefined) return { ok: false, error: 'Could not verify repository ownership. Check Git permissions and try again.' }
   if (root) return { ok: false, error: 'This project already belongs to a git repository.' }
-  return runMutation(ws, ['init', '--initial-branch=main'], ws)
+  const physical = await getPhysicalWorkspaceRoot()
+  if (!physical) return { ok: false, error: 'Could not verify repository ownership. Check Git permissions and try again.' }
+  return runMutation({ root: physical, workspace: physical }, ['init', '--initial-branch=main'], ws)
 }
 
 export async function createBranch(name: string): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before creating a branch.' }
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before creating a branch.' }
   if (typeof name !== 'string' || !name || name.length > 255 || /[\r\n\0]/.test(name) || name.startsWith('-') || name.startsWith('@{') || name === '@') return { ok: false, error: 'Enter a valid branch name.' }
-  const valid = await runGit(root, ['check-ref-format', '--branch', name])
+  const valid = await runGit(repo.root, ['check-ref-format', '--branch', name])
   if (!valid.ok) return { ok: false, error: 'Enter a valid branch name, such as feature/motor-control.' }
-  return runMutation(root, ['switch', '--no-guess', '-c', name], ws)
+  return runMutation(repo, ['switch', '--no-guess', '-c', name], ws)
 }
 
 export async function fetch(): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before fetching its remote.' }
-  const remotes = await runGit(root, ['remote'])
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before fetching its remote.' }
+  const remotes = await runGit(repo.root, ['remote'])
   if (!remotes.ok || !remotes.stdout.trim()) return { ok: false, error: 'No remote is configured. Add a remote in the terminal first.' }
-  return runMutation(root, ['fetch', '--all'], ws)
+  return runMutation(repo, ['fetch', '--all'], ws)
 }
 
 export async function pull(): Promise<GitOpResult> {
   const ws = getWorkspaceRoot()
-  const root = await repoRoot()
-  if (!root) return { ok: false, error: 'Not a git repository.' }
-  if (relative(root, ws!) !== '') return { ok: false, error: 'Open the repository root before pulling its changes.' }
-  const tree = await runGit(root, ['status', '--porcelain=v1', '-z', '-uall'])
+  const repo = await repoRoot()
+  if (!repo) return { ok: false, error: 'Not a git repository.' }
+  if (relative(repo.root, repo.workspace) !== '') return { ok: false, error: 'Open the repository root before pulling its changes.' }
+  const tree = await runGit(repo.root, ['status', '--porcelain=v1', '-z', '-uall'])
   if (!tree.ok) return { ok: false, error: 'Could not verify that the working tree is clean.' }
   if (tree.stdout) return { ok: false, error: 'Commit or stash your local changes before pulling. No files were changed.' }
-  const upstream = await runGit(root, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
+  const upstream = await runGit(repo.root, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'])
   if (!upstream.ok) return { ok: false, error: 'This branch has no upstream. Configure it in the terminal first.' }
-  return runMutation(root, ['pull', '--ff-only', '--no-rebase'], ws)
+  return runMutation(repo, ['pull', '--ff-only', '--no-rebase'], ws)
 }

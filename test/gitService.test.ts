@@ -48,6 +48,53 @@ afterEach(() => {
 })
 
 describe.skipIf(!binary)('Git service using isolated real repositories', () => {
+  it('operates through an admitted root alias without following paths outside the project', async () => {
+    initialCommit()
+    const alias = join(temporary, 'admitted project alias')
+    symlinkSync(repo, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    setWorkspaceRoot(alias)
+    writeFileSync(join(repo, 'firmware.cpp'), 'through alias\n')
+    expect(await git.status()).toMatchObject({ isRepo: true, files: [{ path: 'firmware.cpp' }] })
+    expect(await git.fileDiff('firmware.cpp', 'unstaged')).toMatchObject({ oldContent: 'initial\n', newContent: 'through alias\n' })
+    expect(await git.stage(['firmware.cpp'])).toEqual({ ok: true })
+    expect(await git.fileDiff('firmware.cpp', 'staged')).toMatchObject({ newContent: 'through alias\n' })
+    expect(await git.commit('Owned alias fixture')).toEqual({ ok: true })
+    expect(command(repo, 'rev-list', '--count', 'HEAD').trim()).toBe('2')
+    expect(await git.createBranch('feature/alias')).toEqual({ ok: true })
+    expect(await git.switchBranch('main')).toEqual({ ok: true })
+    const outside = join(temporary, 'outside alias project')
+    mkdirSync(outside)
+    writeFileSync(join(outside, 'private.cpp'), 'outside content\n')
+    symlinkSync(outside, join(repo, 'external'), process.platform === 'win32' ? 'junction' : 'dir')
+    expect(await git.fileDiff('external/private.cpp', 'untracked')).toBeNull()
+    expect((await git.stage(['external/private.cpp'])).ok).toBe(false)
+    expect(readFileSync(join(outside, 'private.cpp'), 'utf8')).toBe('outside content\n')
+  })
+
+  it('confines an admitted subfolder alias and refuses repository-wide mutations', async () => {
+    initialCommit()
+    const sketch = join(repo, 'sketch')
+    mkdirSync(sketch)
+    writeFileSync(join(sketch, 'sketch.cpp'), 'sketch\n')
+    writeFileSync(join(repo, 'hidden.cpp'), 'hidden staged file\n')
+    command(repo, 'add', '--', 'hidden.cpp')
+    command(repo, 'branch', 'other')
+    const alias = join(temporary, 'admitted sketch alias')
+    symlinkSync(sketch, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    setWorkspaceRoot(alias)
+    expect((await git.status()).files.map((file) => file.path)).toEqual(['sketch/sketch.cpp'])
+    expect(await git.stage(['sketch/sketch.cpp'])).toEqual({ ok: true })
+    expect(await git.fileDiff('sketch/sketch.cpp', 'staged')).toMatchObject({ newContent: 'sketch\n' })
+    expect(await git.fileDiff('hidden.cpp', 'staged')).toBeNull()
+    expect((await git.stage(['hidden.cpp'])).ok).toBe(false)
+    for (const result of [await git.commit('Unsafe hidden commit'), await git.switchBranch('other'), await git.createBranch('unsafe'), await git.push(), await git.fetch(), await git.pull()]) {
+      expect(result.error).toContain('repository root')
+    }
+    expect(command(repo, 'rev-list', '--count', 'HEAD').trim()).toBe('1')
+    expect(command(repo, 'branch', '--show-current').trim()).toBe('main')
+    expect(command(repo, 'diff', '--cached', '--name-only')).toBe('hidden.cpp\nsketch/sketch.cpp\n')
+  })
+
   it('stages, compares, unstages and commits exact disk content, preserving further working edits', async () => {
     initialCommit()
     writeFileSync(join(repo, 'firmware.cpp'), 'staged\n')

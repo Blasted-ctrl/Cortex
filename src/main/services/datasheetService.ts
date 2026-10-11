@@ -4,6 +4,7 @@ import * as fsService from './fsService'
 import { buildProjectModel } from './projectModelService'
 import { extractPdf, isPdfAvailable } from './pdfExtractor'
 import { buildHardwareGraph, KNOWN_DEVICES, type HardwareGraph } from '../../shared/hardwareGraph'
+import { isWithin } from '../../shared/security'
 import {
   sectionize,
   buildIndex,
@@ -101,7 +102,8 @@ async function ensureCorpusDir(root: string): Promise<string | null> {
   await fs.mkdir(d, { recursive: true })
   try {
     const real = await fs.realpath(d)
-    return fsService.withinWorkspace(real) ? real : null
+    const workspace = await fsService.getPhysicalWorkspaceRoot()
+    return workspace && isWithin(workspace, real) ? real : null
   } catch {
     return null
   }
@@ -123,7 +125,8 @@ async function safeCorpusPath(root: string, storedName: string): Promise<string 
     const st = await fs.lstat(abs)
     if (!st.isFile() || st.isSymbolicLink()) return null // no symlink, no dir/special
     const realDir = await fs.realpath(dir(root))
-    if (!fsService.withinWorkspace(realDir)) return null // corpus dir escaped the workspace
+    const workspace = await fsService.getPhysicalWorkspaceRoot()
+    if (!workspace || !isWithin(workspace, realDir)) return null // corpus dir escaped the workspace
     return abs
   } catch {
     return null // missing (e.g. a manifest path that pointed outside the corpus)

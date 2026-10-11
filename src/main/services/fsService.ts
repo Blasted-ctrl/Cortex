@@ -20,6 +20,16 @@ export function setWorkspaceRoot(root: string | null): void {
 export function getWorkspaceRoot(): string | null {
   return workspaceRoot
 }
+export async function getPhysicalWorkspaceRoot(): Promise<string | null> {
+  const root = workspaceRoot
+  if (!root) return null
+  try {
+    const physical = await fs.realpath(root)
+    return root === workspaceRoot ? physical : null
+  } catch {
+    return null
+  }
+}
 /** True when `p` is the open workspace or a path within it. Used to confine
  * renderer-supplied roots (LSP, etc.) the way file writes are confined. */
 export function withinWorkspace(p: string): boolean {

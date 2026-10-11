@@ -33,10 +33,11 @@ describe('project config persistence', () => {
     const held = deferred()
     const firstCaptured = deferred()
     const secondCaptured = deferred()
+    const physicalConfig = await fs.realpath(config)
     let reads = 0
     vi.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
       const value = await read(...args)
-      if (String(args[0]) === config) {
+      if (String(args[0]) === physicalConfig) {
         ++reads
         if (reads === 1) { firstCaptured.resolve(); await held.promise }
         else if (reads === 2) secondCaptured.resolve()

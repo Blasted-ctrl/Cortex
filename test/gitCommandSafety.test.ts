@@ -1,25 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolve, join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { promises as fs } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { setWorkspaceRoot } from '../src/main/services/fsService'
 
 const fixtures = vi.hoisted(() => ({ run: vi.fn(), workspace: '' }))
 vi.mock('child_process', () => ({
   execFile: Object.assign(vi.fn(), { [Symbol.for('nodejs.util.promisify.custom')]: (...args: unknown[]) => fixtures.run(...args) })
 }))
 vi.mock('../src/main/services/commandResolver', () => ({ safeCommand: () => process.execPath, needsShell: () => false }))
-vi.mock('../src/main/services/fsService', () => ({
-  getWorkspaceRoot: () => fixtures.workspace,
-  withinWorkspace: (path: string) => path === fixtures.workspace || path.startsWith(fixtures.workspace + '/') || path.startsWith(fixtures.workspace + '\\')
-}))
 import * as git from '../src/main/services/gitService'
 
-beforeEach(() => {
-  fixtures.workspace = resolve('test', 'isolated-mocked-git-workspace')
+let temporary: string
+beforeEach(async () => {
+  temporary = await fs.mkdtemp(join(tmpdir(), 'cortex-git-command-'))
+  fixtures.workspace = temporary
+  setWorkspaceRoot(temporary)
   fixtures.run.mockReset()
   fixtures.run.mockImplementation(async (_command: string, args: string[]) => {
     if (args.includes('--show-toplevel')) return { stdout: fixtures.workspace + '\n' }
     if (args.includes('status')) return { stdout: '## main\0 M firmware.cpp\0' }
     return { stdout: '' }
   })
+})
+
+afterEach(async () => {
+  setWorkspaceRoot(null)
+  await fs.rm(temporary, { recursive: true, force: true })
 })
 
 describe('Git command boundary', () => {
@@ -64,6 +71,8 @@ describe('Git command boundary', () => {
     const before = fixtures.workspace
     fixtures.run.mockImplementation(async () => {
       fixtures.workspace = join(before, 'other-project')
+      await fs.mkdir(fixtures.workspace)
+      setWorkspaceRoot(fixtures.workspace)
       return { stdout: before + '\n' }
     })
     expect((await git.commit('Do not commit the wrong project')).ok).toBe(false)

@@ -1,10 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as fsService from '../src/main/services/fsService'
 import * as datasheet from '../src/main/services/datasheetService'
 import { makePdf } from './makePdf'
+
+const electron = vi.hoisted(() => ({ userData: '' }))
+vi.mock('electron', () => ({ app: {
+  isPackaged: false,
+  getPath: (name: string) => {
+    if (name !== 'userData' || !electron.userData) throw new Error('Unexpected Electron path')
+    return electron.userData
+  }
+} }))
 
 /**
  * Integration test for the datasheet service's real file IO - the one part not
@@ -18,6 +27,7 @@ let ws: string
 
 beforeEach(async () => {
   ws = await fs.mkdtemp(join(tmpdir(), 'cortex-ds-'))
+  electron.userData = join(ws, 'owned-user-data')
   fsService.setWorkspaceRoot(ws)
   datasheet.invalidate()
 })
@@ -42,6 +52,35 @@ async function writeSource(name: string, content: string): Promise<string> {
 }
 
 describe('datasheetService.importFile', () => {
+  it('imports and searches documents through an admitted project-root alias', async () => {
+    const project = join(ws, 'project')
+    const alias = join(ws, 'admitted project alias')
+    await fs.mkdir(project)
+    await fs.symlink(project, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    fsService.setWorkspaceRoot(alias)
+    expect(await datasheet.importFile(alias, await writeSource('MPU6050.md', MPU))).toMatchObject({ ok: true, deviceKey: 'mpu6050' })
+    expect(await fs.readFile(join(project, '.cortex', 'datasheets', 'MPU6050.md'), 'utf8')).toBe(MPU)
+    expect((await datasheet.search(alias, 'PWR_MGMT_1 sleep', 5))[0].text).toContain('SLEEP bit')
+  })
+
+  it('refuses a corpus directory escaping an admitted project-root alias', async () => {
+    const project = join(ws, 'project')
+    const outside = join(ws, 'outside')
+    const alias = join(ws, 'admitted project alias')
+    await fs.mkdir(project)
+    await fs.mkdir(join(outside, 'datasheets'), { recursive: true })
+    await fs.symlink(project, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    await fs.symlink(outside, join(project, '.cortex'), process.platform === 'win32' ? 'junction' : 'dir')
+    fsService.setWorkspaceRoot(alias)
+    const corpus = join(outside, 'datasheets')
+    await fs.writeFile(join(corpus, 'private.md'), '# Private\nprivatealiasdocument')
+    await fs.writeFile(join(corpus, 'manifest.json'), JSON.stringify({ docs: [{ id: 'private', name: 'private', path: '.cortex/datasheets/private.md', kind: 'markdown' }] }))
+    expect(await datasheet.importFile(alias, await writeSource('MPU6050.md', MPU))).toMatchObject({ ok: false, error: expect.stringContaining('outside') })
+    expect((await fs.readdir(corpus)).sort()).toEqual(['manifest.json', 'private.md'])
+    expect(await datasheet.search(alias, 'privatealiasdocument', 5)).toEqual([])
+    expect(await fs.readFile(join(corpus, 'private.md'), 'utf8')).toBe('# Private\nprivatealiasdocument')
+  })
+
   it('copies a text doc into .cortex/datasheets, writes a manifest, and auto-links the device', async () => {
     const src = await writeSource('MPU6050.md', MPU)
     const res = await datasheet.importFile(ws, src)
