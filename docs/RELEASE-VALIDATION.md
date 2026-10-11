@@ -1191,6 +1191,114 @@ remain unverified. Subsequent file-provenance/Git-reconciliation implementation
 can now begin under its separately reviewed written plan; it is not verified by
 these workbench receipts.
 
+## Reviewed file and Git ownership (2026-10-11)
+
+This is a separate slice after workbench commit `da99c9b` and documentation
+checkpoint `5bb4603`, not evidence inherited from their native receipts.
+Main-derived proposal existence, conservative legacy-empty review, original-clean
+tab reconciliation and VCS project-lifetime ownership are implemented test-first.
+
+The actual main producer first fails nine cases (18 pass), then passes all 27
+producer/tool-contract cases. Its single ENOENT predicate regression fails five
+cases; exact restoration again passes 27. The producer uses the actual runner,
+event emission and owned filesystem/settings, substituting only the Electron
+host and local/OpenAI-compatible provider transport. This is not real provider,
+Gemini or OS ACL-denial acceptance; the non-ENOENT input is a genuine Node invalid
+path rejection.
+
+Approval's corrected original-behavior run fails ten cases with 100 passes,
+including actual native-filesystem data-loss cases and real mounted-card labels.
+The implemented focused run passes all 110 across five suites. An earlier
+retained run also fails one new fixture's incorrect CRLF expectation for an
+existing empty file; the fixture now uses LF to isolate existence behavior.
+Existing nonempty BOM/CRLF and ordinary-save assertions remain unchanged.
+
+Git's original-behavior run fails 39 cases with 96 passes. Implemented ownership
+and additional normal-action/cancellation/save-recovery controls pass all 150
+across seven suites. Deferred store/component tests substitute Git outcomes;
+the mounted VCS fixture uses the real filesystem for tab/tree reconciliation.
+Real owned-Git service tests and native ordinary switching remain separate gates.
+
+Faithful existence-guard omission fails four cases; workspace-generation-only
+ownership fails 13 Git cases and exact-tab omission fails nine. Exact restorations
+pass. Independent combined code review is complete, including a second actual
+read-only Codex review after an internal finding tightened missing-file errors.
+An ENOENT-looking quoted filename must not turn EACCES or a refused read into
+absence. Those discriminating regressions fail three approval and three Git
+cases with the earlier loose prefix, then pass after restoration: approval 113
+and Git 154 focused cases. These are serialized error fixtures, not native
+Windows POSIX-colon filename or OS ACL-denial evidence.
+
+Final pinned Node 22.20.0 verification closes without an outside watchdog:
+
+| Gate | Actual result |
+|---|---|
+| Types | Both processes pass; 54,980 ms outside gate |
+| Full regression/style | 111 suites; 2052 passes, five unchanged skips; 769,708 ms outside gate |
+| Desktop/tools build | Pass; 89,688 ms outside gate |
+| Serial firmware suite | Nine passes, 87 assertions, identical per-scenario traces; 53,939 ms |
+| Serial negative self-test | Broken shutdown assertion and independent hang timeout caught; 17,762 ms |
+| Advisory benchmark | Ten passes plus two warmups, identical traces; 48,003 ms outside gate |
+| Inclusive dependency audit | Still fails: 17 findings, seven high and ten moderate, zero critical |
+
+Receipts use `.cortex/release-smoke/ownership-errno-final-*`,
+`ownership-serial-final-*` and `ownership-final-serial-d-scratch-bench-*`.
+The earlier parallel firmware/self-test runs are retained but the final CLI
+evidence is serial. The benchmark runs after the other Cortex checks close,
+with private TEMP/TMP on D: after a C: space shortage. Host median is 89.30 ms
+and p95 106.72 ms, excluding compilation/warmups; virtual model throughput is
+separate. Revision is `5bb4603` with the reviewed dirty source. All measured
+traces are `aa8cd6b2b90d60dea2f3028895b1a4c38291bb56137dd766518ac15bc82fba75`.
+The baseline is incompatible (workload/shim and host Node differ), remains
+advisory and was not replaced. Unrelated host activity is not controlled.
+
+Fresh native evidence is
+`D:/cortex-reviewed-file-ownership/native-pn5ZzN/artifacts/file-ownership-native-report.json`:
+2084 lines, SHA256 `0C8F16209F6E40FE4C2C245FD2594D03AE241FF119E472DA85A4DA4DB2FD2A9A`.
+The root read the full receipt and raw logs and inspected eight key PNGs; the
+executor independently read the full receipt/logs and viewed all 18 PNGs.
+Original Electron 33.4.11/Node 20.18.3 retained sandbox/context isolation and no
+renderer Node integration. Five trusted Approve actions produce two correct
+whole-file writes and three stale refusals, including the no-open-tab deletion
+and externally created empty target. Existing empty is not new; reviewed absence
+is visibly new in the shorter-path control. Its one-BOM/CRLF creation is exact.
+
+Actual GUI alternate/main switches reconcile the original clean BOM/CRLF tab
+and remove/restore main-only.cpp. Dirty switching refuses while preserving disk,
+branch and buffer; native Ctrl+S then writes the independently expected 62 bytes.
+These are ordinary native operations, not delayed-race or live-provider proof.
+The cards/log entries are explicit memory-local seeds; the genuine main producer
+is covered separately by controlled-transport tests. No Send/provider request,
+remote, customer repository or hardware action is performed. Normal automatic
+tool/catalog discovery stays in the disposable profile.
+
+App PID 4764 (parent 30044, creation `2026-10-11T13:53:21.0463560Z`) exits normally
+with code 0. All 38 observed owned identities are gone; the root and executor
+independently confirm wrapper/driver/app absence and bindable ports 9741/9742.
+Renderer/main exception arrays are empty. Raw stderr retains three expected
+fs:readFile ENOENT logs for the deliberately absent files; this is not a
+clean-stderr claim. All 370 distinct protected source/config/native/build/helper
+paths and the Git executable hash match. Before/after index, tracked diff, branch,
+HEAD and in-scope status are exact. Complete status differs only because concurrent
+unrelated untracked website files were added; neither those files nor 3744 were
+read, changed, staged or moved by this work.
+
+One visual limitation remains: `created-after-review-review.png` clips the new
+badge beside its long filename. DOM state is correct but that badge is not
+visibly readable; no all-badges-visible claim is made. The visible layout fix is
+recorded separately in tasks/todo.md.
+
+All three earlier native attempts remain failed/unverified and immutable:
+`native-gt1v07` refuses the initial overbroad Git-environment check before launch;
+`native-RqvcQ0` never admits Welcome Open; `native-7enpLV` hits an incomplete
+startup CIM row before interaction and has unverified natural-exit cleanup.
+Independent later OS checks find no remaining owned processes/port owners, but
+do not reconstruct lifecycle success. Separately reviewed helper copies retain
+the exact two benign Git environment values, fence the new reload document and
+wait for complete same-PID identity before unchanged identity assertions. No
+in-run retry, source patch, forced app kill, signing/hook override or old receipt
+overwrite turns a failure into a pass. No new remote CI or release pass is claimed.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

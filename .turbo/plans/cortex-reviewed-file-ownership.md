@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 date: 2026-10-11
 ---
 
@@ -18,7 +18,7 @@ Deployment is one local Electron application with asynchronous renderer/main cal
 - A valid reviewed creation and a valid reviewed existing-empty replacement still succeed. Legacy proposals without existence evidence may modify matching nonempty existing text; ambiguous empty originals require a fresh proposal and cannot create a file. Existing pending proposals are memory-local; no stored migration is required.
 - The review card labels only explicit reviewed absence as a new file. Empty existing and unknown originals are not labeled new. Existing error/status/rejection behavior remains.
 - Bulk Git reconciliation changes only the original clean tab in the original workspace lifetime. Closing/reopening, editing/saving, workspace A-to-B-to-A or a later reconciliation must invalidate an older read's success and error continuations.
-- A confirmed missing file may close its owned clean tab. Other read failures preserve the tab and report failure; they are not deletion evidence. Dirty buffers remain untouched and normal clean reloads still adopt disk changes.
+- A confirmed missing file may close its owned clean tab. Only an ENOENT errno prefix, optionally inside Electron's fs:readFile error envelope, establishes missing-file evidence; ENOENT in a quoted path or other error text does not. Other read failures preserve the tab and report failure. Dirty buffers remain untouched and normal clean reloads still adopt disk changes.
 - A delayed close waiting for a save must not close a replacement tab. Existing discard-confirmation ownership remains intact.
 - Switch/create/pull completion from an older workspace lifetime must not reload files, refresh state or publish success into the current project. Mutations remain serialized through their owned post-operation reconciliation, not merely through gitStatus. Confirmation and dirty-buffer checks remain required.
 - Document the changed review-card and file-reconciliation behavior, including conservative legacy handling and remaining limits. Record observed verification without presenting fixture success as production-release evidence.

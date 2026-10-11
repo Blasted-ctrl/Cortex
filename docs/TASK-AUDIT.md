@@ -48,11 +48,24 @@ and makes Escape restore the latest committed value. Deferred responses,
 A-to-B-to-A edits and stable field identity have actual component regressions.
 These drafts are not durable: leaving a category/view can discard unsaved input.
 
-The next executable slice is the separately
+The completed follow-up is the separately
 [reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md),
 covering queue items 2 and 3 below. Corrected native encoding acceptance and the
-combined workbench gate have passed; that next plan remains unimplemented at this
-checkpoint. Later dictionary, diagnostic and keyboard slices remain queued.
+combined workbench gate have passed. Actual producer, store/filesystem and
+mounted-card/VCS regressions first reproduced the existing gaps. Final types/build,
+111 suites (2052 passes and five unchanged skips), serial firmware/self-test,
+advisory benchmark and fresh native approval/ordinary Git controls now pass.
+The actual producer tests substitute provider transport; native cards are seeded.
+Neither establishes live provider connectivity or native race timing.
+
+The next executable slice is the separately
+[reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md),
+covering queue item 4. Two internal review rounds and actual read-only Codex peer
+review converged after tightening resolution-token cleanup and shared lexical
+inference. This is a ready plan, not implemented or installed-server validation.
+Diagnostic capture and keyboard slices remain queued. Native inspection also
+found that a long review-card filename can clip its new-file badge; retain this
+visible layout follow-up without claiming every badge was readable.
 
 Remaining executable queue, in priority order:
 
@@ -66,9 +79,9 @@ Remaining executable queue, in priority order:
    Local corrections retain real filesystem/Git/PDF/compiler behavior, isolate
    only that main-runtime test boundary, and pass the combined regression.
    A new remote pass is still required; the failed baseline jobs are not passes.
-2. Preserve explicit file-existence provenance in reviewed AI proposals. An empty
+2. Completed locally: preserve explicit file-existence provenance in reviewed AI proposals. An empty
    original is not proof that creation was reviewed; retain absence/conflict guards.
-3. Fence delayed Git-triggered tab reloads by workspace and tab ownership, so a
+3. Completed locally: fence delayed Git-triggered tab reloads by workspace and tab ownership, so a
    closed/reopened tab cannot adopt an older asynchronous read.
 4. Require library provenance before applying supplemental stdlib documentation
    to ambiguous completion labels such as a user-defined `clear` or `size`.

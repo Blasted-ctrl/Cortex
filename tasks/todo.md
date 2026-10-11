@@ -174,6 +174,20 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 
 See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 
+- [x] Preserve main-derived reviewed file existence and conservative legacy-empty
+  proposal recovery; label only explicit reviewed absence as new. Fence Git tab
+  reconciliation and all VCS continuations by the original project/tab lifetime.
+  Verify: actual producer and deferred store/component regressions, faithful
+  guard omissions, 111 suites/2052 passes with the same five skips, types/build,
+  serial firmware/self-test/benchmark and owned actual approval/Git controls.
+  Seeded native cards do not prove provider access; delayed races remain fixture
+  evidence. A long-path review-card badge is clipped in one retained screenshot.
+- [ ] Implement the reviewed library-documentation provenance plan. Preserve raw
+  server text, lazy-resolution ownership, auto-includes and insertion behavior;
+  make hardware hover use the actual cursor and lexical code view. Plan reviews
+  pass; implementation and actual-server compatibility are not yet verified.
+- [ ] Keep review-card state badges visible beside long filenames; preserve the
+  full-path tooltip and compact layout. Native evidence is in the release ledger.
 - [x] Complete the reviewed workbench integrity slice: serialized global settings,
   fitted docks/notifications, keyboard recents, retained mounted settings drafts
   and exact BOM/CRLF approval/editor saves. Final types/build, 107 suites/1939

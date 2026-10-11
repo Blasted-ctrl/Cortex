@@ -6,10 +6,17 @@ The [reviewed workbench plan](../.turbo/plans/cortex-production-workbench.md)
 is verified after a complete audit of the 50 tracked Markdown files at
 `da1aee3`. It protects global settings persistence and exact AI-approved disk
 snapshots, fits horizontal docks, and adds keyboard-accessible recent projects.
-The next execution uses the
+The completed follow-up uses the
 [reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md):
 main-derived proposal existence and lifetime-safe Git/editor reconciliation.
-That plan is ready, not yet implemented or validated by the workbench checks.
+Its final 111-suite regression, types/build, repeated firmware, negative self-test,
+advisory benchmark and isolated native approval/Git controls pass. These are
+separate from the completed workbench checks, not inherited evidence.
+The next execution uses the
+[reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md):
+conservative stdlib provenance, accepted raw resolution state and cursor-specific
+hardware help. Its plan reviews are complete; implementation verification remains
+pending. Keep the current compact embedded IDE layout.
 The firmware design below remains implemented historical context, not a fresh
 unstarted task list. Remote Windows and firmware CI failures and the red
 dependency audit remain open; see [Task audit](../docs/TASK-AUDIT.md).
