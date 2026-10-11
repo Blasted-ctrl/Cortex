@@ -153,7 +153,7 @@ describe('main-derived proposal provenance through the actual agent runner', () 
     expect(edits()).toHaveLength(1)
     expect(edits()[0].error).toMatch(/refused/i)
     expectTool(false)
-    expect(await fs.readFile(path)).toEqual(original)
+    expect((await fs.readFile(path)).equals(original)).toBe(true)
     expect(await fs.readdir(root)).toEqual(['main.cpp'])
   })
 
