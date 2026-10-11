@@ -124,25 +124,29 @@ export default function Welcome(): JSX.Element {
             {recents.map((r) => (
               <div
                 key={r.path}
-                className="group row cursor-pointer justify-between gap-3 border-b border-ide-border px-3 py-2 last:border-b-0 hover:bg-ide-hover"
-                onClick={() => void openRecent(r.path)}
+                className="group row justify-between gap-3 border-b border-ide-border px-3 py-2 last:border-b-0 hover:bg-ide-hover"
               >
-                <span className="row min-w-0 gap-2">
+                <button
+                  type="button"
+                  className="row min-w-0 flex-1 gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ide-accent"
+                  aria-label={`Open ${r.name}: ${r.path}`}
+                  title={r.path}
+                  onClick={() => void openRecent(r.path)}
+                >
                   <FolderOpen size={14} className="shrink-0 text-ide-amber" />
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] text-ide-text">{r.name}</span>
                     <span className="mono block truncate text-[10px] text-ide-faint">{r.path}</span>
                   </span>
-                </span>
+                </button>
                 <span className="row shrink-0 gap-2">
                   <span className="text-[10px] text-ide-faint">{relTime(r.ts)}</span>
                   <button
-                    className="rounded p-1 text-ide-faint opacity-0 hover:bg-ide-bar hover:text-ide-text group-hover:opacity-100"
+                    type="button"
+                    className="rounded p-1 text-ide-faint opacity-0 hover:bg-ide-bar hover:text-ide-text group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ide-accent"
                     title="Remove from list"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeRecent(r.path)
-                    }}
+                    aria-label={`Remove ${r.name} from recent projects: ${r.path}`}
+                    onClick={() => removeRecent(r.path)}
                   >
                     <X size={12} />
                   </button>
