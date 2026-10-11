@@ -269,9 +269,15 @@ export interface Diagnostic {
   code?: string // e.g. the "-Wunused-variable" flag, when present
 }
 
+export interface DiagnosticCapture {
+  omittedDiagnostics: number
+  unparsedBytes: number
+}
+
 export interface RunDiagnostics {
   id: string
   diagnostics: Diagnostic[]
+  capture?: DiagnosticCapture
 }
 
 /**
