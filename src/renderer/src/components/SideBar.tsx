@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import FileExplorer from './FileExplorer'
 import SearchPanel from './SearchPanel'
 import BoardsManagerPanel from './BoardsManagerPanel'
@@ -10,9 +10,8 @@ import DevicesPanel from './DevicesPanel'
 import VcsPanel from './VcsPanel'
 import { useStore } from '../store/useStore'
 
-export default function SideBar(): JSX.Element {
+export default function SideBar({ width, panelRef }: { width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
   const view = useStore((s) => s.sidebarView)
-  const width = useStore((s) => s.sidebarWidth)
   const visible = useStore((s) => s.sidebarVisible)
   const workspaceRoot = useStore((s) => s.workspaceRoot)
   const [debugMounted, setDebugMounted] = useState(view === 'debug')
@@ -20,6 +19,7 @@ export default function SideBar(): JSX.Element {
 
   return (
     <div
+      ref={panelRef}
       className={`${visible ? 'flex' : 'hidden'} shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel`}
       style={{ width }}
     >

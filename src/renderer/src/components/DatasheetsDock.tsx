@@ -1,4 +1,4 @@
-import { useStore } from '../store/useStore'
+import type { RefObject } from 'react'
 import DatasheetsPanel from './DatasheetsPanel'
 
 /**
@@ -7,10 +7,10 @@ import DatasheetsPanel from './DatasheetsPanel'
  * fills the frame; the right-edge rail toggles it, so no separate close button
  * is needed. Reuses the AI panel's width so the right dock keeps one width.
  */
-export default function DatasheetsDock(): JSX.Element {
-  const width = useStore((s) => s.aiWidth)
+export default function DatasheetsDock({ width, panelRef }: { width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
   return (
     <div
+      ref={panelRef}
       className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
       style={{ width }}
     >

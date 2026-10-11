@@ -19,6 +19,7 @@ import SettingsView from './components/SettingsView'
 import Welcome from './components/Welcome'
 import Splash from './components/Splash'
 import { useBottomPanelLayout } from './lib/useBottomPanelLayout'
+import { useHorizontalPanelLayout } from './lib/useHorizontalPanelLayout'
 
 /** Run an action on the focused Monaco editor (used by the Ctrl+T format
  *  accelerator). No-op when no editor is mounted. */
@@ -79,6 +80,7 @@ export default function App(): JSX.Element {
   const [booting, setBooting] = useState(true)
   const [splashMounted, setSplashMounted] = useState(true)
   const panelLayout = useBottomPanelLayout(bottomHeight, setBottomHeight, workspaceRoot, mainView === 'editor')
+  const horizontalLayout = useHorizontalPanelLayout(sidebarWidth, aiWidth, sidebarVisible, !!rightView, setSidebarWidth, setAiWidth)
 
   // Subscribe to streamed events from the main process.
   useEffect(() => {
@@ -269,7 +271,7 @@ export default function App(): JSX.Element {
       {splashMounted && <Splash leaving={!booting} onExited={() => setSplashMounted(false)} />}
       {palette && <CommandPalette mode={palette} onClose={() => setPalette(null)} />}
       <ConfirmDialog />
-      <Toasts />
+      <Toasts rightWidth={horizontalLayout.rightWidth} />
       <TitleBar />
       {/* The run/build toolbar belongs to the editor working on a project.
           Hidden on the Welcome screen (nothing to run) and in the Simulator
@@ -282,9 +284,9 @@ export default function App(): JSX.Element {
             the ide-bg field, separated by a consistent gutter. The splitters
             live in those gutters, so a resize handle reads as the seam between
             two islands rather than a third panel. */}
-        <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          <SideBar />
-          {sidebarVisible && <Splitter dir="x" title="Resize sidebar" onDelta={(d) => setSidebarWidth(sidebarWidth + d)} />}
+        <div ref={horizontalLayout.workbenchRef} className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
+          <SideBar width={horizontalLayout.sidebarWidth} panelRef={horizontalLayout.sidebarRef} />
+          {sidebarVisible && <Splitter dir="x" title="Resize sidebar" onDelta={horizontalLayout.onSidebarDelta} />}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The editor stays MOUNTED across view switches (hidden, not
                 unmounted) so Monaco keeps each file's undo history, scroll and
@@ -316,8 +318,10 @@ export default function App(): JSX.Element {
               selected. One splitter/width serves both. */}
           {rightView && (
             <>
-              <Splitter dir="x" title="Resize panel" onDelta={(d) => setAiWidth(aiWidth - d)} />
-              {rightView === 'agent' ? <AiPanel /> : <DatasheetsDock />}
+              <Splitter dir="x" title="Resize panel" onDelta={horizontalLayout.onRightDelta} />
+              {rightView === 'agent'
+                ? <AiPanel width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />
+                : <DatasheetsDock width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />}
             </>
           )}
         </div>

@@ -36,7 +36,8 @@ class FixtureObserver {
   constructor(private callback: () => void) { observers.add(this) }
   observe(target: HostNode): void {
     this.target = target
-    target.getBoundingClientRect = () => ({ left: 0, top: 0, bottom: available, width: 600, height: available })
+    const isColumn = target.props.className === 'flex min-h-0 min-w-0 flex-1 flex-col gap-2'
+    target.getBoundingClientRect = () => ({ left: 0, top: 0, bottom: available, width: 600, height: isColumn ? available : 500 })
     this.callback()
   }
   disconnect(): void { observers.delete(this) }
@@ -75,7 +76,7 @@ describe('actual App bottom panel layout', () => {
     expect(height()).toBe(363)
     expect(useStore.getState().bottomHeight).toBe(640)
     expect(storage.get('cortex.bottomHeight')).toBe('640')
-    const column = [...observers][0]?.target
+    const column = [...observers].find((observer) => observer.target?.props.className === 'flex min-h-0 min-w-0 flex-1 flex-col gap-2')?.target
     expect(column?.parent && 'props' in column.parent && column.parent.props.className).toMatch(/(?:^|\s)min-h-0(?:\s|$)/)
   })
 

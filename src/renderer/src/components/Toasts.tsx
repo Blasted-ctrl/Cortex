@@ -21,14 +21,11 @@ const ICON = {
  */
 const RIGHT_RAIL_W = 48
 
-export default function Toasts(): JSX.Element {
+export default function Toasts({ rightWidth }: { rightWidth: number }): JSX.Element {
   const notifications = useStore((s) => s.notifications)
-  // Clear the right-edge rail, and the right dock (Agent / Datasheets) when it
-  // is open, so a sticky error toast never covers the dock's composer or the
-  // rail's icons.
+  // Clear the rail and open dock when space allows; keep cards inside narrow viewports.
   const rightView = useStore((s) => s.rightView)
-  const aiWidth = useStore((s) => s.aiWidth)
-  const rightOffset = RIGHT_RAIL_W + 16 + (rightView ? aiWidth + 8 : 0)
+  const rightOffset = RIGHT_RAIL_W + 16 + (rightView ? rightWidth + 8 : 0)
   const [visible, setVisible] = useState<AppNotification[]>([])
   const seen = useRef<Set<string>>(new Set())
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -63,7 +60,7 @@ export default function Toasts(): JSX.Element {
   return (
     <div
       className="pointer-events-none fixed bottom-8 z-[80] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
-      style={{ right: rightOffset }}
+      style={{ right: `min(${rightOffset}px, max(16px, calc(100vw - 20rem - 16px)))` }}
       aria-live="polite"
     >
       {visible.map((n) => (

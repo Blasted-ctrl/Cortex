@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Sparkles, Send, X, ScanSearch, Zap, Cpu, Settings2 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { buildHardwareGraph } from '@shared/hardwareGraph'
@@ -11,8 +11,8 @@ const QUICK_ACTIONS = [
   { icon: Cpu, label: 'Explain this file', prompt: 'Explain what this file does at a high level, then walk through the key functions.' }
 ]
 
-export default function AiPanel(): JSX.Element {
-  const { chat, aiStreaming, sendChat, toggleAi, tabs, activePath, aiWidth, settings, setMainView, projectModel, agentMode, setAgentMode } =
+export default function AiPanel({ width, panelRef }: { width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
+  const { chat, aiStreaming, sendChat, toggleAi, tabs, activePath, settings, setMainView, projectModel, agentMode, setAgentMode } =
     useStore()
   // "Configured" means it can actually answer: a provider, plus a key unless the
   // provider is a local endpoint (which needs none).
@@ -90,8 +90,9 @@ export default function AiPanel(): JSX.Element {
 
   return (
     <div
+      ref={panelRef}
       className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
-      style={{ width: aiWidth }}
+      style={{ width }}
     >
       <PanelHeader
         icon={<Sparkles size={14} className="text-ide-accent" />}

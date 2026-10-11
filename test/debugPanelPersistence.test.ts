@@ -22,6 +22,7 @@ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 const { useStore } = await import('../src/renderer/src/store/useStore')
 const { default: SideBar } = await import('../src/renderer/src/components/SideBar')
 const initial = useStore.getState()
+const sidebarProps = { width: initial.sidebarWidth, panelRef: React.createRef<HTMLDivElement>() }
 
 type Node = { type: string; props: Record<string, unknown>; children: Node[] }
 type Container = { children: Node[] }
@@ -95,7 +96,7 @@ beforeEach(async () => {
   }, true)
   tree = { children: [] }
   root = renderer.createContainer(tree, 0, null, false, null, '', (error) => { throw error }, null)
-  await act(async () => { renderer.updateContainer(createElement(SideBar), root) })
+  await act(async () => { renderer.updateContainer(createElement(SideBar, sidebarProps), root) })
 })
 afterEach(async () => { await act(async () => { renderer.updateContainer(null, root) }) })
 
@@ -200,7 +201,7 @@ describe('debugger UI lifetime', () => {
   it('does not mount the debugger until its first open', async () => {
     await act(async () => { renderer.updateContainer(null, root) })
     await setState({ sidebarView: 'explorer' })
-    await act(async () => { renderer.updateContainer(createElement(SideBar), root) })
+    await act(async () => { renderer.updateContainer(createElement(SideBar, sidebarProps), root) })
     expect(text()).not.toContain('Debug')
     await setState({ sidebarView: 'debug' })
     expect(text()).toContain('Debug')
