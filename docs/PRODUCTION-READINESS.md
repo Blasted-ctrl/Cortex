@@ -14,8 +14,10 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
    The separately approved electron-vite 4.0.1 upgrade removes one moderate
    affected dependency group. Root Vite 7.3.7 is separately approved and installed;
    approved Vitest 4.1.11 now shares root Vite 7.3.7 and removes old nested Vite 5,
-   vite-node and tinypool. Its focused/types/build checks pass; combined/fresh
-   acceptance remains separate.
+   vite-node and tinypool. Its focused/full regression, types/build, firmware,
+   unchanged-runtime native and new-lock normal clean-install/focused checks pass.
+   The first clean-install attempt failed for C: disk exhaustion; retained logs
+   and a separate owned D: passing fixture preserve that distinction.
    Combined/native upgrade verification is recorded separately, not inferred from
    an audit count. This includes desktop and
    build/test tooling; dev-only is not automatically unreachable. The audit remains

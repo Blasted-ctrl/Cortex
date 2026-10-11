@@ -36,7 +36,8 @@ is in [releaseGuard.test.ts](../test/releaseGuard.test.ts); the fix is checkpoin
 its independent full regression passed: 89 suites, 1610 tests and five existing
 skips. It uses exact Node 22.20.0/npm 10.9.3 with normal optional dependencies and
 install scripts. Genuine Electron/native terminal startup passed in its isolated
-profile. Later-snapshot runtime checks are still running.
+profile. Later snapshots have separately recorded verification below; this
+historical fresh full-suite result does not cover their source changes.
 
 ## Finite local queue
 
@@ -54,8 +55,10 @@ bypass is closed with 84 focused cases and actual installed builder validation,
 without a real publication. Debugger Stop/natural program exit and dev/HMR now
 pass on their explicitly recorded source boundaries. AI approval has 31
 actual-store regressions, independent review and four final-production native
-controls. Combined latest-source regression and fresh installation are final
-local gates; external release requirements remain unfinished.
+controls. The approved Vite combined/fresh baseline is complete. The subsequent
+Vitest combined/native checks and new-lock normal clean-install/focused gate pass.
+External release requirements remain unfinished. The newly discovered terminal
+ownership races are a separate local slice, not part of that dependency upgrade.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
@@ -72,6 +75,7 @@ Do not infer completion from this inventory's status prose alone.
 | 10 | Renderer sandbox/navigation hardening as a separately tested security slice | Review preload/module compatibility, then verify sandboxed dev/production startup and an explicit navigation allowlist without breaking valid file/editor/tool workflows; do not merely flip a flag |
 | 11 | Close local publication bypass discovered during final inspection | Default local packaging never publishes; manual publication must pass quality/audit checks, refuse public or ambiguous exact-target releases and create drafts only. Exercise fake failure paths, not a real publication |
 | 12 | Protect existing reviewed AI-edit approval from data loss | Deferred actual-store regressions preserve new typing and disk changes across approval reads/writes, prevent duplicates/stale project writes, and retain valid reviewed edit behavior. This is a safety fix, not autonomous/repository-wide AI scope |
+| 13 | Terminal-service session ownership after the isolated Vitest checkpoint | Retired same-ID callbacks cannot clear a replacement; teardown cancels deferred loads and handles reentrant native kill callbacks. Preserve current natural output/exit and verify owned native termination separately from the unresolved upstream ConPTY warning |
 
 Implementation evidence for these remaining boundaries:
 
@@ -118,34 +122,34 @@ Implementation evidence for these remaining boundaries:
 
 ## Security majors requiring individual review/approval
 
-The separately approved tooling steps are electron-vite 4.0.1 and root Vite
-7.3.7 with the React plugin floor at 4.7.0. Vitest 2.1.9 keeps its compatible
-nested Vite 5.4.21; Electron 33.4.11 and the PDF 4.0.3 compatibility hold remain.
-The Vite step has focused/type checks and independent graph/native-hash review;
-types and production build pass. The first combined regression was interrupted
-by laptop sleep and stopped by its watchdog, not credited as a pass.
-The awake rerun then fails two desktop-firmware test deadlines; 96 suites pass.
-That failing receipt remains retained. A within-file-only bound also fails;
-serializing files and concurrent native cases then passes all 97 suites/1688
-applicable cases with five existing explicit skips, preserving isolation,
-deadlines and within-case races. Types/build, repeated CLI behavior, negative
-self-tests and the benchmark pass. Final native/fresh-source acceptance remains
-open; native reopen exposed a separate Windows expansion-key mismatch, now fixed
-in `c2ec69b` with failing-then-passing store/React/native checks. Native GDB Stop
-has since exposed a separate disposed-callback lifecycle defect, now fixed with
-focused and real Stop/restart controls; final combined checks remain open. Follow
+The separately approved tooling steps are electron-vite 4.0.1, root Vite
+7.3.7 with the React plugin floor at 4.7.0, and Vitest 4.1.11. Electron 33.4.11
+and the PDF 4.0.3 compatibility hold remain unchanged. The preceding Vite-only
+checkpoint retained Vitest 2.1.9's compatible nested Vite 5.4.21; that is historical,
+not the current installed graph.
+
+Historical Vite verification failures remain in the validation ledger: laptop
+sleep/watchdog, two desktop-firmware deadlines, and an insufficient within-file
+bound were not credited as passes. Serial file/native-case scheduling preserves
+isolation, deadlines, assertions, skips and within-case races. The separately
+discovered Windows session expansion mismatch and debugger disposed-callback
+defect have failing-then-passing regressions and native controls. Follow
 [DEPENDENCY-REMEDIATION.md](DEPENDENCY-REMEDIATION.md) for separate major review,
 peer/engine compatibility, migration scope and approval before each install.
 Do not force test dependencies onto an incompatible Vite or waive findings as
-dev-only. The last recorded audit remains red: 31 findings, including three
-critical and 19 high. A local feature checkpoint is not a release approval.
+dev-only. A local feature checkpoint is not a release approval.
 
 The user subsequently approved the isolated Vitest 2.1.9 to 4.1.11 migration,
 to start after this combined/fresh-install baseline finishes. Its versioned
 v3/v4 migration and registry/advisory preflight is documented. After that baseline
 finishes, it is installed with only test-stack/live-command changes. The 277 focused
-cases, types/build and independent graph/native/config guards pass; full and
-new-lock fresh gates remain separate. The latest inclusive audit exits 1 with
+cases, full 99-suite/1797-case regression with the same five skips, types/build,
+firmware/benchmark commands and unchanged-runtime native acceptance pass.
+Independent graph/native/config guards pass. The separate new-lock normal fresh
+gate passes on an owned exact-archive D: fixture: normal scripts/dev/optional
+install, all 680 locked versions and the same 277 focused cases. Its first C:
+attempt failed for disk exhaustion with retained logs; fresh full regression/
+types/build/native ABI are not inferred. The latest inclusive audit exits 1 with
 25 findings (one critical, 18 high, six moderate), still blocking release.
 Electron/PDF and all existing verification floors stay unchanged.
 
@@ -157,8 +161,8 @@ the separately bounded dev/HMR checks also pass. The exact-source normal fresh
 locked install, types/build and native terminal controls now pass separately;
 this is not a fresh second full-suite result. The observed upstream explicit-kill
 ConPTY warning remains a bounded investigation task, not a clean-stderr claim.
-The approved isolated Vitest migration may now start; remaining majors still
-require separate review and approval.
+That baseline satisfied the prerequisite for the subsequent Vitest step above;
+remaining majors still require separate review and approval.
 
 ## External release gates
 

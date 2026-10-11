@@ -86,6 +86,10 @@ into release requirements. Preserve all unfinished external validation tasks.
    publication, and test failures without publishing a real release.
 8. Close the discovered existing AI-approval data-loss race with deferred store
    regressions, disk comparison and live buffer/project/proposal ownership checks.
+9. After closing the isolated Vitest upgrade, reproduce terminal-service stale
+   same-ID callbacks and deferred-create teardown with fake native boundaries.
+   Preserve natural output/exit, verify current-session native controls and keep
+   the separate ConPTY descendant/warning investigation explicitly bounded.
 
 Each slice needs focused failure-path tests, relevant types/build/runtime checks
 and a scoped commit. Full regression/firmware/audit checks close the combined pass.

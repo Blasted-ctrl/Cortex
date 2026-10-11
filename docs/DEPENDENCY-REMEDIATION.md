@@ -176,7 +176,11 @@ The next-major baseline condition is now satisfied. See the validation ledger.
 The user approved this isolated step on 2026-10-10, after the current combined
 and fresh-install gates finish. That baseline is complete; Vitest 4.1.11 is now
 installed; all 277 focused cases, types and production/tools build pass. The full
-combined and new-lock fresh-install gates are in progress.
+combined suite also passes: 99 files, 1797 cases and the same five explicit skips.
+Repeated firmware, negative self-tests and the ten-run benchmark pass. The
+unchanged-runtime desktop acceptance passes. The new-lock normal clean install
+also passes, followed by the same 12 focused suites/277 cases; its first C:
+attempt failed for disk exhaustion and remains recorded separately.
 The official registry lists Node
 20/22/24 and Vite 6/7/8 compatibility, so the pinned Node 22.20.0/root Vite 7.3.7
 meet its prerequisites. The maintainer still supports the 4.1 line with important
@@ -211,7 +215,12 @@ A disposable official npm 11.16.0 resolver, compatible with pinned Node 22.20.0,
 generates the lock without scripts; then the original pinned npm 10.9.3 installs
 that exact graph successfully with `--ignore-scripts` (10815 ms). No global
 package manager, Node/Electron runtime, CI pin, dependency override or peer bypass
-is changed. This is not yet proof of a normal fresh install of the new lock.
+is changed. That root install is not normal fresh-install proof; the separate
+exact-checkpoint D: fixture subsequently consumes the new lock with pinned npm
+10.9.3, normal scripts and optional/development dependencies, exit 0 (115859 ms).
+All 680 actual installed versions match the lock; all 277 focused cases pass
+(86140 ms parent), with no watchdogs. Archive/runtime/configuration guards remain
+unchanged. This gate does not repeat fresh full tests/types/build/native ABI checks.
 
 Independent before-tests review verifies installed Vitest/mocker 4.1.11 sharing
 root Vite 7.3.7, complete `npm ls --all` exit 0, removed vite-node/tinypool/nested
@@ -223,13 +232,38 @@ dependencies exits 1 in 4435 ms: 25 findings (one critical, 18 high, six moderat
 down from 31. The audit remains release-blocking; all other verification gates
 remain required. Historical failure receipts are retained, not converted to passes.
 
+## Next packaging candidate: reviewed, not approved or installed
+
+Read-only preflight identifies electron-builder 25.1.8 to 26.15.3 as a bounded
+next security step. Resolve that exact approved target, not an unrestricted
+range that silently selects a different minor: upstream also has 26.17.0 on
+its maintained v26 branch. The [immutable 26.15.3 release](https://github.com/electron-userland/electron-builder/releases/tag/electron-builder@26.15.3)
+and [v26 migration notes](https://github.com/electron-userland/electron-builder/releases/tag/v26.0.0)
+were reviewed against Cortex's YAML, CommonJS bundling hook and manual draft-only
+wrapper. No mandatory application/configuration migration is currently identified;
+removed signing/notarization/Linux desktop option shapes are not used. The tooling's
+effective [rebuild Node floor](https://raw.githubusercontent.com/electron/rebuild/v4.0.4/package.json)
+is 22.12.0, compatible with the existing 22.20.0 pin. Keep Electron, native/PDF
+versions, CommonJS output, CI pins and `npmRebuild: false` unchanged.
+
+The [AppImage path advisory](https://github.com/electron-userland/electron-builder/security/advisories/GHSA-7g7r-gx96-252g)
+requires app-builder-lib 26.15.0 or later. Its declared tar range is not enough:
+every affected resolved tar path must also reach at least the
+[7.5.21 fix](https://github.com/isaacs/node-tar/security/advisories/GHSA-r292-9mhp-454m).
+Before installation, this major still needs its separate user decision. Then
+review the packaging-only lock closure, installed peers/engines/config/native
+hashes and actual installed builder schema, matcher, CLI and publisher guard
+tests; rerun types/full tests/build/audit and unpublished packaged-app/native/
+bundled-CLI acceptance. Windows proof cannot establish macOS/Linux installers;
+the existing signing-helper symlink privilege limitation is not bypassed.
+
 ## Triage by code path
 
 | Package/group | Path to review | Current decision |
 |---|---|---|
 | Electron (high) | Shipped desktop runtime, preload isolation, navigation and native APIs | Release-blocking runtime upgrade and desktop/installer regression |
 | Vite/electron-vite (previous high/moderate) | Development server and renderer/backend builds | Approved Vite 7/electron-vite 4 installed; latest audit no longer flags these groups; upgrade validation remains required |
-| Vitest/tinypool (previous critical) | Test worker execution and optional UI/API server | Approved Vitest 4 installed and tinypool removed; latest audit no longer flags these groups; full/fresh verification remains required |
+| Vitest/tinypool (previous critical) | Test worker execution and optional UI/API server | Approved Vitest 4 installed and tinypool removed; latest audit no longer flags these groups; root full/native and new-lock normal install/focused gates pass, without waiving other findings |
 | tar/build packaging dependencies (critical) | electron-builder/native rebuild/cache archive handling | Review extraction paths and upgrade packaging stack; clean-machine packaging evidence required |
 | Chokidar/its transitive matching dependencies (high) | Desktop filesystem watcher and build tooling | Review actual dependency graph and watcher compatibility |
 | Tailwind/build dependencies (high), PostCSS (moderate) | Renderer CSS build/source maps | Review transitive fixes and CSS/migration regressions |

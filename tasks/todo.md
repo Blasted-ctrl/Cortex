@@ -163,7 +163,8 @@ system permissions or install a global CLI. Source checkpoints are saved separat
   each major upgrade individually. Do not replace a
   runtime still used by the user's open Cortex window.
 - [ ] Remediate/triage remaining audit findings: 25 total (18 high, one critical)
-  after the approved Vitest step; full/fresh verification remains separate.
+  after the approved, separately verified Vitest step; passing functional gates
+  do not waive these release-blocking findings.
 - [ ] Run the three-platform release workflow and validate real clean-install artifacts.
 - [ ] Validate real hardware, advanced Git/conflicts, recovery and human/outside-team trials.
 - [ ] Expand actual MCU/peripheral/electrical coverage; do not market inspection models
@@ -211,14 +212,22 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   Final implementation `c15627f` passes 99 suites/1797 cases plus the same five
   skips, types/build and CLI checks. Its separately archived normal install,
   types/build and native terminal pass; this is not a second fresh full-suite run.
-- [ ] After that combined/fresh-install baseline finishes, execute the separately
-  approved Vitest 2.1.9 to 4.1.11 test-stack migration. Preserve isolation,
-  scheduling, assertions, timeouts and skips; rerun checks and audit before any
-  other major upgrade. Electron/PDF remain unchanged.
+- [x] Complete the separately approved Vitest 2.1.9 to 4.1.11 test-stack migration
+  after the Vite baseline. Preserve isolation, scheduling, assertions, timeouts
+  and skips. Root full 99-suite/1797-case regression with the same five skips,
+  focused277/types/build/CLI/native checks pass. Exact-source new-lock normal
+  clean install plus 277 focused cases pass separately; first C: disk-space
+  failure is retained. Audit remains red at 25. Electron/PDF remain unchanged.
 - [ ] Investigate the observed upstream Windows ConPTY explicit-kill cleanup
   warning with owned child-process controls. Fresh terminal input, natural exit
   and kill pass, but this does not establish arbitrary pipeline cleanup or clean
   stderr. Keep this separate from the isolated Vitest dependency migration.
+- [ ] Separately reproduce and fix terminal-service ownership races: retired
+  same-ID callbacks must not affect a replacement, teardown must cancel a
+  deferred native load, and reentrant killAll must retire each owned session
+  once. Preserve active natural output/exit; explicit disposal is not an exit
+  acknowledgement. Unit and owned native controls cannot establish arbitrary
+  descendant teardown or fix the upstream ConPTY warning by themselves.
 - [x] Close the discovered manual release-script bypass of CI quality/audit and
   draft-only guards; verify exact-target rejection without real publication.
   All 84 focused guard cases pass, including fail-closed fake gate/API paths and

@@ -565,7 +565,7 @@ An archive of exact implementation `c15627f9a14a8b0e2f3dfe8e0a1a4664d9430518`
 was extracted into an owned temporary directory with no initial dependencies.
 Portable Node 22.20.0/npm 10.9.3 ran normal `npm ci --include=dev --include=optional`
 against the official registry, retaining lifecycle scripts and all optional/dev
-packages. Owned caches and process-local empty user/global npm configs avoid
+packages. An owned npm cache and process-local empty user/global npm configs avoid
 modifying original settings. Installation exits 0 in 95589 ms; complete dependency
 tree validation exits 0. Both types exit 0 in 41909 ms and production/tools build
 exits 0 in 103377 ms. No independent watchdog fires. Canonical manifest/lock
@@ -597,6 +597,13 @@ windows. Local artifacts live under Temp `cortex-fresh-c15627f-5c24cc1f32724249b
 This is fresh install/types/build/native evidence, not a second full-suite result,
 customer installer test, human trial, or an audit pass. The audit remains red at
 31 findings; the condition for starting the approved Vitest migration is satisfied.
+
+Cache-scope correction: that helper used `ELECTRON_CACHE`, which installed
+Electron 33's `install.js` does not consume. Its fresh executable and native
+results remain valid, but its binary ZIP cache was not proven isolated. The
+subsequent Vitest fixture uses the supported
+[`electron_config_cache`](https://www.electronjs.org/docs/latest/tutorial/installation#cache)
+in its owned directory, without changing user configuration or checksum checks.
 
 ## Approved isolated Vitest migration: installation and focused gate
 
@@ -639,11 +646,110 @@ Root types pass (40272 ms) and production/tools build passes (51477 ms), both
 exit 0 without watchdogs. Main/preload/renderer entry hashes remain identical to
 the pre-upgrade production build. The standalone development/optional-inclusive
 high-severity audit exits 1 (4435 ms): 25 findings, one critical/18 high/six moderate.
-It remains release-blocking. Full/CLI/native and new-lock normal fresh installation
-remain separate gates in progress. Root receipts are `.cortex/release-smoke/vitest4-*`; backup
+It remains release-blocking. Subsequent combined/native acceptance is recorded
+below; new-lock normal fresh installation is a separate passing gate below.
+Root receipts are `.cortex/release-smoke/vitest4-*`; backup
 and resolver controls are Temp `cortex-vitest4-before-f63fa3cf4c5241689ce39cb6a387ed09`.
 Independent review is retained with the preceding fresh-copy receipts under
 `post-vitest/independent-review.md`.
+
+### Post-upgrade combined regression and firmware commands
+
+Exact Node 22.20.0 runs actual Vitest 4.1.11 on checkpoint `88a9044` with the
+unchanged configuration: 99 suites, 1797 passes and the same five explicit skips,
+exit 0 (478.64 seconds Vitest; 480711 ms independent parent). The original
+isolation, serial scheduling, assertions and deadlines remain intact. Expected
+invalid-PDF diagnostics and owned local-bare-remote Git fixture output are retained;
+neither is a GitHub push. The parent watchdog does not fire.
+
+All three firmware scenarios repeat three times: nine passes, 29 assertions per
+suite, identical per-scenario trace hashes and unchanged virtual durations
+(31866 ms parent, exit 0). The self-test passes (22731 ms), retaining the broken
+shutdown failure at 480 ms virtual and the independently terminated hanging
+fixture's runner error. The ten measured benchmark runs plus two warmups pass
+(15453 ms), with identical traces and the unchanged workload fingerprint. Host
+median is 48.33 ms and p95 54.70 ms on the recorded Windows/Node 22/g++ 14.2 host;
+these are not virtual timing or a speed-improvement claim. The saved baseline is
+incompatible with the workload/shim and host Node, stays unchanged and produces
+no misleading comparison. CLI metadata records `88a9044` and a dirty worktree
+because the unrelated untracked file is preserved. All four gates exit 0 without
+parent watchdogs; this is not a new-lock fresh-install or remote CI result.
+
+### Post-upgrade unchanged-runtime desktop acceptance
+
+All 43 built output files, all 153 application/build source files and protected
+Electron/native binary hashes match the accepted pre-Vitest production snapshot.
+The genuine built CommonJS main/preload start in an owned Electron 33.4.11 profile;
+sandboxed/context-isolated renderer app-info IPC and actual native serial import/
+listing pass without opening a port. Exact selected-pane Ctrl+S disk bytes,
+external clean edit/Reload, create/rename/delete watcher updates and four tab
+switches pass. The PowerShell terminal produces a computed stdout marker and
+exits naturally. Actual PDF import/IPC uses the built parser worker, preserves
+exact text/sections and observes its exit; only the OS picker selection is
+substituted, not claimed verified. Top/underside, real WebGL pad hits 48-54 and
+GND, wheel/pan and readable pin detail captures pass without renderer exceptions.
+Negative IPC controls use constructed handler events, not native exploit attempts.
+
+The first editor probe wrongly equates Monaco's in-memory URI with a disk path.
+Its failed JSON/screenshot is retained; the ignored helper is corrected against
+actual CodeEditor source to check selected tab/path and rendered-pane containment.
+The passing probe changes no product code or deadline. Normal close releases the
+owned app, CLI, captured descendants and CDP listener; the unrelated user process
+is never targeted. The owned held-process receipt records exit 0. Native receipts
+and inspected PNGs are under Temp `cortex-md-desktop-ra4M3K/production/artifacts`,
+including `post-vitest-runtime-invariance.json`, `post-vitest-native-editor.json`,
+`post-vitest-pin-inspection-report.json` and `owned-normal-recovery-cleanup.json`.
+These controls do not repeat HMR/GDB/firmware or establish installer, hardware,
+default-shell descendant teardown or a fresh native ABI. The earlier explicit-kill
+ConPTY warning remains separate; the new-lock normal install/focused gate follows.
+
+### New-lock clean-install environmental failure
+
+The first exact `88a9044` archive fixture on C: fails normal pinned Node 22.20.0/
+npm 10.9.3 `ci --include=dev --include=optional` in 87015 ms, exit 4294963241.
+The actual error is `ENOSPC`, errno -4055, during writes; tar space errors and
+owned-directory cleanup warnings are retained. No parent watchdog fires, and
+tree/focused verification does not run. Root manifest/configuration and all 70
+protected runtime/native binary hashes remain unchanged. This is not credited as
+a passing installation or attributed to Vitest assertions.
+
+The complete attempt is preserved under Temp
+`cortex-vitest4-fresh-88a9044-1dffa31a68e641d485ed0fd9e8613ae4/receipts/install-attempt-1-enospc`.
+C: had roughly 630 MB free, insufficient for the normal dependency tree and
+caches. A new owned exact-archive fixture was prepared on the fixed NTFS D:
+drive, which had roughly 476 GB free. Only child-scoped temporary/configuration/
+cache paths change; original files, evidence, environment, tool versions and
+normal lifecycle/dev/optional installation requirements remain untouched.
+
+### New-lock normal clean installation and focused acceptance
+
+The same exact `88a904481a099442ff95af50f8317b9ee3cedccc` source archive, SHA256
+`a4581f55e914be565cf0d32882494471c404449f88fa25ca266712f71743c93d`, is extracted
+without initial dependencies under owned
+`D:/cortex-vitest4-fresh-88a9044-20261011-native-check`. The original immutable
+root-before guard is copied byte-for-byte, not replaced with a new baseline.
+Pinned Node 22.20.0/npm 10.9.3 consumes the committed new lock using normal
+`npm ci --include=dev --include=optional`, scripts enabled and the official registry:
+exit 0 in 115859 ms. Complete `npm ls --all` exits 0 (1455 ms); configuration
+inspection exits 0 (369 ms), with no omit or ignore-scripts override.
+
+Before tests, all 680 installed package versions match the lock, Vitest/mocker
+4.1.11 and both build plugins resolve compatible root Vite 7.3.7, and the obsolete
+vite-node/tinypool/nested Vite 5 stack is absent. Fresh Electron 33.4.11 distribution
+version and 70 runtime/native binary presences/hashes are recorded, not treated as
+native ABI execution. Its actual 115028145-byte ZIP is in the supported owned
+Electron cache and matches the package's embedded SHA256 checksum. User/global
+configuration, original manifest/lock bytes, nine protected package metadata
+files and all 70 original runtime/native binaries remain unchanged.
+
+The same 12 focused suites pass all 277 cases under actual fresh Vitest 4.1.11:
+exit 0, 82.15 seconds Vitest, 86140 ms independent parent, no new skips or watchdogs.
+Expected invalid-PDF diagnostics remain. The root independently reads result/log/
+graph/configuration/integrity evidence; owned receipts are in that D: fixture's
+`receipts` directory. This proves normal new-lock installation and focused test
+loading, not another fresh full-suite/types/build/native run, remote CI, signed
+installer or human trial. The preceding independent inclusive audit remains red
+at 25 findings; normal npm install success is not an audit pass or release approval.
 
 ## Native desktop checks
 
