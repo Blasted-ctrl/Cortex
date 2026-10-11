@@ -19,8 +19,8 @@ dock can be smaller than its saved minimum or have no adjustable range. The
 accessible values and keyboard endpoints must describe this displayed layout,
 not blindly copy persisted limits. No dependencies, new persistence entities,
 collapse state or global key listeners are needed. The user chose arrows and
-Home/End with hiding left on the existing controls, not Enter-to-hide. Native
-behavior is unobserved until this slice's desktop gate.
+Home/End with hiding left on the existing controls, not Enter-to-hide. Full
+native acceptance is pending; the diagnostic below is not that desktop gate.
 
 ## Acceptance Criteria
 
@@ -29,7 +29,7 @@ behavior is unobserved until this slice's desktop gate.
   wrapper. Hidden editor/bottom surfaces add no visible Tab stops.
 - A focused vertical splitter moves left/right with unmodified Left/Right;
   a horizontal splitter moves up/down with unmodified Up/Down. One ordinary key
-  event requests a ten-pixel physical move through the existing geometry owner.
+  event requests a ten-CSS-pixel move through the existing geometry owner.
   Right/bottom pane sizes therefore decrease when their divider moves right/down.
 - Home/End moves to the primary pane's current reachable minimum/maximum. Its
   announced current value and finite ordered limits use the same owner policy,
@@ -91,6 +91,11 @@ Keep clamping, persistence, sign conversion and fitted endpoints in the existing
    - Cover single/paired docks, Agent/Datasheets switches, fitted and spare space,
      truthful bounds, endpoints, saved preferences, tiny/zero layout recovery,
      hidden views, absent width, repeated keys and unchanged pointer outcomes.
+   - Extend the existing real App fixtures to assert the declared frame contract
+     for all four dock wrappers: suppress the border below a two-pixel owned
+     width/height, restore the ordinary frame at two pixels and on growth, and
+     retain fitted dimensions and saved preferences. These host style assertions
+     do not model computed CSS rectangles; native measurements supply that proof.
    - Add configurable measured `clientWidth` to the owned React host's element
      fixture. Exercise the actual EditorArea handler and local ratio; assert the
      left pane's rendered flex percentage after keyboard moves and endpoints,
@@ -112,6 +117,11 @@ Keep clamping, persistence, sign conversion and fitted endpoints in the existing
      stable IDs on actual wrappers in `SideBar.tsx`, `AiPanel.tsx`,
      `DatasheetsDock.tsx`, `BottomPanel.tsx` and the left editor pane. Update all
      affected component callers/tests; do not leave pointer-only holdouts.
+   - Keep normal one-pixel dock borders, but suppress their width when the owned
+     panel extent is below two pixels. A real border-box cannot fit both borders
+     into a smaller box. This wrapper-only correction preserves fitting,
+     endpoint preview and pointer policies; do not add a new frame allocation
+     floor, DPI state or guessed browser quantization epsilon.
 
 3. **Add local keyboard semantics and focus styling**
    - In `Splitter.tsx`, add a normal Tab stop, named separator/value relationships,
@@ -141,6 +151,14 @@ Keep clamping, persistence, sign conversion and fitted endpoints in the existing
 - Round 2: independent internal structure/scope reviews and the actual external
   read-only Codex review find no qualifying issues. The external receipt records
   unchanged reviewed bytes; its two criteria and overall verdict are ready.
+- Implementation review: a native diagnostic at 948x604, zoom 2 and observed
+  DPR 3 confirms two-pixel border floors despite a one-pixel paired budget.
+  Trusted End changes saved widths from 190/620 to 560/260 while both actual
+  rectangles and PNG bytes remain identical. Independent structural reviews
+  prefer a sub-two-pixel border override over a new fitting policy or replacing
+  every normal frame with outlines/padding. Ordinary zoom-out layouts remain
+  spacious under the existing minimum window; this reasoning is not proof for
+  every OS/DPI. Native acceptance and complete implementation review are pending.
 
 ## Verification
 
@@ -161,6 +179,11 @@ Keep clamping, persistence, sign conversion and fitted endpoints in the existing
   right-dock views, bottom panel and editor split. Check constrained/zoomed layout,
   hidden-view return and ordinary pointer dragging. Independently inspect PNGs;
   verify natural owned-process shutdown and unchanged source/runtime guards.
+- Revisit the measured one-pixel paired budget after the frame fix: actual
+  rectangles must track announced extents and move on a deliberate endpoint
+  change. Check zero/sub-two/exact-threshold dimensions and frame restoration;
+  do not substitute host styles for actual native geometry. Native window sizing
+  requests must be recorded separately from the sizes Windows actually returns.
 - No screen-reader/WCAG/APG certification, new remote-CI/installer acceptance,
   account/provider access, customer Git mutations or board flashing is implied.
 
