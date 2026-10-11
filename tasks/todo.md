@@ -174,6 +174,14 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 
 See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 
+- [x] Remove simulator tutorial clutter without hiding useful controls or errors.
+  Acceptance: no empty-canvas or duplicate wiring instruction banners in 2D/3D;
+  concise connection state, wiring/Cancel/Escape, pin details and warnings remain.
+  Verify: actual rendered regressions, owned desktop controls, types/build and
+  the full regression/firmware gates; preserve the separate release blockers.
+  Six focused suites/168 cases, native 2D/3D/wiring/pin/warning controls,
+  types/build, full 101-suite/1817-case regression plus the same five skips,
+  repeated firmware, negative self-tests and benchmark pass. Audit stays red.
 - [x] Exclude the renamed ESM tooling config from packages; actual electron-builder
   file-matcher regression fails before the fix and passes with application controls.
 - [x] Propagate firmware cancellation through compiler/run processes; verify an

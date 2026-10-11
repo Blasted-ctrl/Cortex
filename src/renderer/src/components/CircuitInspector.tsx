@@ -40,7 +40,7 @@ export default function CircuitInspector({ selectedId, onSelect }: { selectedId:
         {['motor', 'stepper', 'actuator'].includes(selected.type) && <p className="text-ide-muted">Driver-controlled signal model. No torque, load, current or driver chip emulation.</p>}
         <div className="flex gap-1"><button className="btn" onClick={() => s.rotatePart(selected.id)}>Rotate</button><button className="btn text-ide-danger" onClick={() => { s.removePart(selected.id); onSelect(null) }}>Delete part</button></div>
       </>}
-      {s.simWiring && <div className="rounded border border-ide-amber/40 p-1.5" role="status">Connecting {label({ kind: 'part', partId: s.simWiring.partId, pin: s.simWiring.pinName })}. Click a terminal or choose a board pin.
+      {s.simWiring && <div className="rounded border border-ide-amber/40 p-1.5" role="status">Connecting {label({ kind: 'part', partId: s.simWiring.partId, pin: s.simWiring.pinName })}
         <select aria-label="Connect to board pin" className="mt-1 w-full rounded border border-ide-border bg-ide-panel p-1" value="" onChange={(e) => { if (e.target.value !== '') s.attachWire(Number(e.target.value)) }}>
           <option value="">Board pin...</option>{def.pins.filter((p) => !p.inspectOnly).map((p, i) => <option key={`${p.pin}-${i}`} value={p.pin}>{p.label}{p.face === 'bottom' ? ' (underside)' : ''}</option>)}
         </select><button className="btn mt-1" onClick={s.cancelWire}>Cancel connection</button>

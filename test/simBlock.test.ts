@@ -41,11 +41,11 @@ describe('SimulatorView shows the block only over its own file', () => {
     expect(VIEW).toContain('simBlock.path === activePath')
   })
 
-  it('renders the panel, hides the wiring hint, and disables the palette on that flag', () => {
+  it('renders the panel and disables the palette without a tutorial overlay', () => {
     // The panel replaces the canvas only when blocked...
     expect(VIEW).toMatch(/\{blocked \? \(/)
-    // ...the "add a part" hint does not sit on top of it...
-    expect(VIEW).toContain('!blocked && simParts.length === 0')
+    // ...and tutorial text never overlays the canvas or blocked panel...
+    expect(VIEW).not.toContain('Add a part above, then click it and a board pin to wire it.')
     // ...and the palette cannot add parts onto a hidden canvas.
     expect(VIEW).toContain('disabled={blocked || !workspaceRoot}')
   })

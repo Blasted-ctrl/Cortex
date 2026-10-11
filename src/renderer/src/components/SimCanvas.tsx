@@ -327,12 +327,6 @@ export default function SimCanvas(): JSX.Element {
   return (
     <div className="relative h-full w-full overflow-hidden bg-[#080b11]">
       <CircuitInspector selectedId={selected} onSelect={setSelected} />
-      {wiring && (
-        <div className="absolute right-3 top-3 z-10 rounded-lg border border-ide-amber/50 bg-ide-bar/95 px-3 py-1.5 text-[11px] text-ide-amber shadow-lg">
-          Click a terminal to connect. Esc cancels.
-        </div>
-      )}
-
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}

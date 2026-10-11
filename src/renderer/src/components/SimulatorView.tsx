@@ -232,11 +232,6 @@ export default function SimulatorView(): JSX.Element {
             ) : (
               <SimCanvas />
             )}
-            {!blocked && simParts.length === 0 && (
-              <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-ide-border bg-ide-bar/85 px-3 py-1 text-[10px] text-ide-muted">
-                Add a part above, then click it and a board pin to wire it.
-              </div>
-            )}
           </div>
         </div>
 

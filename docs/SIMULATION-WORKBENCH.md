@@ -6,6 +6,10 @@ with host g++/clang++ and Cortex's Arduino shim. Only the Uno workflow is valida
 for firmware execution; choosing another board changes inspection and circuit
 checks, not the CPU or installed board target.
 
+The 2D and 3D canvas stay free of tutorial banners. The Circuit inspector shows
+the active connection and its controls; wiring instructions are below and in
+control tooltips. Pin labels, runtime limits and circuit findings remain available.
+
 ## Use it
 
 1. Open your local project folder and a supported `.ino` sketch. Open Simulator.

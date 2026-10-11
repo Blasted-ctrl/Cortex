@@ -866,6 +866,50 @@ Gate results/logs and complete CLI reports are retained under
 receipts. All other external release requirements and the separate ConPTY
 remediation remain open.
 
+## Simulator canvas text cleanup (2026-10-10)
+
+On parent `7e72001`, remove the shared empty-canvas tutorial banner, the duplicate
+2D wiring banner and the inspector's instructional sentence. Keep the concise
+connection source, selector/Cancel, Escape handling, pin labels, blocked-state
+remedies and circuit warnings. The walkthrough remains in
+[the workbench guide](SIMULATION-WORKBENCH.md); no new setting or dependency is added.
+
+Four actual React/store cases cover empty/populated canvases, wiring and compiler
+blocking. They use real components/store with the existing fake host; browser
+layout and WebGL visibility are verified separately below. Before the fix, the
+focused run fails three cases with 165 passes; afterward all six suites/168 cases
+pass. Both typechecks and the production/tools
+build exit 0 under pinned Node 22.20.0/npm 10.9.3. Independent review finds no
+scoped blocker or weakened assertions/skips/deadlines.
+
+The genuine production Electron run uses new owned
+`D:/cortex-native-smoke/cortex-simulator-clutter-gXlNrY`. All 43 copied output
+hashes match the root build. Actual clicks verify empty 2D/3D views without the
+banners, Underside/Pin labels, LED SIG-to-D13 wiring, Cancel/Escape, pin functions,
+a missing-ground finding and saving only that owned circuit. Root inspects all
+seven PNGs and the actual reports. Ordinary close exits 0; all 33 captured exact
+PID/creation-time identities are gone and CDP 9362 is released. Eight guarded
+source/config/manifest/Electron hashes and the copied output remain unchanged.
+Zero renderer exceptions are recorded; two WebGL context-loss INFO lines and
+the expected DevTools listener remain in raw logs. Startup tool-version discovery
+and LSP initialization are not a firmware build/run, PTY or hardware operation.
+Reports and images are retained in that owned directory's `artifacts` folder.
+
+The final full regression exits 0: 101 files, 1817 passes and the same five
+explicit skips (466485 ms parent). Nine firmware runs pass all 29 assertions
+per scenario set with identical repeated traces (39692 ms). The negative
+self-test catches the broken shutdown at virtual 480 ms and the hanging fixture
+with its independent 1000 ms wall-clock limit (30811 ms parent, exit 0). The
+benchmark passes ten measured runs/two warmups with identical traces (17301 ms);
+host median/p95 are 58.99/182.32 ms. Its saved baseline is incompatible, so no
+performance comparison is credited. Raw gate logs, exit receipts and complete
+CLI reports are retained under ignored `.cortex/release-smoke/` with the prefix
+`simulator-clutter-final`. No independent gate watchdog fires.
+
+The refreshed inclusive audit still exits 1 with 25 findings (one critical,
+18 high and six moderate). This UI cleanup does not waive security remediation,
+ConPTY remediation or external customer-release validation.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,
