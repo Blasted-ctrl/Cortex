@@ -7,6 +7,7 @@ import type {
   RunExit,
   RunDiagnostics,
   Diagnostic,
+  DiagnosticCapture,
   SerialPortDescriptor,
   CppStandard,
   CStandard,
@@ -157,6 +158,7 @@ export function workspaceScopedReset(): Record<string, unknown> {
     lastExitCode: null,
     output: [],
     diagnostics: [],
+    diagnosticCapture: null,
     firmwareTestRunId: null,
     firmwareTestRunning: false,
     firmwareTestStopping: false,
@@ -412,6 +414,7 @@ async function runPackageOp(
     lastExitCode: null,
     output: [],
     diagnostics: [],
+    diagnosticCapture: null,
     bottomView: 'output',
     bottomVisible: true
   })
@@ -516,6 +519,7 @@ interface State {
   lastExitCode: number | null
   output: OutputLine[]
   diagnostics: Diagnostic[]
+  diagnosticCapture: DiagnosticCapture | null
   firmwareTestRunId: string | null
   firmwareTestRunning: boolean
   firmwareTestStopping: boolean
@@ -1080,6 +1084,7 @@ export const useStore = create<State>((set, get) => ({
   lastExitCode: null,
   output: [],
   diagnostics: [],
+  diagnosticCapture: null,
   firmwareTestRunId: null,
   firmwareTestRunning: false,
   firmwareTestStopping: false,
@@ -2048,6 +2053,7 @@ export const useStore = create<State>((set, get) => ({
         lastExitCode: null,
         output: [],
         diagnostics: [],
+        diagnosticCapture: null,
         bottomView: 'output',
         bottomVisible: true
       })
@@ -2189,7 +2195,7 @@ export const useStore = create<State>((set, get) => ({
     // `diagnostics`, a previous Run's errors were wiped with nothing replacing
     // them - strictly worse than not having tried.
     if (d.id !== get().runId && d.id !== get().simRunId && d.id !== get().debugRunId) return
-    set({ diagnostics: d.diagnostics })
+    set({ diagnostics: d.diagnostics, diagnosticCapture: d.capture ?? null })
     if (d.diagnostics.length > 0 && d.id === get().simRunId) {
       // The simulator view does not render the bottom panel, so surfacing
       // Problems there would show nothing. Return to the editor, where the
@@ -2750,7 +2756,7 @@ export const useStore = create<State>((set, get) => ({
     // describe a different toolchain/core, so they must not linger in Problems
     // or be reused as missing-dependency evidence for the new board.
     const changed = fqbn !== get().selectedFqbn
-    set(changed ? { selectedFqbn: fqbn, diagnostics: [] } : { selectedFqbn: fqbn })
+    set(changed ? { selectedFqbn: fqbn, diagnostics: [], diagnosticCapture: null } : { selectedFqbn: fqbn })
     void get().persistProjectConfig({ boardFqbn: fqbn })
   },
   setBoardAndPort(fqbn, port) {
@@ -2758,7 +2764,7 @@ export const useStore = create<State>((set, get) => ({
     // single Board+Port selection does. serialPath is that shared port.
     if (fqbn) {
       const changed = fqbn !== get().selectedFqbn
-      set(changed ? { selectedFqbn: fqbn, diagnostics: [] } : { selectedFqbn: fqbn })
+      set(changed ? { selectedFqbn: fqbn, diagnostics: [], diagnosticCapture: null } : { selectedFqbn: fqbn })
       void get().persistProjectConfig({ boardFqbn: fqbn })
     }
     if (port) get().setSerialPath(port)
@@ -2783,6 +2789,7 @@ export const useStore = create<State>((set, get) => ({
         lastExitCode: null,
         output: [],
         diagnostics: [],
+        diagnosticCapture: null,
         bottomView: 'output',
         bottomVisible: true
       })
@@ -2858,6 +2865,7 @@ export const useStore = create<State>((set, get) => ({
         lastExitCode: null,
         output: [],
         diagnostics: [],
+        diagnosticCapture: null,
         bottomView: 'output',
         bottomVisible: true
       })
@@ -2947,6 +2955,7 @@ export const useStore = create<State>((set, get) => ({
       debugRunId,
       output: [],
       diagnostics: [],
+      diagnosticCapture: null,
       bottomView: 'output',
       bottomVisible: true,
       sidebarView: 'debug',
