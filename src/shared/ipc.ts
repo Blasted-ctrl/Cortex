@@ -644,6 +644,8 @@ export interface AgentRunRequest {
 export interface AgentStagedEdit {
   path: string
   oldContent: string
+  /** Main-derived reviewed existence. Omitted evidence is unknown, not absent. */
+  originalExists?: boolean
   newContent: string
   summary?: string
   /** Set when the file could not be read or the path was refused; the UI shows

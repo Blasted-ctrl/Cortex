@@ -36,10 +36,20 @@ external change. Real external edits still trigger the existing conflict guard.
 `test/agentEditApprovalFilesystem.test.ts` exercises approval followed by ordinary
 save against the native filesystem, including the genuine external-edit refusal.
 
-Creating a file requires an absent, unopened path and an empty reviewed old
-content. The current proposal format cannot distinguish this from a deleted
-empty file that was not open. Disk comparison is not an OS-level atomic
-compare-and-swap; see [file save boundaries](PROJECTS.md).
+Each new proposal records whether the main process actually read an existing
+text file or received a missing-file error. The model cannot supply this fact.
+Only confirmed absence is labeled **new**; an existing empty file is not new.
+Approval checks this reviewed existence as well as contents: deleting a reviewed
+empty file or creating a previously absent target requires a fresh proposal,
+even if the new target is empty. Unreadable, binary and oversized files cannot
+be treated as creations.
+
+Creating a file requires confirmed reviewed absence, a still-absent unopened
+path and empty reviewed old content. Older memory-local proposals that did not
+record existence can still modify matching nonempty text. An empty original
+without that fact is ambiguous and shows **needs re-run**; ask the agent for a
+fresh diff. Disk comparison is not an OS-level atomic compare-and-swap; see
+[file save boundaries](PROJECTS.md).
 The approval card locks while applying; Reject is a pending-proposal action,
 not cancellation or undo of a dispatched filesystem write. Successful edits
 remain ordinary disk files; use the editor or your [Git workflow](GIT.md) to
@@ -59,6 +69,8 @@ review or reverse them. This is not an atomic multi-file transaction.
   Autonomous repository-wide edits, schematic image analysis, MCP flashing and
   register/test-execution tools are not implemented by this workflow.
 
-Provider connectivity is not established by local fixture tests. Current
+Local proposal tests exercise the real producer and filesystem with only the
+provider transport and Electron host substituted. They do not establish real
+provider connectivity. Current
 verification and remaining release checks are in
 [Release validation](RELEASE-VALIDATION.md).

@@ -34,7 +34,7 @@ async function approve(bom: string): Promise<string> {
   await fs.writeFile(path, original, 'utf8')
   await useStore.getState().openFile(path)
   useStore.setState({ agentEdits: [{
-    id: 'edit-1', path, oldContent: original.replace(/\r\n/g, '\n'), newContent: '// approved\n', status: 'pending'
+    id: 'edit-1', path, oldContent: original.replace(/\r\n/g, '\n'), newContent: '// approved\n', originalExists: true, status: 'pending'
   }] })
   await useStore.getState().approveAgentEdit('edit-1')
   expect(useStore.getState().agentEdits[0].status).toBe('approved')
@@ -72,5 +72,51 @@ describe.each([{ name: 'CRLF', bom: '' }, { name: 'BOM/CRLF', bom: '\ufeff' }])(
     })
     expect(useStore.getState().tabs[0].content).not.toBe(useStore.getState().tabs[0].savedContent)
     expect(await fs.readdir(fixture)).toEqual(['main.cpp'])
+  })
+})
+
+describe('reviewed existence through the native filesystem', () => {
+  function stage(originalExists: boolean | undefined): void {
+    useStore.setState({ agentEdits: [{ id: 'edit-1', path, oldContent: '', newContent: '// reviewed\n', originalExists, status: 'pending' }] })
+  }
+
+  it.each([true, false])('applies an unchanged empty snapshot whose reviewed existence is %s', async originalExists => {
+    if (originalExists) await fs.writeFile(path, '')
+    stage(originalExists)
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(useStore.getState().agentEdits[0].status).toBe('approved')
+    expect(await fs.readFile(path)).toEqual(Buffer.from('// reviewed\n', 'utf8'))
+    expect(await fs.readdir(fixture)).toEqual(['main.cpp'])
+    expect(useStore.getState().tabs).toEqual([])
+  })
+
+  it('does not recreate an existing empty file deleted after review', async () => {
+    await fs.writeFile(path, '')
+    stage(true)
+    await fs.unlink(path)
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(useStore.getState().agentEdits[0]).toMatchObject({ status: 'stale', error: expect.stringMatching(/re-run/i) })
+    expect(await fs.readdir(fixture)).toEqual([])
+    expect(useStore.getState().tabs).toEqual([])
+  })
+
+  it.each(['', '// external\r\n'])('preserves a previously absent target externally created with %j', async content => {
+    stage(false)
+    await fs.writeFile(path, content, 'utf8')
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(useStore.getState().agentEdits[0].status).toBe('stale')
+    expect(await fs.readFile(path)).toEqual(Buffer.from(content, 'utf8'))
+    expect(await fs.readdir(fixture)).toEqual(['main.cpp'])
+    expect(useStore.getState().tabs).toEqual([])
+  })
+
+  it.each([true, false])('refuses ambiguous legacy empty proposals when the target exists=%s', async exists => {
+    if (exists) await fs.writeFile(path, '')
+    stage(undefined)
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(useStore.getState().agentEdits[0]).toMatchObject({ status: 'stale', error: expect.stringMatching(/re-run/i) })
+    expect(await fs.readdir(fixture)).toEqual(exists ? ['main.cpp'] : [])
+    if (exists) expect(await fs.readFile(path)).toEqual(Buffer.alloc(0))
+    expect(useStore.getState().tabs).toEqual([])
   })
 })

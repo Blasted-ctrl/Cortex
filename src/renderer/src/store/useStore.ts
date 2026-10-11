@@ -282,6 +282,8 @@ export interface AgentEdit {
   path: string
   oldContent: string
   newContent: string
+  // A missing legacy fact is unknown, not evidence that an empty file was absent.
+  originalExists?: boolean
   summary?: string
   error?: string
   status: 'pending' | 'applying' | 'approved' | 'rejected' | 'failed' | 'stale'
@@ -858,6 +860,10 @@ let sessionRestoringRoot: string | null = null
 let sessionInteractionEpoch = 0
 let workspaceGeneration = 0
 const directoryReadTokens = new Map<string, object>()
+function isMissingFileRead(error: unknown): boolean {
+  // Electron serializes errno into this prefix; a quoted path is not evidence.
+  return error instanceof Error && /^(?:Error invoking remote method 'fs:readFile': )?(?:Error: )?ENOENT:/.test(error.message)
+}
 function savedSessions(): WorkspaceSession[] {
   try { return decodeSessions(localStorage.getItem(SESSION_STORAGE_KEY)) } catch { return [] }
 }
@@ -2397,8 +2403,7 @@ export const useStore = create<State>((set, get) => ({
         current = r.content
       } catch (error) {
         if (!owns()) return
-        // Electron invoke preserves the Error message, not its Node errno code.
-        if (!(error instanceof Error) || !/\bENOENT:/.test(error.message)) throw error
+        if (!isMissingFileRead(error)) throw error
         if (initialTab || liveTab() || edit.oldContent !== '' || await window.api.exists(edit.path)) {
           setStatus({ status: 'stale', error: 'The file disappeared or changed since this was proposed. Re-run the agent.' })
           return
@@ -2406,6 +2411,11 @@ export const useStore = create<State>((set, get) => ({
         current = null
       }
       if (!owns()) return
+      if ((edit.originalExists === undefined && edit.oldContent === '') ||
+        (edit.originalExists !== undefined && edit.originalExists !== (current !== null))) {
+        setStatus({ status: 'stale', error: 'The file existence changed or was not recorded. Re-run the agent to see a fresh diff.' })
+        return
+      }
       if (normalizeEol(current ?? '') !== normalizeEol(edit.oldContent)) {
         setStatus({ status: 'stale', error: 'The file changed since this was proposed. Re-run the agent to see a fresh diff.' })
         return

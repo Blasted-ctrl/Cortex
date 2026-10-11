@@ -211,7 +211,7 @@ const STATUS_LABEL: Record<string, string> = {
 function EditCard({ edit, root }: { edit: AgentEdit; root: string | null }): JSX.Element {
   const approveAgentEdit = useStore((s) => s.approveAgentEdit)
   const rejectAgentEdit = useStore((s) => s.rejectAgentEdit)
-  const isNew = edit.oldContent === '' && !edit.error
+  const isNew = edit.originalExists === false && !edit.error
   // Truncation guard: warn when a rewrite drops most of an existing file, the
   // one thing a whole-file replacement gets dangerously wrong and a diff alone
   // can bury.

@@ -251,8 +251,8 @@ async function execTool(
         return err(`Error: refused, path is outside the workspace: ${p}`)
       }
       let oldContent = ''
-      let isNew = true
-      if (await fsService.exists(abs)) {
+      let originalExists = true
+      try {
         const r = await fsService.readFile(abs)
         if (r.kind === 'binary' || r.kind === 'too-large') {
           const reason = r.kind === 'binary' ? 'a binary file' : 'too large to edit'
@@ -260,11 +260,13 @@ async function execTool(
           return err(`Error: ${p} is ${reason}.`)
         }
         oldContent = r.content
-        isNew = false
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        originalExists = false
       }
-      const edit: AgentStagedEdit = { path: abs, oldContent, newContent, summary }
+      const edit: AgentStagedEdit = { path: abs, oldContent, originalExists, newContent, summary }
       emit(win, { id: req.id, kind: 'edit', edit })
-      return ok(`Edit staged for ${isNew ? 'a new file ' : ''}${p}. It is shown to the engineer for review and has NOT been applied.`)
+      return ok(`Edit staged for ${originalExists ? '' : 'a new file '}${p}. It is shown to the engineer for review and has NOT been applied.`)
     }
 
     return err(`Error: unknown tool ${name}.`)

@@ -19,8 +19,8 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function proposal(oldContent = 'original', newContent = 'reviewed') {
-  return { id: 'edit-1', path, oldContent, newContent, status: 'pending' as const }
+function proposal(oldContent = 'original', newContent = 'reviewed', originalExists: boolean | undefined = true) {
+  return { id: 'edit-1', path, oldContent, newContent, originalExists, status: 'pending' as const }
 }
 
 function tab(content = 'original') {
@@ -84,11 +84,55 @@ describe('actual store reviewed agent-edit approval', () => {
 
   it('creates a new file only after serialized ENOENT and confirmed absence', async () => {
     disk.delete(path)
-    useStore.setState({ tabs: [], agentEdits: [proposal('', 'new file')] })
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'new file', false)] })
     await useStore.getState().approveAgentEdit('edit-1')
     expect(disk.get(path)).toBe('new file')
     expect(api.writeFile).toHaveBeenCalledWith(path, 'new file', null)
     expect(useStore.getState().agentEdits[0].status).toBe('approved')
+  })
+
+  it('does not recreate a reviewed existing empty file deleted without an open tab', async () => {
+    disk.delete(path)
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement', true)] })
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(api.writeFile).not.toHaveBeenCalled()
+    expect(disk.has(path)).toBe(false)
+    expect(useStore.getState().agentEdits[0]).toMatchObject({ status: 'stale', error: expect.stringMatching(/re-run/i) })
+  })
+
+  it.each(['', 'external content'])('does not replace a reviewed absent target subsequently created with %j', async content => {
+    disk.set(path, content)
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement', false)] })
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(api.writeFile).not.toHaveBeenCalled()
+    expect(disk.get(path)).toBe(content)
+    expect(useStore.getState().agentEdits[0].status).toBe('stale')
+  })
+
+  it.each(['existing', 'missing'])('requires fresh review for a legacy empty proposal with an %s target', async state => {
+    if (state === 'existing') disk.set(path, '')
+    else disk.delete(path)
+    useStore.setState({ tabs: [], agentEdits: [{ ...proposal('', 'replacement'), originalExists: undefined }] })
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(api.writeFile).not.toHaveBeenCalled()
+    expect(disk.has(path)).toBe(state === 'existing')
+    if (state === 'existing') expect(disk.get(path)).toBe('')
+    expect(useStore.getState().agentEdits[0]).toMatchObject({ status: 'stale', error: expect.stringMatching(/re-run/i) })
+  })
+
+  it('keeps legacy nonempty proposals compatible with a matching existing file', async () => {
+    useStore.setState({ agentEdits: [{ ...proposal(), originalExists: undefined }] })
+    await useStore.getState().approveAgentEdit('edit-1')
+    expect(api.writeFile).toHaveBeenCalledWith(path, 'reviewed', 'original')
+    expect(disk.get(path)).toBe('reviewed')
+    expect(useStore.getState().agentEdits[0].status).toBe('approved')
+  })
+
+  it.each([true, false])('retains the main-process existence fact %s when receiving an edit event', originalExists => {
+    useStore.setState({ agentRunId: 'owned-run', agentEdits: [], agentLog: [] })
+    useStore.getState().handleAgentEvent({ id: 'owned-run', kind: 'edit', edit: { path, oldContent: '', newContent: 'reviewed', originalExists } })
+    expect(useStore.getState().agentEdits).toEqual([expect.objectContaining({ path, originalExists, status: 'pending' })])
+    expect(useStore.getState().agentLog).toEqual([{ type: 'edit', editId: useStore.getState().agentEdits[0].id }])
   })
 
   it('refuses an initially dirty editor buffer', async () => {
@@ -153,7 +197,7 @@ describe('actual store reviewed agent-edit approval', () => {
 
   it('refuses a new target created between the absence check and write', async () => {
     disk.delete(path)
-    useStore.setState({ tabs: [], agentEdits: [proposal('', 'new file')] })
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'new file', false)] })
     api.writeFile.mockImplementationOnce(async (...args: Parameters<typeof commit>) => {
       disk.set(path, 'external new file')
       await commit(...args)
@@ -284,7 +328,13 @@ describe('actual store reviewed agent-edit approval', () => {
     expect(useStore.getState().tabs[0].content).toBe('original')
   })
 
-  it.each(['EACCES: access denied', 'Unable to read file'])('fails closed on %s for an empty proposal', async message => {
+  it.each([
+    'EACCES: access denied',
+    'Unable to read file',
+    "EACCES: permission denied, open '/project/ENOENT:main.cpp'",
+    "Error invoking remote method 'fs:readFile': Error: EACCES: permission denied, open '/project/ENOENT:main.cpp'",
+    "Refused file '/project/ENOENT:main.cpp' outside the workspace"
+  ])('fails closed on %s for an empty proposal', async message => {
     disk.set(path, '')
     useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement')] })
     api.readFile.mockRejectedValueOnce(new Error(message))
@@ -315,7 +365,7 @@ describe('actual store reviewed agent-edit approval', () => {
 
   it('refuses an ENOENT result if the target now exists', async () => {
     disk.set(path, '')
-    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement')] })
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement', false)] })
     api.readFile.mockRejectedValueOnce(missing())
     await useStore.getState().approveAgentEdit('edit-1')
     expect(api.writeFile).not.toHaveBeenCalled()
@@ -324,7 +374,7 @@ describe('actual store reviewed agent-edit approval', () => {
 
   it('fails closed when confirming absence fails', async () => {
     disk.delete(path)
-    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement')] })
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement', false)] })
     api.exists.mockRejectedValueOnce(new Error('Access denied'))
     await useStore.getState().approveAgentEdit('edit-1')
     expect(api.writeFile).not.toHaveBeenCalled()
@@ -334,7 +384,7 @@ describe('actual store reviewed agent-edit approval', () => {
 
   it('rechecks a tab opened while confirming a new target is absent', async () => {
     disk.delete(path)
-    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement')] })
+    useStore.setState({ tabs: [], agentEdits: [proposal('', 'replacement', false)] })
     const absence = deferred<boolean>()
     api.exists.mockReturnValueOnce(absence.promise)
     const approval = useStore.getState().approveAgentEdit('edit-1')
