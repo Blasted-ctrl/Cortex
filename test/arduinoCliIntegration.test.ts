@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   beginRunStart: vi.fn(() => new AbortController().signal),
   finishRunStart: vi.fn(),
   runStartCancelled: vi.fn(() => false),
-  emitDiagnostics: vi.fn(),
+  emitCapturedDiagnostics: vi.fn(),
   additionalUrls: [] as string[]
 }))
 
@@ -34,7 +34,7 @@ vi.mock('../src/main/services/runnerService', () => ({
   beginRunStart: mocks.beginRunStart,
   finishRunStart: mocks.finishRunStart,
   runStartCancelled: mocks.runStartCancelled,
-  emitDiagnostics: mocks.emitDiagnostics
+  emitCapturedDiagnostics: mocks.emitCapturedDiagnostics
 }))
 vi.mock('../src/main/services/settingsService', () => ({
   getSettings: async () => ({ boards: { additionalUrls: mocks.additionalUrls } })

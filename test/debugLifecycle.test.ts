@@ -12,7 +12,7 @@ vi.mock('child_process', () => ({ spawn: mocks.spawn, execFile: vi.fn() }))
 vi.mock('fs/promises', () => ({ mkdir: mocks.mkdir }))
 vi.mock('../src/main/services/fsService', () => ({ withinWorkspace: () => true, getWorkspaceRoot: () => null }))
 vi.mock('../src/main/services/commandResolver', () => ({ safeCommand: (command: string) => command, needsShell: () => false }))
-vi.mock('../src/main/services/runnerService', () => ({ emitDiagnostics: mocks.diagnostics }))
+vi.mock('../src/main/services/runnerService', () => ({ emitCapturedDiagnostics: mocks.diagnostics }))
 import * as debug from '../src/main/services/debugService'
 
 class FakeChild extends EventEmitter {
@@ -256,7 +256,9 @@ describe('actual debugger child lifecycle', () => {
     children[0].emit('close', 1)
     await starting
     expect(mocks.spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['-g', '-O0', '-std=c++20', '-Wall', request().filePath]))
-    expect(mocks.diagnostics).toHaveBeenCalledWith(win, 'debug', 'main.cpp:4: error: expected expression\n', cwd)
+    expect(mocks.diagnostics).toHaveBeenCalledWith(win, 'debug', {
+      diagnostics: [{ file: join(cwd, 'main.cpp'), line: 4, column: 1, severity: 'error', message: 'expected expression', code: undefined }]
+    })
     expect(send).toHaveBeenCalledWith(IPC.DEBUG_STATE, expect.objectContaining({ status: 'exited', error: 'Build failed. Fix the errors and try again.' }))
   })
 

@@ -10,29 +10,19 @@ import {
   parseRustJsonDiagnostics,
   renderRustJsonLine,
   isCargoJsonLine,
-  isBuildFinished,
-  cargoRenderedMessage,
-  parseCargoDiagnostics
+  getCargoBuildOutcome,
+  cargoRenderedMessage
 } from '../../shared/diagnostics'
 import { isAllowedCommand, isBareCommand, commandBaseName, sanitizeExtraArgs, OPT_LEVELS } from '../../shared/security'
 import { withinWorkspace, getWorkspaceRoot } from './fsService'
 import { safeCommand, commandMissing, needsShell } from './commandResolver'
 import { reserveRunOutput, deliverRunOutput, deliverRunExit, finishRunOutput, acknowledgeRunOutput, disposeRunOutput } from './runOutputDelivery'
+import { COMPILER_DIAGNOSTIC_LIMITS, createCompilerDiagnostics, createCompilerRecordStream, type CompilerDiagnosticsResult } from './compilerDiagnostics'
 
 const IS_WIN = platform() === 'win32'
 
-/** Longest un-newlined stdout run held back while deciding if it is a machine
- * record. Cargo's records are one short line; anything larger is program output. */
-// A cargo record is one line, but a diagnostic with a large `rendered` field on
-// generic-heavy code can be hundreds of KB, so the bound has to clear a real
-// record comfortably. Past it we assume program output and let it through.
-const MAX_PARTIAL_BYTES = 1024 * 1024
-/** Same ceiling parseDiagnostics uses per build, so streaming per record cannot
- * regress it into "500 per record, unbounded overall". */
-const MAX_DIAGNOSTICS = 500
 // How long a possible-machine-record partial may be withheld before it is shown
-// as program output. Long enough that a record split across chunks reassembles,
-// short enough that a blocked prompt does not read as a hang.
+// without claiming it proves compilation succeeded.
 const PARTIAL_HOLD_MS = 250
 
 interface ActiveRun {
@@ -88,6 +78,12 @@ export function emitDiagnostics(win: BrowserWindow, id: string, stderr: string, 
   }))
   send(win, IPC.RUN_DIAGNOSTICS, { id, diagnostics })
   return diagnostics
+}
+
+/** Publish a bounded, already cwd-normalized compilation result. */
+export function emitCapturedDiagnostics(win: BrowserWindow, id: string, result: CompilerDiagnosticsResult): Diagnostic[] {
+  send(win, IPC.RUN_DIAGNOSTICS, { id, ...result })
+  return result.diagnostics
 }
 
 /**
@@ -214,11 +210,11 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
     proc.stdout?.setEncoding('utf8')
     proc.stderr?.setEncoding('utf8')
     proc.stdin?.on('error', () => {})
-    let stderrBuf = ''
+    const capture = createCompilerDiagnostics({ cwd: req.cwd, format: 'text', ...COMPILER_DIAGNOSTIC_LIMITS })
     proc.stdout?.on('data', (d) => out(win, req.id, 'stdout', d.toString()))
     proc.stderr?.on('data', (d) => {
       const text = d.toString()
-      stderrBuf += text
+      capture.write(text)
       out(win, req.id, 'stderr', text)
     })
     proc.on('error', (err) => {
@@ -228,7 +224,7 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
       if (active.get(req.id)?.child === proc) active.delete(req.id)
       const durationMs = elapsed(start)
       // Parse diagnostics on both success (warnings) and failure (errors).
-      emitDiagnostics(win, req.id, stderrBuf, req.cwd)
+      emitCapturedDiagnostics(win, req.id, capture.finish())
       if (cancellation.aborted || win.isDestroyed()) {
         exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
         resolve(null)
@@ -314,32 +310,25 @@ async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: Ab
     proc.stderr?.setEncoding('utf8')
     proc.stdin?.on('error', () => {})
     proc.stdout?.on('data', (d) => out(win, req.id, 'stdout', d.toString()))
-    // Buffer the raw JSON for span-accurate diagnostics, but show the user
-    // rustc's own `rendered` text: with --error-format=json the stream is JSON
-    // records, and dumping those into the Output panel would be unreadable.
-    // Chunks split mid-line, so carry the partial line across events.
-    let stderrBuf = ''
-    let partial = ''
-    proc.stderr?.on('data', (d) => {
-      const text = d.toString()
-      stderrBuf += text
-      partial += text
-      const lines = partial.split(/\r?\n/)
-      partial = lines.pop() ?? ''
-      const rendered = lines.map(renderRustJsonLine).join('')
-      if (rendered) out(win, req.id, 'stderr', rendered)
+    let omissionShown = false
+    const capture = createCompilerDiagnostics({
+      cwd: req.cwd, format: 'rust', ...COMPILER_DIAGNOSTIC_LIMITS,
+      onRecord(record) {
+        const rendered = renderRustJsonLine(record)
+        if (rendered) out(win, req.id, 'stderr', rendered)
+      },
+      onOmitted(bytes) {
+        if (!bytes || omissionShown) return
+        omissionShown = true
+        out(win, req.id, 'system', 'An oversized compiler record was skipped; diagnostics may be incomplete.\n')
+      }
     })
+    proc.stderr?.on('data', (d) => capture.write(d.toString()))
     proc.on('error', (err) => out(win, req.id, 'stderr', spawnErrorText('rustc', err)))
     proc.on('close', (code, signal) => {
       if (active.get(req.id)?.child === proc) active.delete(req.id)
       const durationMs = elapsed(start)
-      // Flush any trailing partial line, then emit span-accurate diagnostics
-      // from the JSON records (on success too, so warnings surface).
-      if (partial) {
-        const tail = renderRustJsonLine(partial)
-        if (tail) out(win, req.id, 'stderr', tail)
-      }
-      emitRustDiagnostics(win, req.id, stderrBuf, req.cwd)
+      emitCapturedDiagnostics(win, req.id, capture.finish())
       if (cancellation.aborted || win.isDestroyed()) {
         exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
         resolve(null)
@@ -356,16 +345,14 @@ async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: Ab
 }
 
 interface RunProcessOpts {
-  /** Called when runProcess decides a run of stdout is the program's own output
-   *  rather than a machine record (the spill paths). mapStdoutLine only ever
-   *  sees whole, unspilled lines, so without this a spilled record silently
-   *  disabled every build-finished signal the caller was waiting for. */
-  onProgramOutput?: () => void
   /** Rewrite a stdout line for display; return null to hide it entirely.
    * Used to keep cargo's machine records out of the panel while still showing
    * the human text they carry. Side effects (emitting diagnostics) belong here
    * too, so they happen as records arrive rather than at exit. */
   mapStdoutLine?: (line: string) => string | null
+  machineCaptureFinished?: () => boolean
+  onOmitted?: (bytes: number) => void
+  onClose?: (current: boolean) => void
 }
 
 function runProcess(
@@ -375,7 +362,7 @@ function runProcess(
   args: string[],
   cwd: string,
   opts: RunProcessOpts = {}
-): void {
+): ChildProcess | null {
   out(win, req.id, 'system', `$ ${command} ${args.join(' ')}\n`)
   // The built executable arrives here as an absolute path we produced, but so do
   // `python`, `node` and `cargo` as bare names - and this spawn's cwd is inside
@@ -383,8 +370,9 @@ function runProcess(
   const commandBin = safeCommand(command, getWorkspaceRoot())
   if (!commandBin) {
     out(win, req.id, 'stderr', `Refusing to run a program from inside the workspace: ${command}\n`)
+    opts.onClose?.(true)
     exit(win, { id: req.id, code: 126, signal: null, durationMs: 0, phase: 'run' })
-    return
+    return null
   }
   const start = performance.now()
   let proc: ChildProcess
@@ -392,8 +380,9 @@ function runProcess(
     proc = spawn(commandBin, args, { cwd, windowsHide: true, shell: needsShell(commandBin) })
   } catch (err) {
     out(win, req.id, 'stderr', `Failed to launch '${command}': ${String(err)}\n`)
+    opts.onClose?.(true)
     exit(win, { id: req.id, code: 127, signal: null, durationMs: 0, phase: 'run' })
-    return
+    return null
   }
   active.set(req.id, { child: proc, startedAt: start, window: win })
   // Same reason as the compile paths: decode UTF-8 across chunk boundaries, so
@@ -401,75 +390,75 @@ function runProcess(
   proc.stdout?.setEncoding('utf8')
   proc.stderr?.setEncoding('utf8')
   proc.stdin?.on('error', () => {})
-  let stdoutPartial = ''
-  let spilling = false
-  // A '{'-leading partial is held in case it is an unfinished machine record.
-  // A program that prints a bare `{` and then blocks on stdin would sit there
-  // until exit, looking hung, so give the record a short grace period and then
-  // treat the text as the program's own output.
+  let programLine = false
+  let closed = false
   let holdTimer: NodeJS.Timeout | null = null
   const cancelHold = (): void => {
     if (holdTimer) clearTimeout(holdTimer)
     holdTimer = null
   }
+  const records = opts.mapStdoutLine ? createCompilerRecordStream({
+    ...COMPILER_DIAGNOSTIC_LIMITS,
+    onRecord(record, terminated) {
+      const line = record.endsWith('\r') ? record.slice(0, -1) : record
+      const shown = opts.mapStdoutLine!(line)
+      if (shown !== null) out(win, req.id, 'stdout', shown + (terminated ? '\n' : ''))
+      if (opts.machineCaptureFinished?.()) return false
+    },
+    onOmitted(bytes) { opts.onOmitted?.(bytes) }
+  }) : null
   const holdExpired = (): void => {
     holdTimer = null
-    if (!stdoutPartial) return
-    spilling = true
-    opts.onProgramOutput?.()
-    out(win, req.id, 'stdout', stdoutPartial)
-    stdoutPartial = ''
+    if (closed || active.get(req.id)?.child !== proc || !records?.partial) return
+    // Show the waiting prefix and fence its displayed suffix without parsing
+    // fragments or certifying compilation. Account the whole skipped record.
+    out(win, req.id, 'stdout', records.partial)
+    records.discardPartial()
+    programLine = true
   }
   proc.stdout?.on('data', (d) => {
     const text = d.toString()
-    if (!opts.mapStdoutLine) {
+    if (!records) {
       out(win, req.id, 'stdout', text)
       return
     }
-    // Line-buffer so a machine record split across chunks is still recognised.
+    if (closed || active.get(req.id)?.child !== proc) return
     cancelHold()
-    stdoutPartial += text
-    const lines = stdoutPartial.split(/\r?\n/)
-    stdoutPartial = lines.pop() ?? ''
-    // We already gave up on the current physical line and emitted its head, so
-    // its tail is a fragment, not a line: passing it to mapStdoutLine would try
-    // to parse half a JSON object. Emit it raw and resume filtering after the
-    // newline that ends it.
-    if (spilling && lines.length) {
-      opts.onProgramOutput?.()
-      out(win, req.id, 'stdout', lines.shift()! + '\n')
-      spilling = false
+    let remaining = text
+    // Once a prefix is displayed, its suffix cannot become a
+    // standalone machine record just because it starts with JSON syntax.
+    if (programLine) {
+      const newline = remaining.indexOf('\n')
+      const end = newline < 0 ? remaining.length : newline + 1
+      out(win, req.id, 'stdout', remaining.slice(0, end))
+      if (records.discarding) records.write(remaining.slice(0, end))
+      remaining = remaining.slice(end)
+      if (newline < 0) return
+      programLine = false
     }
-    const shown = lines.map((l) => opts.mapStdoutLine!(l)).filter((l): l is string => l !== null)
-    let emit = shown.length ? shown.join('\n') + '\n' : ''
-    // A trailing partial that cannot be a machine record is the program's own
-    // output: an unterminated `print!("Enter name: ")` prompt, or a `\r`
-    // progress line. Holding it until exit makes a waiting program look hung.
-    // A '{'-leading partial might still be an unfinished machine record, so it
-    // is held - but only up to a bound. Past that it cannot be a cargo record
-    // (they are single-line and small), and holding it would both hang the
-    // program's output and re-split an ever-growing string on every chunk.
-    if (stdoutPartial && (!stdoutPartial.trimStart().startsWith('{') || stdoutPartial.length > MAX_PARTIAL_BYTES)) {
-      if (stdoutPartial.trimStart().startsWith('{')) spilling = true
-      opts.onProgramOutput?.()
-      emit += stdoutPartial
-      stdoutPartial = ''
+    const passthrough = records.write(remaining)
+    if (passthrough) {
+      out(win, req.id, 'stdout', passthrough)
     }
-    if (emit) out(win, req.id, 'stdout', emit)
-    if (stdoutPartial) holdTimer = setTimeout(holdExpired, PARTIAL_HOLD_MS)
+    if (records.partial && !records.partial.trimStart().startsWith('{')) {
+      out(win, req.id, 'stdout', records.takePartial())
+      programLine = true
+    }
+    if (records.partial) holdTimer = setTimeout(holdExpired, PARTIAL_HOLD_MS)
   })
   proc.stderr?.on('data', (d) => out(win, req.id, 'stderr', d.toString()))
   proc.on('error', (err) => out(win, req.id, 'stderr', spawnErrorText(command, err)))
   proc.on('close', (code, signal) => {
-    if (active.get(req.id)?.child === proc) active.delete(req.id)
+    if (closed) return
+    closed = true
+    const current = active.get(req.id)?.child === proc
     cancelHold()
-    // Flush any trailing partial line that passed the filter.
-    if (opts.mapStdoutLine && stdoutPartial) {
-      const tail = spilling ? stdoutPartial : opts.mapStdoutLine(stdoutPartial)
-      if (tail !== null) out(win, req.id, 'stdout', tail)
-    }
-    exit(win, { id: req.id, code, signal, durationMs: elapsed(start), phase: 'run' })
+    if (current) records?.finish()
+    opts.onClose?.(current)
+    if (current) active.delete(req.id)
+    if (current) exit(win, { id: req.id, code, signal, durationMs: elapsed(start), phase: 'run' })
   })
+  return proc
 }
 
 function reject(win: BrowserWindow, id: string, msg: string): void {
@@ -512,40 +501,49 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
         // spans AND each record's own `rendered` text to show the user.
         const cargoArgs = ['run', '--message-format=json']
         if (req.optimization && req.optimization !== '-O0') cargoArgs.push('--release')
-        // Accumulated as records arrive. Emitting only at exit meant a server or
-        // a loop kept Problems empty for the whole session, and pressing Stop
-        // dropped them entirely (stopRun nulls runId before close).
-        const seen: Diagnostic[] = []
-        let capped = false
-        // The renderer replaces its whole list per push, so a naive send-per-record
-        // resends the entire array on every one of hundreds of records. Coalesce
-        // to one send per tick: cargo delivers records in bursts.
-        // One synthetic compile-phase exit, whichever evidence arrives first:
-        // cargo's build-finished record, or the program's first line of output.
+        const capture = createCompilerDiagnostics({ cwd: cargoRoot, format: 'cargo', ...COMPILER_DIAGNOSTIC_LIMITS })
         const compileStart = performance.now()
         let inRunPhase = false
-        // Set ONLY by cargo's terminal record, never by the heuristics.
-        let buildFinished = false
+        let buildOutcome: boolean | null = null
         const enterRunPhase = (): void => {
-          if (inRunPhase) return
+          if (inRunPhase || buildOutcome !== true) return
           inRunPhase = true
           exit(win, { id: req.id, code: 0, signal: null, durationMs: elapsed(compileStart), phase: 'compile' })
         }
         let flushQueued = false
+        let captureFinished = false
+        let retired = false
+        let cargoChild: ChildProcess | null = null
         const flushDiagnostics = (): void => {
-          if (flushQueued || !seen.length) return
+          if (flushQueued || captureFinished || retired) return
           flushQueued = true
           setImmediate(() => {
             flushQueued = false
-            send(win, IPC.RUN_DIAGNOSTICS, { id: req.id, diagnostics: [...seen] })
+            if (!captureFinished && !retired && active.get(req.id)?.child === cargoChild) {
+              emitCapturedDiagnostics(win, req.id, capture.snapshot())
+            }
           })
         }
-        runProcess(win, req, 'cargo', cargoArgs, cargoRoot, {
+        const finishCapture = (): void => {
+          if (captureFinished || retired) return
+          captureFinished = true
+          emitCapturedDiagnostics(win, req.id, capture.finish())
+        }
+        cargoChild = runProcess(win, req, 'cargo', cargoArgs, cargoRoot, {
           // cargo writes its machine records to STDOUT, interleaved with the
           // program's own output. Show the human text a diagnostic carries, drop
           // the rest (they turn "run my program" into a wall of JSON), and pass
           // the program's own lines through untouched.
-          onProgramOutput: enterRunPhase,
+          machineCaptureFinished: () => buildOutcome !== null,
+          onOmitted(bytes) {
+            capture.gap(bytes)
+            flushDiagnostics()
+          },
+          onClose(current) {
+            if (current) finishCapture()
+            else capture.finish()
+            retired = true
+          },
           mapStdoutLine: (line) => {
             // After cargo's own build-finished record, nothing further can be a
             // cargo record: cargo emits it last. Continuing to shape-match meant
@@ -553,34 +551,18 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
             // forwarding --message-format=json) had those lines DELETED from its
             // output, and a compiler-message-shaped one injected fabricated
             // errors into Problems pointing at paths under the crate root.
-            if (buildFinished) return line
-            if (!isCargoJsonLine(line)) {
-              // cargo builds AND runs in one process, so there is no second
-              // spawn to hang the compile -> run transition on. Without this the
-              // renderer stays in 'compile' for the program's whole life, the
-              // status bar says "Compiling...", and the stdin box (gated on the
-              // run phase) never appears - so an interactive cargo program can
-              // never be fed input. The first line cargo did not write is the
-              // program's own output, which means the build is done.
-              enterRunPhase()
-              return line
-            }
-            if (seen.length < MAX_DIAGNOSTICS) {
-              for (const d of parseCargoDiagnostics(line)) {
-                if (seen.length >= MAX_DIAGNOSTICS) break
-                seen.push({ ...d, file: isAbsolute(d.file) ? d.file : resolve(cargoRoot, d.file) })
-              }
+            if (buildOutcome !== null) return line
+            // Procedural macros can print ordinary text during compilation;
+            // only Cargo's successful terminal record proves the run can begin.
+            if (!isCargoJsonLine(line)) return line
+            capture.record(line)
+            const outcome = getCargoBuildOutcome(line)
+            if (outcome !== null) {
+              buildOutcome = outcome
+              finishCapture()
+              if (outcome) enterRunPhase()
+            } else {
               flushDiagnostics()
-            } else if (!capped && parseCargoDiagnostics(line).length) {
-              // Only when a diagnostic was actually discarded. Gating on "another
-              // record arrived" fired on cargo's own trailing build-finished
-              // record, claiming problems were dropped when none were.
-              capped = true
-              out(win, req.id, 'system', `Cortex is showing the first ${MAX_DIAGNOSTICS} problems; there are more.\n`)
-            }
-            if (isBuildFinished(line)) {
-              buildFinished = true
-              enterRunPhase()
             }
             const rendered = cargoRenderedMessage(line)
             return rendered === null ? null : rendered.replace(/\n$/, '')

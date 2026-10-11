@@ -11,6 +11,7 @@ import type {
 } from '../../shared/ipc'
 import * as runner from './runnerService'
 import { getArduinoCli } from './arduinoCliService'
+import { createCompilerDiagnostics, COMPILER_DIAGNOSTIC_LIMITS } from './compilerDiagnostics'
 
 const execFileAsync = promisify(execFile)
 
@@ -155,18 +156,18 @@ async function streamCli(
     runner.finishRunStart(id, cancellation)
   }
   proc.stdin?.on('error', () => {})
-  let stderrBuf = ''
+  const capture = createCompilerDiagnostics({ cwd: sketchDir, format: 'text', ...COMPILER_DIAGNOSTIC_LIMITS })
   proc.stdout?.on('data', (d) => runner.sendRunOutput(win, id, 'stdout', d.toString()))
   proc.stderr?.on('data', (d) => {
     const text = d.toString()
-    stderrBuf += text
+    capture.write(text)
     runner.sendRunOutput(win, id, 'stderr', text)
   })
   proc.on('error', (err) => runner.sendRunOutput(win, id, 'stderr', `${String(err)}\n`))
   proc.on('close', (code, signal) => {
     runner.untrackProcess(id, proc)
     // arduino-cli surfaces the underlying gcc diagnostics on stderr.
-    runner.emitDiagnostics(win, id, stderrBuf, sketchDir)
+    runner.emitCapturedDiagnostics(win, id, capture.finish())
     const durationMs = Math.round(performance.now() - start)
     if (code === 0) runner.sendRunOutput(win, id, 'system', `Done in ${durationMs}ms\n`)
     runner.sendRunExit(win, { id, code, signal, durationMs, phase: 'compile' })

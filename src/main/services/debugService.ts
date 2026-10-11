@@ -7,7 +7,8 @@ import { IPC } from '../../shared/ipc'
 import type { DebugStartRequest, DebugState, DebugFrame, DebugVariable } from '../../shared/ipc'
 import { isAllowedCommand, isBareCommand, sanitizeExtraArgs } from '../../shared/security'
 import { withinWorkspace, getWorkspaceRoot } from './fsService'
-import { emitDiagnostics } from './runnerService'
+import { emitCapturedDiagnostics } from './runnerService'
+import { createCompilerDiagnostics, COMPILER_DIAGNOSTIC_LIMITS, type CompilerDiagnosticsResult } from './compilerDiagnostics'
 import { safeCommand, needsShell } from './commandResolver'
 import { parseMiLine, asString, asArray, asTuple, type MiTuple, type MiValue } from '../../shared/gdbmi'
 
@@ -442,8 +443,8 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
     win.webContents.send(IPC.DEBUG_STATE, blank('exited', `Refusing a compiler from inside the workspace: ${compiler}`))
     return
   }
-  const build = await new Promise<{ ok: boolean; stderr: string }>((done) => {
-    let buf = ''
+  const build = await new Promise<{ ok: boolean; capture: CompilerDiagnosticsResult }>((done) => {
+    const capture = createCompilerDiagnostics({ cwd: req.cwd, format: 'text', ...COMPILER_DIAGNOSTIC_LIMITS })
     let cp: ChildProcess
     try {
       cp = spawn(compilerBin, args, { cwd: req.cwd, windowsHide: true, shell: needsShell(compilerBin) })
@@ -453,29 +454,29 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
       compileChild = cp
     } catch (e) {
       win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: String(e) })
-      return done({ ok: false, stderr: String(e) })
+      return done({ ok: false, capture: capture.finish() })
     }
     cp.stdout?.setEncoding('utf8')
     cp.stderr?.setEncoding('utf8')
     cp.stdin?.on('error', () => {})
     cp.stderr?.on('data', (d: string) => {
       if (!current() || compileChild !== cp) return
-      buf += d
+      capture.write(d)
       win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: d })
     })
     cp.on('error', (e) => {
       if (current() && compileChild === cp) win.webContents.send(IPC.DEBUG_OUTPUT, { stream: 'gdb', text: `${String(e)}
 ` })
       if (compileChild === cp) compileChild = null
-      done({ ok: false, stderr: buf })
+      done({ ok: false, capture: capture.finish() })
     })
     cp.on('close', (code) => {
       if (compileChild === cp) compileChild = null
-      done({ ok: code === 0, stderr: buf })
+      done({ ok: code === 0, capture: capture.finish() })
     })
   })
   // Warnings on success, errors on failure: both belong in Problems. Run has
-  // done this all along (emitDiagnostics is exported for exactly this reuse);
+  // done this all along; the captured diagnostics use the same publication path.
   // Debug reported build errors as loose text, so Problems read "No problems"
   // while the build had just failed and there was no way to click to the line.
   // BEFORE any state is written. Stop, or a newer Debug, already superseded us:
@@ -483,7 +484,7 @@ export async function start(win: BrowserWindow, req: DebugStartRequest): Promise
   // (the renderer applies DEBUG_STATE unconditionally), flipping a running
   // session to "Build failed" for a build nobody is waiting on.
   if (!current()) return
-  emitDiagnostics(win, req.runId, build.stderr, req.cwd)
+  emitCapturedDiagnostics(win, req.runId, build.capture)
   if (!build.ok) {
     win.webContents.send(IPC.DEBUG_STATE, blank('exited', 'Build failed. Fix the errors and try again.'))
     return
