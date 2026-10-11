@@ -235,6 +235,40 @@ describe('actual settings persistence', () => {
     expect(JSON.parse(await fs.readFile(path, 'utf8')).pythonPath).toBe('recovered-python')
   })
 
+  it.each([
+    ['null update', null],
+    ['array update', []],
+    ['unsupported theme', { theme: 'fixture-invalid-theme' }],
+    ['nontext build field', { pythonPath: 42 }],
+    ['null AI settings', { ai: null }],
+    ['array AI settings', { ai: [] }],
+    ['unsupported AI provider', { ai: { provider: 'fixture-invalid-provider' } }],
+    ['nontext AI field', { ai: { apiKey: { privateValue: KEY } } }],
+    ['nonnumber baud rate', { serial: { baudRate: '115200' } }],
+    ['nonfinite baud rate', { serial: { baudRate: Number.NaN } }],
+    ['nonpositive baud rate', { serial: { baudRate: 0 } }],
+    ['nonlist board URLs', { boards: { additionalUrls: 'https://example.invalid/index.json' } }],
+    ['nontext board URL', { boards: { additionalUrls: [42] } }]
+  ])('rejects %s without changing committed settings and accepts the next valid update', async (_name, patch) => {
+    const before = await fs.readFile(path)
+    const committed = await service.getSettings()
+    const publicSettings = await service.getPublicSettings()
+    const error = await service.setSettings(patch as Partial<Settings>).catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error)).toMatch(/settings/i)
+    expect(String(error)).not.toContain(KEY)
+    expect(await fs.readFile(path)).toEqual(before)
+    expect(await service.getSettings()).toEqual(committed)
+    expect(await service.getPublicSettings()).toEqual(publicSettings)
+    expect(await fs.readdir(fixture)).toEqual(['settings.json'])
+
+    const recovered = await service.setSettings({ pythonPath: 'recovered-python' })
+    expect(recovered).toEqual({ ...publicSettings, pythonPath: 'recovered-python' })
+    expect(await service.getSettings()).toEqual({ ...committed, pythonPath: 'recovered-python' })
+    expect(JSON.parse(await fs.readFile(path, 'utf8')).pythonPath).toBe('recovered-python')
+    expect(await fs.readdir(fixture)).toEqual(['settings.json'])
+  })
+
   it.each(['{unfinished', '[]', 'null', '42', Buffer.from([0xff, 0xfe])])('keeps startup fallback but refuses to replace malformed existing bytes %j', async (bytes) => {
     await fs.writeFile(path, bytes)
     const before = await fs.readFile(path)

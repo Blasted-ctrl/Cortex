@@ -2221,7 +2221,8 @@ export const useStore = create<State>((set, get) => ({
     // The rate is read only when the port opens, so changing it mid-session
     // used to move the dropdown and nothing else: the SerialPort kept its
     // constructor-time rate and the user watched the garbage that produces.
-    void get().updateSettings({ serial: { baudRate: b } })
+    // Persistence reports its own failure; the selected live baud still applies.
+    void get().updateSettings({ serial: { baudRate: b } }).catch(() => {})
     if (serialOpen && serialPath) {
       await window.api.serialClose()
       if (!isCurrent()) return
@@ -2450,8 +2451,14 @@ export const useStore = create<State>((set, get) => ({
     })
   },
   async updateSettings(patch) {
-    const s = (await window.api.setSettings(patch)) as AppSettings
-    set({ settings: s })
+    try {
+      const s = (await window.api.setSettings(patch)) as AppSettings
+      set({ settings: s })
+    } catch (error) {
+      get().notify('error', 'Could not save settings',
+        'Your change was not saved. Check settings.json, file permissions, available disk space and the OS keyring, then retry.')
+      throw error
+    }
   },
 
   async setTheme(theme) {

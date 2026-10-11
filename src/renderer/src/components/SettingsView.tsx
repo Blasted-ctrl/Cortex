@@ -55,17 +55,39 @@ function DraftInput({
   placeholder?: string
 }): JSX.Element {
   const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
+  const revision = useRef(0)
+  const cleanRevision = useRef(0)
+  const submitted = useRef<{ value: string; revision: number } | null>(null)
+  useEffect(() => {
+    const savedCurrentDraft = submitted.current?.value === value && submitted.current.revision === revision.current
+    if (revision.current !== cleanRevision.current && !savedCurrentDraft) return
+    cleanRevision.current = revision.current
+    submitted.current = null
+    setDraft(value)
+  }, [value])
   return (
     <input
       className={input}
       value={draft}
       placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => draft !== value && onCommit(draft)}
+      onChange={(e) => { revision.current++; setDraft(e.target.value) }}
+      onBlur={() => {
+        if (draft === value) {
+          cleanRevision.current = revision.current
+          submitted.current = null
+          return
+        }
+        submitted.current = { value: draft, revision: revision.current }
+        onCommit(draft)
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        if (e.key === 'Escape') setDraft(value)
+        if (e.key === 'Escape') {
+          revision.current++
+          cleanRevision.current = revision.current
+          submitted.current = null
+          setDraft(value)
+        }
       }}
     />
   )
@@ -98,6 +120,7 @@ export default function SettingsView(): JSX.Element {
   const [keyDraft, setKeyDraft] = useState('')
   const [keySaved, setKeySaved] = useState(false)
   const [urlDraft, setUrlDraft] = useState('')
+  const draftVersion = useRef({ key: 0, url: 0 })
 
   useEffect(() => {
     if (!settings) void loadSettings()
@@ -114,19 +137,33 @@ export default function SettingsView(): JSX.Element {
   }
   const boardUrls = settings?.boards?.additionalUrls ?? []
   const currentUrls = (): string[] => useStore.getState().settings?.boards?.additionalUrls ?? []
+  const commitSettings = async (operation: Promise<void>, onSaved?: () => void): Promise<void> => {
+    try { await operation }
+    catch { return } // updateSettings already reports persistence failures.
+    onSaved?.()
+  }
   const addBoardUrl = (): void => {
     const u = urlDraft.trim()
     if (!isValidIndexUrl(u)) return
     const urls = currentUrls()
-    if (!urls.includes(u)) void updateSettings({ boards: { additionalUrls: [...urls, u] } })
-    setUrlDraft('')
+    const version = draftVersion.current.url
+    const clearDraft = (): void => {
+      if (draftVersion.current.url !== version) return
+      draftVersion.current.url++
+      setUrlDraft('')
+    }
+    if (urls.includes(u)) { clearDraft(); return }
+    void commitSettings(updateSettings({ boards: { additionalUrls: [...urls, u] } }), clearDraft)
   }
   const removeBoardUrl = (u: string): void => {
-    void updateSettings({ boards: { additionalUrls: currentUrls().filter((x) => x !== u) } })
+    void commitSettings(updateSettings({ boards: { additionalUrls: currentUrls().filter((x) => x !== u) } }))
   }
   const saveKey = (): void => {
     if (!settings || !keyDraft.trim()) return
-    void updateSettings({ ai: { ...settings.ai, apiKey: keyDraft } }).then(() => {
+    const version = draftVersion.current.key
+    void commitSettings(updateSettings({ ai: { ...settings.ai, apiKey: keyDraft } }), () => {
+      if (draftVersion.current.key !== version) return
+      draftVersion.current.key++
       setKeyDraft('')
       setKeySaved(true)
     })
@@ -166,7 +203,7 @@ export default function SettingsView(): JSX.Element {
                       active ? 'bg-ide-accent text-white' : 'text-ide-muted hover:bg-ide-hover hover:text-ide-text'
                     }`}
                     aria-pressed={active}
-                    onClick={() => !active && void setTheme(t)}
+                    onClick={() => !active && void commitSettings(setTheme(t))}
                   >
                     {t}
                   </button>
@@ -185,7 +222,7 @@ export default function SettingsView(): JSX.Element {
             <DraftInput
               value={settings.defaultCppCompiler}
               placeholder={compiler ? `auto: ${compiler}` : 'auto-detect'}
-              onCommit={(v) => void updateSettings({ defaultCppCompiler: v })}
+              onCommit={(v) => void commitSettings(updateSettings({ defaultCppCompiler: v }))}
             />
           </Field>
         )
@@ -199,7 +236,7 @@ export default function SettingsView(): JSX.Element {
             <select
               className={input}
               value={settings.defaultCppStandard}
-              onChange={(e) => void updateSettings({ defaultCppStandard: e.target.value })}
+              onChange={(e) => void commitSettings(updateSettings({ defaultCppStandard: e.target.value }))}
             >
               {['c++11', 'c++14', 'c++17', 'c++20', 'c++23', 'c++2c'].map((s) => (
                 <option key={s} value={s}>
@@ -216,7 +253,7 @@ export default function SettingsView(): JSX.Element {
         keywords: 'python venv interpreter path',
         el: (
           <Field label="Python interpreter" hint="Path to the python used to run scripts. Leave blank to auto-detect.">
-            <DraftInput value={settings.pythonPath} onCommit={(v) => void updateSettings({ pythonPath: v })} />
+            <DraftInput value={settings.pythonPath} onCommit={(v) => void commitSettings(updateSettings({ pythonPath: v }))} />
           </Field>
         )
       },
@@ -253,7 +290,7 @@ export default function SettingsView(): JSX.Element {
               className={input}
               value={settings.ai.provider}
               onChange={(e) =>
-                void updateSettings({ ai: { ...settings.ai, provider: e.target.value as never, model: '' } })
+                void commitSettings(updateSettings({ ai: { ...settings.ai, provider: e.target.value as never, model: '' } }))
               }
             >
               <option value="none">None (offline)</option>
@@ -284,7 +321,7 @@ export default function SettingsView(): JSX.Element {
                   none: ''
                 }[settings.ai.provider]
               }
-              onCommit={(v) => void updateSettings({ ai: { ...settings.ai, model: v } })}
+              onCommit={(v) => void commitSettings(updateSettings({ ai: { ...settings.ai, model: v } }))}
             />
           </Field>
         )
@@ -302,6 +339,7 @@ export default function SettingsView(): JSX.Element {
                 placeholder={settings.ai.apiKeySet ? 'saved. type a new key to replace' : 'paste your key'}
                 value={keyDraft}
                 onChange={(e) => {
+                  draftVersion.current.key++
                   setKeyDraft(e.target.value)
                   setKeySaved(false)
                 }}
@@ -318,11 +356,10 @@ export default function SettingsView(): JSX.Element {
               </button>
             </div>
             {(keySaved || settings.ai.apiKeySet) && !keyDraft && (
-              <span className="mt-1 block text-[11px] text-ide-moss">Key saved and encrypted.</span>
+              <span className="mt-1 block text-[11px] text-ide-moss">Key saved.</span>
             )}
             <span className="mt-1.5 block text-[11px] leading-relaxed text-ide-faint">
-              Encrypted at rest with your OS keychain (safeStorage) and kept in the main process. It never leaves your
-              machine except in requests you initiate to the provider you choose.
+              Encrypted at rest when your OS keyring is available; otherwise stored locally without encryption.
             </span>
           </Field>
         )
@@ -336,7 +373,7 @@ export default function SettingsView(): JSX.Element {
             <DraftInput
               value={settings.ai.baseUrl}
               placeholder="e.g. http://localhost:11434 for Ollama"
-              onCommit={(v) => void updateSettings({ ai: { ...settings.ai, baseUrl: v } })}
+              onCommit={(v) => void commitSettings(updateSettings({ ai: { ...settings.ai, baseUrl: v } }))}
             />
           </Field>
         )
@@ -376,7 +413,7 @@ export default function SettingsView(): JSX.Element {
                 className={input}
                 value={urlDraft}
                 placeholder="https://.../package_..._index.json"
-                onChange={(e) => setUrlDraft(e.target.value)}
+                onChange={(e) => { draftVersion.current.url++; setUrlDraft(e.target.value) }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') addBoardUrl()
                 }}
@@ -526,8 +563,8 @@ export default function SettingsView(): JSX.Element {
                 CATEGORIES.filter((c) => shown.some((f) => f.cat === c.id)).map((c) => (
                   <section key={c.id} className="space-y-4">
                     <h3 className="text-[11px] font-semibold uppercase tracking-wider text-ide-faint">{c.label}</h3>
-                    {shown.filter((f) => f.cat === c.id).map((f, i) => (
-                      <div key={i}>{f.el}</div>
+                    {shown.filter((f) => f.cat === c.id).map((f) => (
+                      <div key={f.label}>{f.el}</div>
                     ))}
                   </section>
                 ))
@@ -535,8 +572,8 @@ export default function SettingsView(): JSX.Element {
             ) : (
               <>
                 <h2 className="text-[16px] font-semibold text-ide-text">{catLabel(cat)}</h2>
-                {shown.map((f, i) => (
-                  <div key={i}>{f.el}</div>
+                {shown.map((f) => (
+                  <div key={f.label}>{f.el}</div>
                 ))}
               </>
             )}
