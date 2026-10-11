@@ -1514,6 +1514,99 @@ The next local queue is More-tools navigation, keyboard splitters and the separa
 recorded long-filename review badge. JetBrains reference inspection is design
 evidence, not a production acceptance substitute.
 
+## More tools keyboard navigation, 2026-10-11
+
+Checkpoint `354dd1d` gives the fixed three-item More tools menu local focus
+ownership. Stable relationships, arrows, Home/End and B/L/D move focus without
+selection; native Enter/Space/click invokes the existing sidebar toggle once.
+Escape restores trigger focus. Tab restores the connected trigger before close
+without preventing native forward/reverse traversal. Outside dismissal does not
+pull focus back; the old window-wide Escape listener is removed. Primary rails,
+store toggle semantics, visual layout and dependencies remain unchanged.
+
+The actual component suite initially reports 29 assertion failures/four passes,
+then passes all 33 cases. A copied-source mutation dropping only the menu Ctrl
+guard yields one specific assertion failure/32 passes; no setup failure or
+timeout is credited as detection. The actual test host models refs/focus, not
+native Tab, browser-generated clicks or an accessibility tree.
+
+Final serial gates use Node 22.20.0 and physical export
+`D:/cortex-tool-navigation/source-nM0wJ2/`, tied by
+`menu-final-snapshot.json` to base `9f61bac` plus the exact reviewed overlays.
+All 393 export files and 294 protected checkout paths match the export receipt
+after regression. Existing dependencies are joined, not freshly installed.
+Historical committed README/builder files in the export are not the concurrent
+live README/builder/website work; those live changes remain excluded.
+
+| Gate | Actual result |
+|---|---|
+| Types | Both processes pass; 92,018 ms |
+| Desktop/tools build | Pass; 83,888 ms |
+| Full regression/style | 117 suites; 2344 passes, five unchanged skips; 899,007 ms |
+| Focused menu rerun | All 33 pass; 5,751 ms external elapsed |
+| Inclusive audit | 17 findings: seven high, ten moderate, zero critical; release blocked |
+
+Reports use the `menu-final-*` prefix in `D:/cortex-tool-navigation/`. The full
+run finishes within the unchanged 900,000ms external watchdog, narrowly; it is
+not a portable timing budget. Earlier overlapping build/full runs hit their
+external limits and remain failed/uncredited. A serial firmware desktop control
+passes all 11 cases. The oversized-file preservation case separately reproduces
+its existing 120-second deadline failure: deep Buffer equality enumerates more
+than eight million entries. Checkpoint `ff98398` uses Buffer.equals to compare
+every byte/length, preserving fixture and refusal assertions. Its 16 cases pass;
+an owned in-memory last-byte flip fails the intended preservation assertion.
+No production file-service policy, case deadline, assertion or skip is weakened.
+
+Actual native acceptance uses the original Electron 33.4.11/Node 20.18.3 and the
+owned built export, sandbox/context isolation enabled and renderer Node disabled.
+Report:
+`D:/cortex-tool-navigation/menu-native-dLVsHN/artifacts/menu-native-report.json`,
+SHA256 `A63E973FDB88180DB1302521F331832F573D99B3FFD94FABB7D02490EC6CF287`.
+It records 37 controls and 196 trusted inputs, including every trigger opening,
+wrap/Home/End/typeahead, modified/unrelated keys, six native Tab exits, nine
+activations with exactly one store transition each, pointer dismissal and closed
+menu noninterception. Forward Tab reaches Simulator; reverse reaches Source
+Control from each item. Root inspects all four focus/geometry PNGs. Requested
+1366x900 and 900x600 windows are recorded separately from actual dimensions;
+the small native window is 900x601 with 886x564 content. Focus and menu geometry
+remain within the viewport. This does not establish screen-reader conformance.
+
+App PID 1600, parent 28868, birth `2026-10-11T19:51:43.9993020Z`, exits normally
+with code 0/null signal. Seven full before/after guard objects match, as do the
+sole 85-byte fixture and retained logs. Sampled identities and exact owned paths
+are absent after close; an independent census finds all 20 recorded identities
+absent without PID reuse. Both owned loopback listeners are 127.0.0.1/PID 1600
+during the run and absent after it. This helper uses netstat's IPv4 protocol
+filter: it does NOT prove IPv6 enumeration/release or CIM-equivalent all-address
+coverage. Broader listener verification remains a test-helper follow-up, not an
+identified production menu defect. Complete fast-descendant coverage is not
+claimed. Renderer/main exception arrays and provider observations are empty;
+stderr retains expected inspector messages, not a clean-stderr claim.
+
+Normal startup really provisions the managed Arduino CLI and refreshes catalogs
+in the isolated profile, including builtin discovery tools; installed tool probes
+also run. No menu control explicitly requests a core install, upload or provider
+call, and no hardware flash is observed. This is not network silence or a fresh
+installation test. The initial driver's contrary no-install wording was wrong.
+
+Earlier immutable attempts remain separate: `menu-native-S1CfeI` loses the OS
+query's failure metadata, so its exact failure cause is unknown;
+`menu-native-xWmMgv` observes an unexplained Hardware/Simulator selection, not a
+proved source defect; `menu-native-L55dUT` sends textless Enter and fails opening;
+`menu-native-oSUCLE` records the direct CIM query hitting its unchanged 10-second
+deadline before controls. Later absence of failed-run processes is not proof of
+their normal exit or its cause. The final frozen helper corrects native key text
+and uses the bounded numeric netstat query without changing production bytes,
+controls, assertion expectations or deadlines. Independent review accepts the
+menu proof with the explicit IPv4 limitation above. No failed attempt is credited.
+
+The PyCharm Settings reference and natural owned-app cleanup are documented in
+[UI references](UI-REFERENCES.md); they are design evidence, not Cortex acceptance.
+Keyboard splitters, the long-filename review badge and a separately scoped
+Settings redesign remain pending. No new remote-CI, installer, hardware, human
+trial, public release or push result is implied. The high-severity audit gate is
+unchanged and still blocks customer release.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

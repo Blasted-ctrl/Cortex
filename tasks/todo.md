@@ -197,8 +197,12 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   actual producer/store/view tests, independent review, types/build, 116 suites/
   2311 passes with five unchanged skips, serial CLI and actual GCC desktop checks.
   This is not peak/total memory, fresh-install or external release acceptance.
-- [ ] Complete More-tools keyboard focus/navigation and keyboard splitter resizing.
-  Use the existing compact design; consult the authorized local JetBrains reference
+- [x] Complete More tools keyboard focus/navigation (`354dd1d`). Verify: 33 focused
+  cases and 37 native controls, with 196 trusted input events, six Tab exits and
+  nine single-transition tool activations. The requested 900x600 window measured
+  900x601; this is scoped menu evidence, not complete accessibility certification.
+- [ ] Add keyboard splitter resizing after a written plan is reviewed. Preserve
+  the compact design; the authorized local JetBrains inspection is reference,
   without reading or modifying user projects/settings.
 - [x] Complete the reviewed workbench integrity slice: serialized global settings,
   fitted docks/notifications, keyboard recents, retained mounted settings drafts

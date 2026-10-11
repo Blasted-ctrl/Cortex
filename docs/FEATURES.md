@@ -8,6 +8,11 @@ Saved project layouts reopen disk-backed tabs, split-pane selections and expande
 folders safely; tree/tab controls support roving keyboard focus and ARIA
 relationships. See [Projects](PROJECTS.md) for controls, budgets and recovery limits.
 
+More tools provides a keyboard menu for Boards Manager, Library Manager and
+Debug. Arrows wrap focus, Home/End jump to the first/last item, and B/L/D move
+focus by initial. Enter/Space use native button activation; Escape returns to the
+trigger, while Tab/Shift+Tab continue the normal tab order.
+
 - ✅ Open folder as workspace; lazy file tree
 - ✅ Live filesystem watching (external changes refresh the tree)
 - ✅ Monaco editor: tabs, dirty indicators, close guard, syntax highlighting, minimap, bracket colorization

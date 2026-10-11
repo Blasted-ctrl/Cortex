@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 ---
 
 # Plan: Keyboard navigation for More tools
@@ -18,9 +18,9 @@ actions and no concurrent writers or persistent menu state. Customer-release
 rigor requires real keyboard verification and regression coverage; this slice
 does not claim whole-IDE accessibility or production-release readiness. Keyboard
 splitters, the long-filename review badge and a larger settings redesign remain
-separate backlog items in `tasks/todo.md`. A fresh PyCharm reference launch reached
-a cross-installation data-sharing prompt; no privacy choice was made and no
-settings reference has yet been captured.
+separate backlog items in `tasks/todo.md`. The later owned PyCharm Settings
+capture is recorded in `docs/UI-REFERENCES.md`; it is design evidence, not this
+feature's acceptance gate. No startup/privacy/settings choice was changed.
 
 ## Acceptance Criteria
 
@@ -110,8 +110,8 @@ button styling. Keep tests on the real ActivityBar and new child component.
      Handle Escape on the menu, not window; remove the old global listener.
    - For Tab/ShiftTab, focus the trigger before closing, without preventing the
      browser's default tab movement. This avoids tabbing from a detached item.
-     This strategy is not yet observed in Chromium and must pass the native check;
-     revise it if the browser does not continue from the trigger correctly.
+     The subsequent native check observed forward/backward exit from every item
+     to the actual adjacent rail controls. The host alone does not prove it.
    - Preserve outside-overlay dismissal without forced focus, current sidebar
      highlight, compact labels, dimensions and existing theme focus styling.
      Local handlers and synchronous refs require no timers or global listeners.
@@ -152,6 +152,24 @@ button styling. Keep tests on the real ActivityBar and new child component.
 - `test/reactHost.ts` and `test/editorAccessibility.test.ts`: real component test
   mechanism and its limits.
 - `docs/TASK-AUDIT.md` and `tasks/todo.md`: current backlog and scope boundaries.
+
+## Completion Evidence
+
+Implemented in `354dd1d`. The 33 real-component cases pass; removing the menu's
+Ctrl guard in an owned copy produces one specific assertion failure. Final
+serial checks pass both type checks, desktop/tools build and all 117 suites
+(2344 passes, five unchanged skips). No assertions were removed or weakened;
+existing deadlines and skips were unchanged.
+The separate oversized-file Buffer comparison fix is recorded in `ff98398`.
+
+The genuine Electron run records 37 controls and 196 trusted inputs, including
+six native Tab exits and nine exactly-once activations. Root reviewed all four
+focus/geometry screenshots; the small requested window was actually 900x601.
+Normal app exit, sampled process cleanup and exact guards pass. Listener evidence
+is IPv4-only; complete descendant, IPv6, screen-reader and release acceptance
+are not claimed. Failed earlier helper attempts remain retained and uncredited.
+Exact reports, startup tool provisioning and the red release audit are recorded
+in `docs/RELEASE-VALIDATION.md`.
 
 ## References
 

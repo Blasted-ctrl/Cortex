@@ -74,6 +74,13 @@ React + TypeScript UI, bundled by Vite.
 - `src/components/CodeEditor.tsx` - Monaco, bundled **locally** (workers via Vite `?worker`) so it
   works under a strict CSP with no CDN.
 
+`MoreTools.tsx` owns menu visibility and focus locally. Its native buttons use
+the existing sidebar action, so Enter/Space activates once. Dismissal focuses the
+still-connected trigger before removing the menu, allowing Tab/Shift+Tab to
+continue natively. Escape is handled only by the open menu, not a global listener;
+outside clicks close it without forcing trigger focus. Primary rails and the
+sidebar store contract are unchanged.
+
 ### Shared - `src/shared/`
 Code imported by both sides:
 - `ipc.ts` - the channel-name constants and all payload/DTO types (the IPC contract).

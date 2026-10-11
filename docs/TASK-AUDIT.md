@@ -70,8 +70,14 @@ measured whole-record/normalized-array budgets, strict structured Rust data,
 authoritative Cargo terminal outcomes and conditional persistent omission evidence.
 Final types/build, 116 suites/2311 passes with five unchanged skips, serial CLI
 checks, guard mutations and actual GCC desktop controls pass. These are diagnostic
-capture bounds, not peak/total heap or Debug transport limits. Keyboard work is
-the next local slice. Native inspection also
+capture bounds, not peak/total heap or Debug transport limits.
+
+More tools focus/navigation is complete locally at `354dd1d`, with 33 focused
+cases and native acceptance of 37 controls and 196 trusted input events. These
+include six normal Tab exits and nine single-transition tool activations. The
+requested 900x600 window was actually 900x601. This is not a complete accessibility
+audit or fresh-install, hardware, provider or remote CI acceptance. Keyboard
+splitter resizing remains pending a reviewed written plan. Native inspection also
 found that a long review-card filename can clip its new-file badge; retain this
 visible layout follow-up without claiming every badge was readable.
 
@@ -96,7 +102,8 @@ Remaining executable queue, in priority order:
 5. Completed locally: measure and bound compiler-diagnostic captures, retaining real
    diagnostics and explicit omission signals. Display retention alone is not a
    producer-memory bound; full-process/peak memory remains a separate claim.
-6. Complete More-tools menu focus/navigation and keyboard splitter resizing.
+6. More tools focus/navigation is completed locally; keyboard splitter resizing
+   remains pending a reviewed written plan.
 
 Policy-dependent work remains unsaved-draft Restore/Discard and retention,
 recoverable deletion, and release-update/crash-reporting policy. Larger product

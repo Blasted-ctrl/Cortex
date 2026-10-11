@@ -22,9 +22,12 @@ hover/completion/save controls pass. The completed compiler follow-up uses the
 measured record/array limits, genuine Cargo terminal authority and explicit
 omission evidence. Final 116-suite regression (2311 passes/five unchanged skips),
 types/build, serial CLI checks, guard mutations and actual GCC desktop controls
-pass. The next slice is More-tools focus/navigation and keyboard splitters, with
-JetBrains reference inspection and the queued long-filename badge fix. Keep the compact
-embedded IDE layout; no universal server or total-memory guarantee is implied.
+pass. More tools focus/navigation is complete at `354dd1d`, with focused tests and
+37-control native acceptance. Keyboard splitter resizing remains pending a reviewed
+written plan, followed by the queued long-filename badge fix. The authorized
+JetBrains inspection is design reference, not Cortex acceptance or a Settings
+redesign. Keep the compact embedded IDE layout; no universal server or total-memory
+guarantee is implied.
 The firmware design below remains implemented historical context, not a fresh
 unstarted task list. Remote Windows and firmware CI failures and the red
 dependency audit remain open; see [Task audit](../docs/TASK-AUDIT.md).
