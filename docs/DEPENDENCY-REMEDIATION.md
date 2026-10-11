@@ -241,7 +241,9 @@ and native gates. The pre-install builder control passes seven suites/177 cases.
 The exact target is installed with pinned npm 10.9.3; the seven focused suites/
 177 cases, typechecks and production/tools build pass. A normal new-lock fresh
 installation and the same 177 focused cases pass separately. Combined regression
-and unpublished packaged-runtime acceptance remain separate gates.
+passes 101 suites/1817 cases with the same five skips. Repeated firmware,
+negative self-tests, advisory benchmark and unpublished Windows packaged-runtime
+acceptance also pass; these do not establish installer or hardware readiness.
 Resolve that exact approved target, not an unrestricted
 range that silently selects a different minor: upstream also has 26.17.0 on
 its maintained v26 branch. The [immutable 26.15.3 release](https://github.com/electron-userland/electron-builder/releases/tag/electron-builder@26.15.3)
@@ -286,7 +288,7 @@ See [verification evidence](RELEASE-VALIDATION.md).
 | Electron (high) | Shipped desktop runtime, preload isolation, navigation and native APIs | Release-blocking runtime upgrade and desktop/installer regression |
 | Vite/electron-vite (previous high/moderate) | Development server and renderer/backend builds | Approved Vite 7/electron-vite 4 installed; latest audit no longer flags these groups; upgrade validation remains required |
 | Vitest/tinypool (previous critical) | Test worker execution and optional UI/API server | Approved Vitest 4 installed and tinypool removed; latest audit no longer flags these groups; root full/native and new-lock normal install/focused gates pass, without waiving other findings |
-| tar/build packaging dependencies (previous critical; packaging moderate remains) | electron-builder/native rebuild/cache archive handling | Approved exact builder 26.15.3 and resolved tar 7.5.22 remove the targeted findings; packaging/fresh-install evidence and remaining moderate findings still require review |
+| tar/build packaging dependencies (previous critical; packaging moderate remains) | electron-builder/native rebuild/cache archive handling | Approved exact builder 26.15.3 and resolved tar 7.5.22 remove the targeted findings; normal fresh install and unpublished Windows payload/runtime checks pass, but moderate findings and OS installers remain separate gates |
 | Chokidar/its transitive matching dependencies (high) | Desktop filesystem watcher and build tooling | Review actual dependency graph and watcher compatibility |
 | Tailwind/build dependencies (high), PostCSS (moderate) | Renderer CSS build/source maps | Review transitive fixes and CSS/migration regressions |
 

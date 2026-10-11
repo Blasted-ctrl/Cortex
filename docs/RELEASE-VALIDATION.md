@@ -962,7 +962,27 @@ warnings remain in raw logs; passing focused tests are not a clean-stderr claim.
 The full regression then exits 0: 101 files, 1817 passes and the same five
 explicit skips (522299 ms parent, no watchdog). All original deadlines,
 assertions, native-file scheduling and isolation are preserved. CLI and
-packaged-app gates remain pending here.
+packaged-app checks subsequently pass below on committed implementation
+`39496398ba3e48041e00a7f49e82fa7d6d5ecd42`.
+
+### Headless firmware and advisory benchmark
+
+The three scenarios repeated three times pass all nine runs/87 assertions with
+identical traces (21908 ms parent). The negative self-test exits 0 (31626 ms):
+broken firmware fails `sensor-timeout-shutdown` at virtual 480 ms, while hanging
+firmware is stopped by the independent 1000 ms wall-clock watchdog as an expected
+runner error. These failed/error fixture reports are retained, not counted as
+passing firmware. Compiler is MSYS2 g++ 14.2.0; reports identify the implementation
+revision and retain their actual dirty-worktree flag.
+
+The benchmark exits 0 (13353 ms), with ten successful measured runs, two warmups
+and identical traces. Host median/p95 are 43.12/46.32 ms; compilation and warmups
+are excluded. Each run covers 60000 virtual ms. Median model throughput is
+1391446.10 virtual ms/host second, separately labeled from hardware timing and
+host execution. The unchanged saved baseline is incompatible by workload/shim
+and host Node; comparison stays advisory and no performance improvement or
+regression is inferred. Raw logs, full input/output/assertion reports and build
+metadata use `.cortex/release-smoke/builder26-final-*`.
 
 ### Normal fresh installation
 
@@ -1014,8 +1034,52 @@ Windows native payloads byte-for-byte. The entire 244-file outer package,
 root source/config/manifests/native/PDF/Electron/output and original logs remain
 unchanged. All six exact owned packager PID/creation-time identities are gone.
 Bundled CLI executable/license/notice/provenance hashes are retained. Runtime
-acceptance is still pending. This is an unpublished unpacked Windows app, not
-an NSIS installer, clean-machine installation or Authenticode certification.
+acceptance subsequently passes below. This is an unpublished unpacked Windows
+app, not an NSIS installer, clean-machine installation or Authenticode certification.
+
+### Actual unpublished packaged runtime
+
+Two initial runtime attempts fail in ignored inspection code, not application
+code: `process.mainModule.require.resolve` is unavailable on that bound require,
+then a literal carriage return makes a terminal-input expression invalid JavaScript.
+Both original failure receipts/logs remain byte-identical. Their normal app
+closure, owned-process cleanup and unchanged-byte controls pass, but neither
+attempt is credited with unfinished PDF/Save/terminal-exit acceptance. The
+helper uses `createRequire` for actual module resolution and JSON-stringifies
+terminal input; all 27 shared inspection expressions parse before the next
+owned launch. No application, native module, ASAR or packaging change is made.
+
+The third attempt in `runtime-attempt-90Ed5N` uses a new empty owned profile and
+project and exits 0 (02:11:12 to 02:11:29 UTC on 2026-10-11). Its genuine pristine
+`Cortex.exe` reports `isPackaged: true`, Electron 33.4.11/embedded Node 20.18.3,
+the exact ASAR/profile, sandbox/context isolation enabled and Node integration
+disabled. Actual controls pass:
+
+- Bundled Arduino CLI 1.5.1 executes its version command; executable, receipt,
+  GPL license and notices match. Genuine startup downloads official catalogs,
+  signatures and builtin serial/mdns discovery tools into the owned profile.
+  No board core installation, serial-port opening or flashing is performed.
+- Real renderer/preload serial IPC and the native packaged serial class enumerate
+  two ports. The native PTY starts the explicit pinned Node shell, produces a
+  computed marker and its actual PID, reports a real 132x30 resize and exactly
+  one natural exit-0 event. This does not establish default-PowerShell UI behavior.
+- The original packaged PDF worker runs inside the actual Electron main process,
+  exits 0 and returns the expected fixture text/page section. The unchanged
+  pdf2json library's `Warning: Setting up fake worker.` remains in raw stdout;
+  no mock replaces the real Node worker. Native PDF-picker/RAG import is not tested.
+- Actual Simulator palette interaction adds an LED and Save persists a clean
+  version-3 circuit. The screenshot shows board/pin labels, controls and the
+  useful warning badge without the requested tutorial banner.
+
+Normal app close exits 0; all ten exact owned PID/creation-time identities are
+gone and ports 9364/9365 are free. Zero renderer/main exceptions are captured;
+raw inspector/library logs are retained. All 244 outer package files and root
+source/config/manifests/native/PDF/Electron/output inventories remain unchanged.
+Independent root checks after the CLI/self-test/benchmark confirm those bytes,
+cleanup and both failed runtime receipt hashes again. The final runtime receipt
+SHA256 is `1125401a0b69029d3feccd01dcf596f117e46f9743e8dc6a40f8bbdbf7bfbe02`;
+it links the separate payload acceptance and both historical failures. Receipt,
+raw logs and screenshot remain under the owned attempt's `artifacts` directory.
 
 The inclusive audit exits 1 (4987 ms): 17 findings, zero critical/seven high/ten
 moderate, down from 25. The targeted AppImage/tar findings are absent. Packaging

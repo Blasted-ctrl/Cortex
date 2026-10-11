@@ -162,8 +162,8 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 - [ ] Continue the approved cautious dependency strategy by reviewing and verifying
   each major upgrade individually. Do not replace a
   runtime still used by the user's open Cortex window.
-- [ ] Remediate/triage remaining audit findings: 25 total (18 high, one critical)
-  after the approved, separately verified Vitest step; passing functional gates
+- [ ] Remediate/triage remaining audit findings: 17 total (seven high, zero critical,
+  ten moderate) after the separately verified builder step; passing functional gates
   do not waive these release-blocking findings.
 - [ ] Run the three-platform release workflow and validate real clean-install artifacts.
 - [ ] Validate real hardware, advanced Git/conflicts, recovery and human/outside-team trials.
@@ -226,13 +226,19 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   focused277/types/build/CLI/native checks pass. Exact-source new-lock normal
   clean install plus 277 focused cases pass separately; first C: disk-space
   failure is retained. Audit remains red at 25. Electron/PDF remain unchanged.
-- [ ] Complete the separately approved electron-builder 25.1.8 to exactly
+- [x] Complete the separately approved electron-builder 25.1.8 to exactly
   26.15.3 upgrade after the terminal and simulator checkpoints. Review the
   packaging-only lock closure, every resolved tar fix, installed peers/engines,
   unchanged native/runtime files and actual builder schema/release guards before
   full types/tests/build/CLI checks and unpublished Windows packaging acceptance.
   Keep Electron/PDF/native versions, CommonJS, `npmRebuild: false` and CI pins;
   do not waive remaining audit, signing, hardware or human-validation gates.
+  Implementation `3949639`: focused 177, full 101 suites/1817 passes plus the same
+  five skips, types/build/repeated CLI/negative self-test/advisory benchmark pass.
+  Normal new-lock fresh install plus the same 177 focused cases pass separately.
+  Original-config unpublished Windows package and actual native CLI/serial/PTY/
+  PDF-worker/circuit-save controls pass; historical harness failures are retained.
+  Audit is still red at 17 (seven high); OS installers/hardware/human trials remain open.
 - [ ] Remediate the investigated upstream Windows ConPTY explicit-kill cleanup
   warning. Owned finite attached child/grandchild
   controls now pass beyond the five-second fallback before natural expiry, with

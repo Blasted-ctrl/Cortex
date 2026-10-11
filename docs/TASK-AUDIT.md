@@ -126,7 +126,8 @@ Implementation evidence for these remaining boundaries:
 ## Security majors requiring individual review/approval
 
 The separately approved tooling steps are electron-vite 4.0.1, root Vite
-7.3.7 with the React plugin floor at 4.7.0, and Vitest 4.1.11. Electron 33.4.11
+7.3.7 with the React plugin floor at 4.7.0, Vitest 4.1.11 and exact
+electron-builder 26.15.3. Electron 33.4.11
 and the PDF 4.0.3 compatibility hold remain unchanged. The preceding Vite-only
 checkpoint retained Vitest 2.1.9's compatible nested Vite 5.4.21; that is historical,
 not the current installed graph.
@@ -152,9 +153,21 @@ Independent graph/native/config guards pass. The separate new-lock normal fresh
 gate passes on an owned exact-archive D: fixture: normal scripts/dev/optional
 install, all 680 locked versions and the same 277 focused cases. Its first C:
 attempt failed for disk exhaustion with retained logs; fresh full regression/
-types/build/native ABI are not inferred. The latest inclusive audit exits 1 with
+types/build/native ABI are not inferred. That checkpoint's inclusive audit exits 1 with
 25 findings (one critical, 18 high, six moderate), still blocking release.
 Electron/PDF and all existing verification floors stay unchanged.
+
+The separately approved builder upgrade is committed as `3949639`; dependency
+changes are limited to the exact manifest pin and generated packaging closure. Full
+101-suite/1817-pass regression plus the same five skips, types/build, repeated
+CLI, negative self-tests and advisory benchmark pass. A normal new-lock fresh
+install and the same 177 focused cases pass separately. The original-config
+unpublished Windows package's actual CLI/serial/PTY/PDF-worker/circuit-save
+controls pass without runtime/native replacement. Historical harness failures
+remain in the ledger; this does not establish OS installer/signing or hardware
+readiness. The current inclusive audit exits 1: 17 findings, zero critical,
+seven high and ten moderate. It still blocks release; remaining majors require
+individual review and approval.
 
 The final approved-Vite combined baseline now passes on implementation source
 `c15627f`: 99 suites/1797 cases plus the same five existing skips, exact Node
