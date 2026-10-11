@@ -1,16 +1,55 @@
 # Language Server Protocol integration
 
-Cortex talks to real language servers (clangd, Pyright, rust-analyzer) so the
-editor has the same completion, hover, go-to-definition, signature help, and
-diagnostics a desktop IDE has. This is the largest capability gap Cortex had
-against CLion/PyCharm, and it is closed with a lightweight in-house bridge
-rather than `monaco-languageclient` (which is heavy and fights the strict CSP).
+Cortex bridges Monaco to installed language servers (clangd, Pyright,
+rust-analyzer) for completion, hover, go-to-definition, signature help and
+diagnostics. Availability and accuracy depend on the server, project and
+toolchain configuration; this is not a claim of parity with another IDE.
 
 C++ completions preserve the server's additional text edits, including missing
 header insertions returned immediately or during completion resolution. Local
 [automatic includes](CPP-AUTO-INCLUDES.md) also work while typing or pasting
 known standard-library symbols without clangd; arbitrary library owners still
 require the server's knowledge of the project.
+
+## Supplemental help and ownership
+
+Server text remains authoritative. Curated C++ descriptions and the standard
+library badge require explicit ownership of the completed symbol: a supported
+qualified label, or a complete qualified declarator in detail, naming an entry
+under `std::vector` or `std::chrono`. A bare `clear`, a user-defined owner or a
+`std` type mentioned only in a return type, parameter or prose does not qualify.
+Unsupported payload shapes stay raw; the matcher is not a C++ semantic parser.
+Python and Rust completions do not receive guessed library attribution.
+
+Lazy resolution keeps accepted raw server detail and documentation separate
+from supplemental Markdown. Omitted/null results preserve that text; explicit
+blank documentation clears it. Conflicting ownership retracts supplemental
+help. Cancelled or superseded resolutions cannot change the accepted item.
+The original completion payload, including opaque server data, is still sent
+unchanged for each resolve request. Insertion and additional header edits remain
+separate from presentation.
+
+Stdlib hover is server-authored, without a bare-name dictionary lookup. Curated
+hardware hover can fill an unresolved symbol only when a genuine included
+header and code word identify a known class or an immediate simple receiver
+at the cursor. Multiple calls on one line use their own receivers. Comments,
+strings/raw literals and compound receivers do not qualify. Declaration
+inference scans the whole file: aliases, lexical shadowing and conditional
+include evaluation are not established by this fallback.
+
+Hardware completion also reads receiver prefixes from the masked code view.
+Member-like text inside a comment or literal cannot supply a receiver.
+
+The provider regression command is:
+
+```sh
+npx vitest run test/lspDocumentation.test.ts test/lspCompletionEdits.test.ts test/libraryComplete.test.ts test/cppAutoInclude.test.ts test/cppAutoIncludeEditor.test.ts
+```
+
+These tests use actual registered providers and nonempty dictionaries with a
+controlled transport/Monaco host. They do not establish compatibility of every
+installed-server payload. Current verification and native observations are in
+[Release validation](RELEASE-VALIDATION.md).
 
 ## Shape
 

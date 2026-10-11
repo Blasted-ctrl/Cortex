@@ -56,19 +56,21 @@ One JSON file per language under `src/shared/stdlib/` (e.g. `cpp.json`,
 }
 ```
 
-- `since` at the library level gates the whole header (e.g. `<chrono>` needing
-  C++11 predates any single symbol's own gate); at the symbol level it gates an
-  individual addition to an existing header (e.g. `std::vector::append_range` needing
+- `since` at the library level describes the whole header's introduction; at the
+  symbol level it describes an individual addition to an existing header
+  (e.g. `std::vector::append_range` needing
   C++23 inside `<vector>`, which has existed since C++98).
-- `since: null` means "no gate, always available" - most of the C library surface
-  inherited into C++, for instance.
+- `since: null` means no introduction note is supplied, not that every compiler
+  or configured standard supports the entry.
 - Completion enrichment supplements items the LSP already proposed; it does not
-  create additional library completions. The current index matches bare labels,
-  not verified qualified names. Ambiguous names such as `clear` can therefore
-  receive unrelated library documentation; requiring library provenance is an
-  open task in [TASK-AUDIT.md](TASK-AUDIT.md). Hover enrichment has the same
-  attribution limitation. Compiler/LSP availability and standard configuration
-  remain separate from this documentation lookup.
+  create additional stdlib completions. Library and symbol stay together in the
+  presentation index. Supported explicitly qualified C++ labels or complete
+  qualified declarators can establish vector/chrono ownership; bare labels,
+  foreign/conflicting owners and incidental type or prose references cannot.
+  Python/Rust have no trusted owner contract here, so their server text remains
+  raw. Stdlib hover is server-authored without dictionary attribution. `since`
+  is a displayed note, not a compiler/version eligibility gate. Compiler/LSP
+  availability and standard configuration remain separate.
 
 ## The agent's loop
 
@@ -104,24 +106,25 @@ the compiler/server recognizes is worse than no entry.
 
 ## Status
 
-The loader and merge logic are live in `lspClient.ts` (`enrichDocumentation`,
-`stdlibIndex`), consulted from both `provideCompletionItems` and
-`resolveCompletionItem`, and from the hover provider via the identifier under
-the cursor. Seeded so far:
+The C++ owner matcher, index and supplemental formatter live in
+`src/renderer/src/lsp/stdlibDocumentation.ts`. Completion and resolution share
+that owner result; accepted raw text and same-item resolution ownership remain
+in `lspClient.ts`. Seeded data so far:
 
 - `src/shared/stdlib/python.json`: `time` (ten seeded entries), `os` (a few common
   entries), `random`
 - `src/shared/stdlib/cpp.json`: `<vector>`, `<chrono>`
 
-Verified live against a real pyright process (not just typechecked): a
-symbol with no docstring at all in typeshed, like `time.asctime`, now shows
-the curated description + example + doc link ahead of the real signature
-pyright provides.
+The earlier pyright enrichment observation predates the ownership guard and
+does not establish safe attribution for shadowing user symbols. Python entries
+remain curated data, but are not currently applied to completions without a
+trusted ownership contract. Controlled-provider tests are distinct from actual
+installed-server visibility; see [Release validation](RELEASE-VALIDATION.md).
 
-Also implemented alongside this, same file: `src/shared/stdlib/*-snippets.json`
+Construct snippets live in `src/shared/stdlib/*-snippets.json`
 (construct templates - `class`, `for`, `if __name__`, etc. - matched by
-prefix the same way any other completion label is) and client-side
-call-parens insertion (`withCallParens` in lspClient.ts) so a bare function
+prefix the same way any other completion label is). Client-side
+call-parens insertion (`withCallParens` in `lspClient.ts`) means a bare function
 completion like `print` inserts `print()` with the cursor between the
 parens, regardless of whether the server itself supports that.
 

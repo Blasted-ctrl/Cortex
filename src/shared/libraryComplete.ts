@@ -1,5 +1,5 @@
 /**
- * Scope-aware completion for library classes the language server cannot resolve
+ * Header-gated fallback completion for library classes the server cannot resolve
  * on its own. A firmware project includes a library like ESP32Servo.h, but
  * clangd analysing under the host toolchain often cannot follow that library's
  * transitive core includes, so `Servo myservo; myservo.` offers nothing. This
@@ -80,9 +80,10 @@ const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  * where the sigil is glued to the variable (`Servo *sp`, `Servo &r`) as well as
  * to the type (`Servo* p`). The lookahead requires at least one separator
  * (whitespace or a sigil) between the type and the name, so a single glued
- * identifier like `Servosp` is not mis-split. Deliberately narrow: it only ever
- * returns a name that is already a known library class, so a false match just
- * fails to add suggestions rather than inventing a wrong type.
+ * identifier like `Servosp` is not mis-split. Deliberately narrow: it only
+ * recognizes known class names in the supplied whole-file code view. It does
+ * not resolve lexical scopes, local shadowing or aliases, so a matching
+ * declaration is a fallback hint rather than semantic proof of this use.
  */
 export function inferKnownType(text: string, varName: string, knownClasses: Set<string>): string | null {
   const re = new RegExp('\\b([A-Za-z_][A-Za-z0-9_]*)(?=[\\s*&])[\\s*&]*' + escape(varName) + '\\s*[;={([,)]', 'g')

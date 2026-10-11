@@ -1,9 +1,9 @@
 import type * as monaco from 'monaco-editor'
 import { LSP_LANGUAGE_ID, langForFile, pathToUri, uriToPath, type LspLang } from '@shared/lsp'
 import { applyTextEdits } from '@shared/textEdit'
+import { maskCppNonCode } from '@shared/cppLexical'
 import { useStore } from '../store/useStore'
-import pythonStdlib from '@shared/stdlib/python.json'
-import cppStdlib from '@shared/stdlib/cpp.json'
+import { stdlibCompletionOwner, stdlibDocumentation, type StdlibOwner } from './stdlibDocumentation'
 import pythonSnippets from '@shared/stdlib/python-snippets.json'
 import cppSnippets from '@shared/stdlib/cpp-snippets.json'
 import cppLibraries from '@shared/stdlib/cpp-libraries.json'
@@ -13,7 +13,6 @@ import {
   inferKnownType,
   librarySuggestions,
   libSuggestionDoc,
-  stripCommentsAndStrings,
   type LibIndexEntry,
   type LibraryDict
 } from '@shared/libraryComplete'
@@ -55,6 +54,15 @@ interface Doc {
 
 type Mon = typeof monaco
 
+interface CompletionOrigin {
+  doc: Doc
+  raw: LspCompletion
+  label: string
+  detail?: string
+  documentation: string
+  resolving?: object
+}
+
 const docsByModel = new Map<monaco.editor.ITextModel, Doc>()
 const docsByUri = new Map<string, { model: monaco.editor.ITextModel; doc: Doc }>()
 const changeTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -64,7 +72,7 @@ const pendingContent = new Map<string, string>()
 // resolveCompletionItem (called with only the item, no model/position) knows
 // what to ask completionItem/resolve for. Monaco reuses the same object
 // instance between provide and resolve, so the object itself is a valid key.
-const completionOrigin = new WeakMap<monaco.languages.CompletionItem, { doc: Doc; raw: LspCompletion }>()
+const completionOrigin = new WeakMap<monaco.languages.CompletionItem, CompletionOrigin>()
 
 let available: Record<LspLang, boolean> = { cpp: false, python: false, rust: false }
 let monacoRef: Mon | null = null
@@ -125,17 +133,6 @@ function contentsToMarkdown(c: LspContents): string {
 }
 
 const LANG_LABEL: Record<LspLang, string> = { cpp: 'C++', python: 'Python', rust: 'Rust' }
-// A real signal a symbol comes from the language's own standard library, not a
-// guess: clangd's completion `detail` for a std:: symbol names the namespace in
-// the signature, and pyright's `documentation` for a builtin/stdlib symbol
-// names the defining module. Deliberately narrow (word-boundary matches on
-// well-known module names) rather than broad, so this stays a claim backed by
-// the server's own text instead of a label slapped on everything.
-const STD_LIB_HINT: Record<LspLang, RegExp> = {
-  cpp: /\b(?:std|__gnu_cxx)::/,
-  python: /\b(?:builtins|typing|collections|itertools|functools|json|re|math|random|datetime|pathlib|io|os|sys|string|enum|dataclasses)\b/,
-  rust: /\bstd::/
-}
 
 /**
  * Monaco renders `detail` right-aligned on the suggestion row (VS Code's
@@ -144,7 +141,7 @@ const STD_LIB_HINT: Record<LspLang, RegExp> = {
  * which tells a user WHERE something comes from at a glance. This adds that
  * without inventing information the server didn't provide.
  */
-function friendlyDetail(m: Mon, it: LspCompletion, lang: LspLang): string | undefined {
+function friendlyDetail(m: Mon, it: LspCompletion, owner: StdlibOwner | null | undefined): string | undefined {
   const K = m.languages.CompletionItemKind
   const kind = completionKind(m, it.kind)
   if (kind === K.Variable || kind === K.Field || kind === K.Property) {
@@ -152,51 +149,9 @@ function friendlyDetail(m: Mon, it: LspCompletion, lang: LspLang): string | unde
   }
   if (kind === K.Constant) return it.detail ? `Constant · ${it.detail}` : 'Constant in this file'
   if (kind === K.Function || kind === K.Method || kind === K.Class || kind === K.Module) {
-    const doc = it.documentation ? contentsToMarkdown(it.documentation as LspContents) : ''
-    const haystack = `${it.label} ${it.detail ?? ''} ${doc}`
-    if (STD_LIB_HINT[lang].test(haystack)) return `${LANG_LABEL[lang]} standard library`
+    if (owner) return 'C++ standard library'
   }
   return it.detail
-}
-
-// ---- supplemental stdlib dictionary -----------------------------------
-// A hand-curated description/example/doc-link for symbols whose LSP-provided
-// documentation is real but too bare to be useful (a lot of typeshed stubs
-// carry a signature and no docstring at all - see docs/STDLIB-DICTIONARY-WORKFLOW.md
-// for the ongoing curation process). This only ever ADDS to what the server
-// already said; it never replaces or contradicts the server's own signature.
-interface StdlibSymbol {
-  signature?: string
-  description: string
-  example?: string
-  since?: string | null
-  docUrl?: string
-}
-interface StdlibLibrary {
-  docUrl?: string
-  since?: string | null
-  symbols: Record<string, StdlibSymbol>
-}
-type StdlibFile = Record<string, StdlibLibrary>
-
-const STDLIB_FILES: Partial<Record<LspLang, StdlibFile>> = {
-  python: pythonStdlib as StdlibFile,
-  cpp: cppStdlib as StdlibFile
-}
-
-const stdlibIndexCache = new Map<LspLang, Map<string, { entry: StdlibSymbol; libSince: string | null }>>()
-function stdlibIndex(lang: LspLang): Map<string, { entry: StdlibSymbol; libSince: string | null }> {
-  const cached = stdlibIndexCache.get(lang)
-  if (cached) return cached
-  const idx = new Map<string, { entry: StdlibSymbol; libSince: string | null }>()
-  const file = STDLIB_FILES[lang]
-  if (file) {
-    for (const lib of Object.values(file)) {
-      for (const [name, entry] of Object.entries(lib.symbols)) idx.set(name, { entry, libSince: lib.since ?? null })
-    }
-  }
-  stdlibIndexCache.set(lang, idx)
-  return idx
 }
 
 /**
@@ -251,19 +206,20 @@ function cppLibraryIndex(): Map<string, LibIndexEntry> {
   if (!cppLibIndexCache) cppLibIndexCache = indexLibraries(cppLibraries as LibraryDict)
   return cppLibIndexCache
 }
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-// The comment-stripped document text and its included-header set, cached per
-// model version so completion/hover do not re-scan the whole buffer on every
-// request (they fire at trigger frequency, and CLAUDE.md bans expensive
-// analysis on every keystroke). Recomputed only when the document changes.
+// Cache the code view and header set per model version: completion and hover
+// repeatedly scan unchanged buffers.
 const libScanCache = new WeakMap<monaco.editor.ITextModel, { version: number; clean: string; headers: Set<string> }>()
 function libScan(model: monaco.editor.ITextModel): { clean: string; headers: Set<string> } {
   const version = model.getVersionId()
   const cached = libScanCache.get(model)
   if (cached && cached.version === version) return cached
-  const clean = stripCommentsAndStrings(model.getValue())
-  const entry = { version, clean, headers: includedHeaders(clean) }
+  const source = model.getValue()
+  const clean = maskCppNonCode(source)
+  const headerLines = maskCppNonCode(source, false).split('\n')
+  // The code view gates directives; the comments-only view retains quoted
+  // header names. Neither view alone distinguishes all fake includes.
+  const directives = clean.split('\n').map((line, i) => /^\s*#\s*include\b/.test(line) ? headerLines[i] : '').join('\n')
+  const entry = { version, clean, headers: includedHeaders(directives) }
   libScanCache.set(model, entry)
   return entry
 }
@@ -293,12 +249,10 @@ function libraryCompletions(
   if (idx.size === 0) return []
   const { clean, headers } = libScan(model)
   if (!usesAnyCuratedLibrary(idx, headers)) return []
-  const linePrefix = model.getValueInRange({
-    startLineNumber: position.lineNumber,
-    startColumn: 1,
-    endLineNumber: position.lineNumber,
-    endColumn: position.column
-  })
+  const linePrefix = clean.slice(
+    model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 }),
+    model.getOffsetAt(position)
+  )
   const K = m.languages.CompletionItemKind
   return librarySuggestions(idx, clean, linePrefix, headers)
     .filter((s) => !alreadyProvided.has(s.name))
@@ -327,42 +281,50 @@ function libraryHover(
   lang: LspLang,
   model: monaco.editor.ITextModel,
   position: monaco.IPosition,
-  word: string
+  word: monaco.editor.IWordAtPosition
 ): string | null {
   if (lang !== 'cpp') return null
   const idx = cppLibraryIndex()
   if (idx.size === 0) return null
   const { clean: docText, headers } = libScan(model)
   if (!usesAnyCuratedLibrary(idx, headers)) return null
-  const cls = idx.get(word)
+  const wordOffset = model.getOffsetAt({ lineNumber: position.lineNumber, column: word.startColumn })
+  if (docText.slice(wordOffset, wordOffset + word.word.length) !== word.word) return null
+  const lineStart = model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 })
+  const prefix = docText.slice(lineStart, wordOffset)
+  const receiver = /([A-Za-z_][A-Za-z0-9_]*)\s*(?:\.|->)\s*$/.exec(prefix)
+  if (receiver) {
+    // Do not reinterpret the tail of a chain or namespace as a simple local.
+    const beforeReceiver = prefix.slice(0, receiver.index)
+    if (/(?:\.|->|::)$/.test(beforeReceiver.trimEnd()) || /\p{ID_Continue}$/u.test(beforeReceiver)) return null
+    const className = inferKnownType(docText, receiver[1], new Set(idx.keys()))
+    const entry = className ? idx.get(className) : undefined
+    const member = entry?.def.members[word.word]
+    if (entry && member && headers.has(entry.header)) {
+      return libSuggestionDoc({
+        kind: 'member',
+        name: word.word,
+        className: className!,
+        description: member.description,
+        signature: member.signature,
+        example: member.example,
+        docUrl: member.docUrl ?? entry.def.docUrl
+      })
+    }
+    return null
+  }
+  // Calls, subscripts and parenthesized receivers are not local identifiers.
+  if (/(?:\.|->)\s*$/.test(prefix)) return null
+  const cls = idx.get(word.word)
   if (cls && headers.has(cls.header)) {
     return libSuggestionDoc({
       kind: 'class',
-      name: word,
-      className: word,
+      name: word.word,
+      className: word.word,
       description: cls.def.description,
       example: cls.def.example,
       docUrl: cls.def.docUrl
     })
-  }
-  // A member: find `receiver.word` on this line and infer the receiver's type.
-  const line = model.getLineContent(position.lineNumber)
-  const mm = new RegExp('([A-Za-z_][A-Za-z0-9_]*)\\s*(?:\\.|->)\\s*' + escapeRe(word) + '\\b').exec(line)
-  if (mm) {
-    const className = inferKnownType(docText, mm[1], new Set(idx.keys()))
-    const entry = className ? idx.get(className) : undefined
-    const mem = entry?.def.members[word]
-    if (entry && mem && headers.has(entry.header)) {
-      return libSuggestionDoc({
-        kind: 'member',
-        name: word,
-        className: className!,
-        description: mem.description,
-        signature: mem.signature,
-        example: mem.example,
-        docUrl: mem.docUrl ?? entry.def.docUrl
-      })
-    }
   }
   return null
 }
@@ -380,25 +342,6 @@ function snippetSuggestions(m: Mon, lang: LspLang, range: monaco.IRange): monaco
     sortText: `zzz_${s.label}`, // real symbols first; a snippet is a fallback, not competing with a real completion
     range
   }))
-}
-
-/**
- * Prepend the dictionary's description/example/link ahead of whatever
- * documentation the server already produced (kept below a divider, not
- * discarded - the server's signature is authoritative for the exact
- * overload/types actually in scope, the dictionary is not).
- */
-function enrichDocumentation(lang: LspLang, label: string, lspDoc: string): string {
-  const found = stdlibIndex(lang).get(label)
-  if (!found) return lspDoc
-  const since = found.entry.since ?? found.libSince
-  const sinceNote = lang === 'cpp' && since ? `_Since ${since}._\n\n` : ''
-  const exampleBlock = found.entry.example
-    ? `\n\n**Example**\n\`\`\`${lang === 'cpp' ? 'cpp' : lang}\n${found.entry.example}\n\`\`\``
-    : ''
-  const linkBlock = found.entry.docUrl ? `\n\n[Documentation](${found.entry.docUrl})` : ''
-  const lspBlock = lspDoc.trim() ? `\n\n---\n${lspDoc}` : ''
-  return `${sinceNote}${found.entry.description}${exampleBlock}${linkBlock}${lspBlock}`
 }
 
 /** Send any debounced edit for a doc immediately, so a following request sees
@@ -460,7 +403,8 @@ function registerProviders(m: Mon): void {
         }
         const base = items.slice(0, 200).map((it) => {
             const rawDoc = it.documentation ? contentsToMarkdown(it.documentation as LspContents) : ''
-            const enriched = enrichDocumentation(lang, it.label, rawDoc)
+            const owner = stdlibCompletionOwner(lang, it.label, it.detail)
+            const enriched = stdlibDocumentation(owner, rawDoc)
             const kind = completionKind(m, it.kind)
             const baseInsert = it.insertText ?? it.textEdit?.newText ?? it.label
             const wasSnippet = it.insertTextFormat === 2
@@ -470,7 +414,7 @@ function registerProviders(m: Mon): void {
               kind,
               insertText,
               insertTextRules: asSnippet ? m.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
-              detail: friendlyDetail(m, it, lang),
+              detail: friendlyDetail(m, it, owner),
               documentation: enriched.trim() ? { value: enriched } : undefined,
               sortText: it.sortText,
               filterText: it.filterText,
@@ -482,7 +426,9 @@ function registerProviders(m: Mon): void {
             // Servers send full documentation lazily (resolveCompletionItem
             // below), not eagerly for every one of 200 items - stash what that
             // follow-up request needs to ask for THIS one.
-            completionOrigin.set(suggestion, { doc, raw: it })
+            completionOrigin.set(suggestion, {
+              doc, raw: it, label: it.label, detail: it.detail, documentation: rawDoc
+            })
             return suggestion
           })
         // Library completions defer to whatever the server already offered:
@@ -502,26 +448,38 @@ function registerProviders(m: Mon): void {
       },
       async resolveCompletionItem(item, token) {
         const origin = completionOrigin.get(item)
-        if (!origin) return item
-        const resolved = await lspRequest<LspCompletion>(origin.doc, 'completionItem/resolve', origin.raw as object)
-        if (token.isCancellationRequested) return item
-        // A resolved item can bring a real detail/documentation the initial
-        // list omitted, or confirm there simply isn't one - either way, don't
-        // downgrade what provideCompletionItems already had (friendlyDetail's
-        // "Variable in this file" is worth more than resolve's silence). The
-        // dictionary lookup runs regardless of what resolve returned, so a
-        // symbol with a real signature but zero prose (typeshed stubs are full
-        // of these) still gets a description if one exists.
-        const rawDoc = resolved?.documentation ? contentsToMarkdown(resolved.documentation as LspContents) : ''
-        const enriched = enrichDocumentation(lang, origin.raw.label, rawDoc)
-        if (enriched.trim()) item.documentation = { value: enriched }
-        if (resolved?.detail) item.detail = friendlyDetail(m, { ...origin.raw, detail: resolved.detail }, lang)
-        if (resolved?.additionalTextEdits) {
-          item.additionalTextEdits = resolved.additionalTextEdits.map((edit) => ({
+        if (!origin || token.isCancellationRequested) return item
+        const resolving = {}
+        origin.resolving = resolving
+        try {
+          // Always send the initial server payload, including opaque data, not
+          // a rendered suggestion or a previous partial resolve response.
+          const resolved = await lspRequest<Partial<LspCompletion>>(origin.doc, 'completionItem/resolve', origin.raw as object)
+          if (token.isCancellationRequested || origin.resolving !== resolving) return item
+          const label = typeof resolved?.label === 'string' ? resolved.label : origin.label
+          const detail = typeof resolved?.detail === 'string' ? resolved.detail : origin.detail
+          const rawDoc = resolved?.documentation != null
+            ? contentsToMarkdown(resolved.documentation as LspContents)
+            : origin.documentation
+          const owner = stdlibCompletionOwner(lang, label, detail)
+          const enriched = stdlibDocumentation(owner, rawDoc)
+          const displayedDetail = friendlyDetail(m, { ...origin.raw, label, detail }, owner)
+          const edits = resolved?.additionalTextEdits?.map((edit) => ({
             range: toMonacoRange(edit.range), text: edit.newText
           }))
+          // Convert all fields before committing. Omitted/null documentation
+          // preserves accepted raw text; an explicit blank clears it.
+          origin.label = label
+          origin.detail = detail
+          origin.documentation = rawDoc
+          item.documentation = enriched.trim() ? { value: enriched } : undefined
+          item.detail = displayedDetail
+          if (edits !== undefined) item.additionalTextEdits = edits
+          return item
+        } finally {
+          // An older request finishing first must not release a newer owner.
+          if (origin.resolving === resolving) delete origin.resolving
         }
-        return item
       }
     })
 
@@ -537,19 +495,15 @@ function registerProviders(m: Mon): void {
         // clangd may have nothing for a library type it could not resolve; the
         // library dictionary still answers, so do not bail on an empty result.
         const raw = res?.contents ? contentsToMarkdown(res.contents) : ''
-        // Hover has no item label the way completion does; the identifier
-        // under the cursor is the equivalent lookup key.
-        const word = model.getWordAtPosition(position)?.word
+        const word = model.getWordAtPosition(position)
         const libDoc = word ? libraryHover(lang, model, position, word) : null
         let value: string
         if (libDoc) {
           value = raw.trim() ? `${libDoc}\n\n---\n${raw}` : libDoc
         } else if (raw.trim()) {
-          // Only enrich a hover the server actually produced. Enriching an empty
-          // server result would pop curated stdlib docs for an identifier the
-          // server never resolved to that symbol (a shadowing local, a name
-          // inside a comment), which is a hover where there should be none.
-          value = word ? enrichDocumentation(lang, word, raw) : raw
+          // Hover has no trusted owner contract here; a bare cursor word or
+          // Markdown signature is not enough to select stdlib documentation.
+          value = raw
         } else {
           return null
         }
