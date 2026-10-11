@@ -610,7 +610,8 @@ interface State {
   moveTabToGroup: (path: string, group: number) => void
   /** Reorder a tab within its own group (drag-to-reorder). */
   reorderTab: (path: string, toIndex: number) => void
-  updateContent: (path: string, content: string) => void
+  /** preserveBom=false accepts an exact raw snapshot from an encoding-aware editor. */
+  updateContent: (path: string, content: string, preserveBom?: boolean) => void
   /** Report the focused editor's cursor position for the status bar. */
   setCursor: (pos: { line: number; column: number } | null) => void
   /** Reflect a change made to a file outside the editor (e.g. a rename
@@ -1375,9 +1376,9 @@ export const useStore = create<State>((set, get) => ({
     set(groupPatch(removeTabFromGroups(get(), path)))
   },
 
-  updateContent(path, content) {
+  updateContent(path, content, preserveBom = true) {
     set({ tabs: get().tabs.map((t) => t.path === path ? {
-      ...t, content: t.savedContent.startsWith('\ufeff') && !content.startsWith('\ufeff') ? '\ufeff' + content : content
+      ...t, content: preserveBom && t.savedContent.startsWith('\ufeff') && !content.startsWith('\ufeff') ? '\ufeff' + content : content
     } : t) })
   },
 
@@ -2418,10 +2419,12 @@ export const useStore = create<State>((set, get) => ({
       if (tab) stopTracking = useStore.subscribe((state) => {
         if (!state.tabs.some((t) => normPath(t.path) === normPath(edit.path))) tabClosed = true
       })
-      const toWrite = withEol(edit.newContent, detectEol(current ?? edit.newContent))
+      const newContent = current?.startsWith('\ufeff') && !edit.newContent.startsWith('\ufeff')
+        ? '\ufeff' + edit.newContent : edit.newContent
+      const toWrite = withEol(newContent, detectEol(current ?? newContent))
       await window.api.writeFile(edit.path, toWrite, current)
       if (!owns()) return
-      const savedContent = normalizeEol(toWrite)
+      const savedContent = toWrite
       if (tab && !tabClosed) set({ tabs: get().tabs.map((t) =>
         normPath(t.path) === normPath(edit.path) && t.savedContent === tab.savedContent
           ? { ...t, content: t.content === tab.content ? savedContent : t.content, savedContent } : t

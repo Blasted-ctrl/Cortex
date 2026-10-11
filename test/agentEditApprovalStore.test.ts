@@ -71,7 +71,7 @@ describe('actual store reviewed agent-edit approval', () => {
     await useStore.getState().approveAgentEdit('edit-1')
     expect(disk.get(path)).toBe('\ufeffchanged\r\nsecond\r\n')
     expect(api.writeFile).toHaveBeenCalledWith(path, '\ufeffchanged\r\nsecond\r\n', '\ufefffirst\r\nsecond\r\n')
-    expect(useStore.getState().tabs[0].savedContent).toBe('\ufeffchanged\nsecond\n')
+    expect(useStore.getState().tabs[0].savedContent).toBe('\ufeffchanged\r\nsecond\r\n')
   })
 
   it('compares an existing empty file against empty bytes, not expected absence', async () => {

@@ -164,11 +164,21 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monaco | null>(null)
   const modelRef = useRef<monaco.editor.ITextModel | null>(null)
+  const mountedModel = useRef<{ path: string; rawContent: string; hasBom: boolean } | null>(null)
   const decoRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null)
   // Bumped in onMount so the effects below re-run once Monaco is actually ready
   // (onMount is async and fires after the initial render's effects).
   const [mountNonce, setMountNonce] = useState(0)
   const tab = tabs.find((t) => t.path === path)
+
+  useEffect(() => {
+    const mounted = mountedModel.current
+    if (!tab || mounted?.path !== path || !modelRef.current || modelRef.current.isDisposed()) return
+    if (mounted.rawContent !== tab.content) {
+      mounted.rawContent = tab.content
+      mounted.hasBom = tab.content.startsWith('\ufeff')
+    }
+  }, [path, tab?.content, mountNonce])
 
   // Sync compiler diagnostics for THIS file into Monaco as inline markers.
   useEffect(() => {
@@ -269,6 +279,12 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
   }, [reveal, path, clearReveal, mountNonce])
 
   if (!tab) return <div className="flex-1 bg-ide-bg" />
+  const mounted = mountedModel.current
+  const controlled = mounted?.path === path && modelRef.current && !modelRef.current.isDisposed()
+  const hasBom = controlled && mounted
+    ? mounted.rawContent === tab.content ? mounted.hasBom : tab.content.startsWith('\ufeff')
+    : false
+  const editorValue = controlled ? hasBom ? tab.content.slice(1) : tab.content : undefined
 
   return (
     <Editor
@@ -276,7 +292,8 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
       height="100%"
       theme={monacoTheme}
       language={tab.language.monaco}
-      value={tab.content}
+      defaultValue={tab.content}
+      value={editorValue}
       beforeMount={(m) => {
         defineTheme(m)
         // Monaco has no Zig grammar; register ours before the model is created
@@ -285,14 +302,21 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
         registerJson(m)
       }}
       onChange={(value) => {
-        updateContent(path, value ?? '')
+        const text = value ?? ''
+        const mounted = mountedModel.current
+        const rawContent = mounted?.path === path && mounted.hasBom ? '\ufeff' + text : text
+        if (mounted?.path === path) mounted.rawContent = rawContent
+        updateContent(path, rawContent, false)
         const model = editorRef.current?.getModel()
-        if (model) changeDoc(model, value ?? '')
+        if (model) changeDoc(model, text)
       }}
       onMount={(editor, m) => {
         editorRef.current = editor
         monacoRef.current = m
         modelRef.current = editor.getModel()
+        const text = modelRef.current?.getValue() ?? ''
+        const rawContent = modelRef.current?.getValue(undefined, true) ?? text
+        mountedModel.current = { path, rawContent, hasBom: rawContent !== text }
         const autoIncludes = attachCppAutoIncludes(editor, path)
         // Report the cursor to the status bar: the initial position on mount,
         // then every move. Cleared on dispose (below) so switching to the
@@ -341,6 +365,7 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
         editor.onDidDispose(() => {
           autoIncludes.dispose()
           ro.disconnect()
+          if (editorRef.current === editor) mountedModel.current = null
           if (w.__cortexEditor === editor) delete w.__cortexEditor
           // Deliberately do NOT clear cursorPos here: on a tab switch the old
           // editor disposes synchronously while the new one mounts async, so a
