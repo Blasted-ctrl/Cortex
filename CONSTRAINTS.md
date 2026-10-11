@@ -22,7 +22,7 @@ not a promise of zero bugs or a certification of electrical safety.
 | Gate | Verdict | Reproducible command |
 |---|---|---|
 | Types | Zero errors in both processes | `npm run typecheck` |
-| Regression tests and existing style checks | All applicable tests pass | `npm test -- --maxWorkers=4 --minWorkers=1` |
+| Regression tests and existing style checks | All applicable tests pass | `npm test -- --maxWorkers=4` |
 | Desktop and bundled tools build | Successful build | `npm run build` |
 | Dependency audit (external advisory database) | No high/critical findings before release | `npm audit --audit-level=high` |
 | Firmware behavior and watchdog | Correct fixture passes; broken/hanging fixtures caught | `npm run firmware:test` and `npm run firmware:selftest` |

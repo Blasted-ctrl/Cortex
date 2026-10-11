@@ -142,8 +142,12 @@ critical and 19 high. A local feature checkpoint is not a release approval.
 
 The user subsequently approved the isolated Vitest 2.1.9 to 4.1.11 migration,
 to start after this combined/fresh-install baseline finishes. Its versioned
-v3/v4 migration and registry/advisory preflight is documented; it is not installed
-yet. Electron/PDF and all existing verification floors stay unchanged.
+v3/v4 migration and registry/advisory preflight is documented. After that baseline
+finishes, it is installed with only test-stack/live-command changes. The 277 focused
+cases, types/build and independent graph/native/config guards pass; full and
+new-lock fresh gates remain separate. The latest inclusive audit exits 1 with
+25 findings (one critical, 18 high, six moderate), still blocking release.
+Electron/PDF and all existing verification floors stay unchanged.
 
 The final approved-Vite combined baseline now passes on implementation source
 `c15627f`: 99 suites/1797 cases plus the same five existing skips, exact Node

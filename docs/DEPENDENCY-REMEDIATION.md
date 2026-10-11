@@ -171,10 +171,13 @@ also pass separately. Explicit kill retains an upstream ConPTY cleanup warning
 and follow-up; no fresh full-suite, clean-stderr or release claim is inferred.
 The next-major baseline condition is now satisfied. See the validation ledger.
 
-## Approved next isolated step: Vitest 4.1.11
+## Third approved major: Vitest 4.1.11
 
 The user approved this isolated step on 2026-10-10, after the current combined
-and fresh-install gates finish. It is not installed yet. The official registry lists Node
+and fresh-install gates finish. That baseline is complete; Vitest 4.1.11 is now
+installed; all 277 focused cases, types and production/tools build pass. The full
+combined and new-lock fresh-install gates are in progress.
+The official registry lists Node
 20/22/24 and Vite 6/7/8 compatibility, so the pinned Node 22.20.0/root Vite 7.3.7
 meet its prerequisites. The maintainer still supports the 4.1 line with important
 and security backports; versions below 4.1 are unsupported. See the
@@ -188,24 +191,45 @@ vite-node with Vite's module runner and removes tinypool, whose retained older
 versions have an [options advisory](https://github.com/tinylibs/tinypool/security/advisories/GHSA-85c8-ppgw-ccpr).
 This is not a claim that it clears every release finding.
 
-When those gates finish, change only the test-tool stack and required fixtures,
-commands and documentation. Remove the obsolete `--minWorkers` CLI option;
-retain file isolation, serial native scheduling, the worker ceiling, all
-deadlines, assertions, compiler prerequisites and explicit platform skips.
+The change is confined to the test-tool stack, live commands and documentation.
+The obsolete `--minWorkers` CLI option is removed; file isolation, serial native
+scheduling, the worker ceiling, all deadlines, assertions, compiler prerequisites
+and explicit platform skips are preserved.
 Review constructor mocks and the intermediate v3 fake-timer change to
 `performance.now()` ([v3 migration](https://raw.githubusercontent.com/vitest-dev/vitest/v3.2.7/docs/guide/migration.md)).
 The existing test include pattern already confines discovery to `test`.
-Then rerun focused/full tests, types/build, firmware checks, native acceptance
+Verification reruns focused/full tests, types/build, firmware checks, native acceptance
 and audit. Do not combine Electron, packaging, Tailwind or PDF major upgrades
 with this step, force peer resolution, or edit the lockfile manually.
+
+Pinned npm 10.9.3's resolving install initially fails in Arborist's circular peer
+loading (`node.parent` is null before `edgesOut`). A separate copied manifest/lock
+with no installed dependencies fails identically with `--package-lock-only` and
+`--prefer-dedupe`; neither failure modifies the original lock or installed tree.
+This matches the official [npm fix](https://github.com/npm/cli/pull/8448/files).
+A disposable official npm 11.16.0 resolver, compatible with pinned Node 22.20.0,
+generates the lock without scripts; then the original pinned npm 10.9.3 installs
+that exact graph successfully with `--ignore-scripts` (10815 ms). No global
+package manager, Node/Electron runtime, CI pin, dependency override or peer bypass
+is changed. This is not yet proof of a normal fresh install of the new lock.
+
+Independent before-tests review verifies installed Vitest/mocker 4.1.11 sharing
+root Vite 7.3.7, complete `npm ls --all` exit 0, removed vite-node/tinypool/nested
+Vite 5, and a test-stack-only 78-entry lock diff. No optional Vite 8/Vitest 5 or
+browser/devtools packages are installed. All 70 Electron/native binary hashes,
+seven other protected package metadata files and six original npm-config paths
+are unchanged. The standalone audit explicitly including development/optional
+dependencies exits 1 in 4435 ms: 25 findings (one critical, 18 high, six moderate),
+down from 31. The audit remains release-blocking; all other verification gates
+remain required. Historical failure receipts are retained, not converted to passes.
 
 ## Triage by code path
 
 | Package/group | Path to review | Current decision |
 |---|---|---|
 | Electron (high) | Shipped desktop runtime, preload isolation, navigation and native APIs | Release-blocking runtime upgrade and desktop/installer regression |
-| Vite/electron-vite (high/moderate) | Development server and renderer/backend builds | Review Windows path handling and network exposure; upgrade compatible stack |
-| Vitest/tinypool (critical) | Test worker execution and optional UI/API server | Upgrade together; do not expose a test UI/API server as a mitigation substitute |
+| Vite/electron-vite (previous high/moderate) | Development server and renderer/backend builds | Approved Vite 7/electron-vite 4 installed; latest audit no longer flags these groups; upgrade validation remains required |
+| Vitest/tinypool (previous critical) | Test worker execution and optional UI/API server | Approved Vitest 4 installed and tinypool removed; latest audit no longer flags these groups; full/fresh verification remains required |
 | tar/build packaging dependencies (critical) | electron-builder/native rebuild/cache archive handling | Review extraction paths and upgrade packaging stack; clean-machine packaging evidence required |
 | Chokidar/its transitive matching dependencies (high) | Desktop filesystem watcher and build tooling | Review actual dependency graph and watcher compatibility |
 | Tailwind/build dependencies (high), PostCSS (moderate) | Renderer CSS build/source maps | Review transitive fixes and CSS/migration regressions |

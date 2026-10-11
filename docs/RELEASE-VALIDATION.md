@@ -598,6 +598,53 @@ This is fresh install/types/build/native evidence, not a second full-suite resul
 customer installer test, human trial, or an audit pass. The audit remains red at
 31 findings; the condition for starting the approved Vitest migration is satisfied.
 
+## Approved isolated Vitest migration: installation and focused gate
+
+The pre-migration combined/fresh baseline above finishes before installation.
+Only the Vitest floor changes (`^2.1.9` to `^4.1.11`), npm regenerates the lock,
+and live commands remove unsupported `--minWorkers`. No application source,
+test fixture/assertion/skip/deadline, `.mts` config, isolation or native scheduling
+changes are needed. The first exact Node 22.20.0/npm 10.9.3 resolving install exits
+1 in 9967 ms: Arborist reads `edgesOut` on a detached null-parent peer node before
+reification. Original lock, installed metadata, native binaries and npm settings
+remain unchanged; `npm ls` correctly fails because installed Vitest is still 2.1.9.
+A copied manifest/lock with no installed dependencies fails the same way with
+lock-only/deduplication options (5022 ms). Both failed receipts are retained.
+
+The official [npm circular-peer fix](https://github.com/npm/cli/pull/8448/files)
+is present in a disposable npm 11.16.0 resolver, whose Node engine admits the
+pinned host. Its copied-pair lock-only control passes (25277 ms); original root
+lock-only resolution then passes (14544 ms), producing identical lock SHA256
+`c09c427da22bdb313a1cea605b9c6740f917a71ad5021b7089deb0971d6a69f7`.
+Pinned npm 10.9.3 consumes that graph successfully without scripts (10815 ms).
+No global tool, Node/Electron runtime, CI package-manager pin, override or peer
+bypass changes. The disposable resolver is not an application dependency.
+
+Independent before-tests review records complete tree exit 0, actual Vitest and
+mocker 4.1.11 sharing Vite 7.3.7, valid peers, no old vite-node/tinypool/nested
+Vite 5 and no optional Vitest 5/browser/devtools installation. All 70 protected
+native/runtime binary hashes, seven other package metadata files and six original
+npm-config paths match the preserved baseline. The 78 changed lock entries are
+confined to the test stack/root declaration. The initial review's shallow-path
+assumption about missing old mocker is corrected separately: old mocker remained
+nested under Vitest, not deleted by the failed install.
+
+All 12 focused suites pass, 277 cases, exit 0 (59.93 seconds Vitest; 64870 ms
+independent parent), under actual installed Vitest 4.1.11. These exercise fake
+timers, genuine React editor paths, deferred AI approval/store races, GDB lifecycle
+and MI parsing, output transport, real PDF worker isolation/parsing, installed
+release guards and existing style rules. Intentional invalid-PDF diagnostics are
+retained. No watchdog fires and no test/config migration or suppression is added.
+Root types pass (40272 ms) and production/tools build passes (51477 ms), both
+exit 0 without watchdogs. Main/preload/renderer entry hashes remain identical to
+the pre-upgrade production build. The standalone development/optional-inclusive
+high-severity audit exits 1 (4435 ms): 25 findings, one critical/18 high/six moderate.
+It remains release-blocking. Full/CLI/native and new-lock normal fresh installation
+remain separate gates in progress. Root receipts are `.cortex/release-smoke/vitest4-*`; backup
+and resolver controls are Temp `cortex-vitest4-before-f63fa3cf4c5241689ce39cb6a387ed09`.
+Independent review is retained with the preceding fresh-copy receipts under
+`post-vitest/independent-review.md`.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

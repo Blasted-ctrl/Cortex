@@ -8,15 +8,18 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
 
 1. Dependency remediation. After compatible fixes and the approved tooling
    changes, local
-   `npm audit --audit-level=high` still fails with 31 findings: 3 critical,
-   19 high and 9 moderate (initially 43, then 32 after compatible fixes).
+   `npm audit --include=dev --include=optional --audit-level=high` still fails
+   with 25 findings: one critical, 18 high and six moderate (initially 43,
+   then 32 after compatible fixes and 31 after the first tooling upgrade).
    The separately approved electron-vite 4.0.1 upgrade removes one moderate
    affected dependency group. Root Vite 7.3.7 is separately approved and installed;
-   its retained Vitest 2 stack still has compatible nested Vite 5.4.21 findings.
+   approved Vitest 4.1.11 now shares root Vite 7.3.7 and removes old nested Vite 5,
+   vite-node and tinypool. Its focused/types/build checks pass; combined/fresh
+   acceptance remains separate.
    Combined/native upgrade verification is recorded separately, not inferred from
    an audit count. This includes desktop and
    build/test tooling; dev-only is not automatically unreachable. The audit remains
-   a blocking CI gate. Remaining major Electron/Vitest/packaging changes need version-by-
+   a blocking CI gate. Remaining major Electron/packaging changes need version-by-
    version review and verification; no forced upgrade or advisory waiver was applied.
    Owner: project maintainer; review date: 2026-10-10; deadline: before any release.
    See [Dependency remediation](DEPENDENCY-REMEDIATION.md) for the path-based triage.
@@ -139,7 +142,7 @@ Run:
 
 ```sh
 npm run typecheck
-npm test -- --maxWorkers=4 --minWorkers=1
+npm test -- --maxWorkers=4
 npm run build
 npm audit --audit-level=high
 npm run firmware:test

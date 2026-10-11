@@ -162,7 +162,8 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 - [ ] Continue the approved cautious dependency strategy by reviewing and verifying
   each major upgrade individually. Do not replace a
   runtime still used by the user's open Cortex window.
-- [ ] Remediate/triage remaining audit findings: 31 total (19 high, 3 critical).
+- [ ] Remediate/triage remaining audit findings: 25 total (18 high, one critical)
+  after the approved Vitest step; full/fresh verification remains separate.
 - [ ] Run the three-platform release workflow and validate real clean-install artifacts.
 - [ ] Validate real hardware, advanced Git/conflicts, recovery and human/outside-team trials.
 - [ ] Expand actual MCU/peripheral/electrical coverage; do not market inspection models
