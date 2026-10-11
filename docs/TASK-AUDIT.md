@@ -57,8 +57,11 @@ pass on their explicitly recorded source boundaries. AI approval has 31
 actual-store regressions, independent review and four final-production native
 controls. The approved Vite combined/fresh baseline is complete. The subsequent
 Vitest combined/native checks and new-lock normal clean-install/focused gate pass.
-External release requirements remain unfinished. The newly discovered terminal
-ownership races are a separate local slice, not part of that dependency upgrade.
+The separate terminal ownership slice now passes 38 focused cases, full
+100-suite/1813-case regression with the same five skips, types/build/CLI and
+owned real-native controls, including actual failed-save quit and late-old-exit
+overlap. It is not part of the Vitest migration or its fresh-install proof.
+External release requirements and upstream ConPTY remediation remain unfinished.
 Do not infer completion from this inventory's status prose alone.
 
 | Priority | Task/current boundary | Completion evidence |
@@ -75,7 +78,7 @@ Do not infer completion from this inventory's status prose alone.
 | 10 | Renderer sandbox/navigation hardening as a separately tested security slice | Review preload/module compatibility, then verify sandboxed dev/production startup and an explicit navigation allowlist without breaking valid file/editor/tool workflows; do not merely flip a flag |
 | 11 | Close local publication bypass discovered during final inspection | Default local packaging never publishes; manual publication must pass quality/audit checks, refuse public or ambiguous exact-target releases and create drafts only. Exercise fake failure paths, not a real publication |
 | 12 | Protect existing reviewed AI-edit approval from data loss | Deferred actual-store regressions preserve new typing and disk changes across approval reads/writes, prevent duplicates/stale project writes, and retain valid reviewed edit behavior. This is a safety fix, not autonomous/repository-wide AI scope |
-| 13 | Terminal-service session ownership after the isolated Vitest checkpoint | Retired same-ID callbacks cannot clear a replacement; teardown cancels deferred loads and handles reentrant native kill callbacks. Preserve current natural output/exit and verify owned native termination separately from the unresolved upstream ConPTY warning |
+| 13 | Terminal-service session ownership after the isolated Vitest checkpoint | Complete: 15 actual-service cases plus quit-wiring/neighbors (38 total), full 100-suite/1813-case regression and owned default-PowerShell/cancelled-quit/native-overlap/finite attached-graph controls pass. Current output/exit survives; native import timing and arbitrary descendants are not claimed. ConPTY warning remediation remains separate |
 
 Implementation evidence for these remaining boundaries:
 

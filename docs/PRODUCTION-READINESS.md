@@ -54,6 +54,11 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
   errors. Invalid UTF-8 and binary files cannot silently become writable text.
   Circuit saves are ordered and compare the last loaded/saved disk snapshot.
   These checks narrow overwrite races; they are not OS-level atomic compare-and-swap.
+- Terminal callbacks require current native-session ownership; teardown retires
+  sessions before native kills and cancels pending terminal creates. Terminal quit
+  cleanup waits until `will-quit`, preserving the shell when a failed save keeps
+  Cortex open. Focused and actual owned Windows controls pass; the separate
+  upstream ConPTY warning/arbitrary descendant boundary is not declared fixed.
 - Git status/diffs, staging, unstaging, commits, branch selection/creation, init,
   fetch, fast-forward-only pull and upstream-scoped push are wired to the desktop.
   Literal pathspecs, subprocess timeouts, environment isolation, error redaction

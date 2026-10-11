@@ -40,6 +40,9 @@ surface.
   they can be stopped and fed stdin.
 - `services/serialService.ts` - lazy-loads the native `serialport` module; lists/opens/writes ports
   and streams incoming data.
+- `services/terminalService.ts` - lazy-loads the optional native PTY backend;
+  starts a local shell in the trusted workspace/home directory and routes input,
+  resizing, output and natural exit for its owned session.
 - `services/aiService.ts` - streams completions via Anthropic Messages API or any OpenAI-compatible
   endpoint (OpenAI, Ollama, LM Studio...). Falls back to an offline stub when unconfigured.
 - `services/settingsService.ts` - JSON settings persisted in `app.getPath('userData')`.
@@ -82,6 +85,25 @@ Every channel name lives in `src/shared/ipc.ts`. Two directions:
 
 Adding a feature that crosses the boundary means: add the channel + types to `shared/ipc.ts`, handle
 it in `main/index.ts`, expose it in `preload/index.ts`, and consume it via `window.api` in the store.
+
+### Terminal session ownership
+
+Native data/exit callbacks check the exact PTY object still owns the session ID,
+so a retired callback cannot mutate a same-ID replacement. `killAll` increments
+a teardown generation and clears the session map before native kills; pending
+creates reject after loading if their generation changed or the window died.
+This also prevents reentrant kill callbacks from killing an owned session twice.
+Active final output and natural exit retain their existing order. Explicit
+disposal intentionally does not forward a stale exit acknowledgement.
+
+Renderer reload and `window-all-closed` retain their cleanup hooks. Application
+terminal cleanup runs at `will-quit`, not `before-quit`, because a failed save can
+cancel the window close after `before-quit`. This follows Electron's
+[quit lifecycle](https://www.electronjs.org/docs/latest/api/app#event-will-quit)
+and keeps the same shell usable when Cortex stays open. It is not an OS-shutdown
+or arbitrary descendant-process guarantee. Fake-native lifecycle regressions
+use a closed loader for the actual service source; owned real-native controls
+are recorded separately in [release validation](RELEASE-VALIDATION.md).
 
 ### Bounded build/run console delivery
 

@@ -104,6 +104,32 @@ temporarily disconnected drive is not forgotten. Use Open folder to locate a
 moved project, or the X on Welcome to remove an unwanted recent entry. If the
 last folder cannot be reopened at application startup, Cortex returns to Welcome.
 
+## Integrated terminal
+
+Open **Terminal** from the bottom-panel controls. It starts PowerShell on Windows,
+or your configured shell on macOS/Linux, in the open project folder (your home
+folder if no project is open). `CORTEX_SHELL` overrides the executable; otherwise
+macOS/Linux uses `SHELL`, falling back to `/bin/bash`. The shell is a real local
+process: commands have your normal OS permissions, not the Explorer's project
+confinement. Only run commands you trust.
+
+Hiding the panel, selecting another bottom tab or visiting the simulator preserves
+the shell and its 5000-line scrollback. After a natural exit, press Enter in the
+terminal or choose **Restart** to start a fresh shell. Switching or closing the
+project disposes the old session; reopening the terminal starts in the current
+folder. Renderer reload and completed application shutdown also dispose sessions.
+If saving fails and cancels application quit, the existing terminal stays usable.
+
+Retired sessions cannot send output or exit events into a replacement with the
+same ID. Renderer reload, window-close cleanup and completed application quit
+also cancel creates awaiting the native backend. These ownership checks preserve
+active final output and natural exit; an explicit disposal is not a renderer
+exit acknowledgement. If the optional
+native backend cannot load, Cortex reports the terminal unavailable without
+preventing editing. Forced OS shutdown and arbitrary detached descendant-process
+cleanup are not guaranteed; the Windows ConPTY warning investigation is recorded
+separately in [release validation](RELEASE-VALIDATION.md).
+
 ## Saving before Run, Verify, and Upload
 
 These actions save the active file first. If saving fails, no launch is sent.

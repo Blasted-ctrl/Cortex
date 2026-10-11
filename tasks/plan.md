@@ -91,6 +91,13 @@ into release requirements. Preserve all unfinished external validation tasks.
    Preserve natural output/exit, verify current-session native controls and keep
    the separate ConPTY descendant/warning investigation explicitly bounded.
 
+Terminal ownership acceptance is now complete: all 38 focused and 1813 full-suite
+cases pass with the same five existing skips, types/build and CLI gates pass,
+and owned actual PowerShell/cancelled-quit/same-ID native-overlap/finite attached
+child controls pass. See the release ledger for source fingerprints and receipts.
+The upstream warning still appears; its remediation, individually approved major
+upgrades and external release requirements remain unfinished.
+
 Each slice needs focused failure-path tests, relevant types/build/runtime checks
 and a scoped commit. Full regression/firmware/audit checks close the combined pass.
 Hardware, credentials, human trials, remote CI and individually approved major

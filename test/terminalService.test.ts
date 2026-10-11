@@ -65,10 +65,18 @@ describe('terminal IPC wiring', () => {
     expect(INDEX).not.toMatch(/ipcMain\.(handle|on)\(IPC\.TERMINAL_/)
   })
 
-  it('kills all terminals on window-all-closed and before-quit', () => {
+  it('kills all terminals on window-all-closed and committed application quit', () => {
     const closed = INDEX.slice(INDEX.indexOf("app.on('window-all-closed'"), INDEX.indexOf("app.on('before-quit'"))
-    const quit = INDEX.slice(INDEX.indexOf("app.on('before-quit'"))
+    const quit = INDEX.slice(INDEX.indexOf("app.on('will-quit'"))
     expect(closed).toContain('terminal.killAll()')
     expect(quit).toContain('terminal.killAll()')
+  })
+
+  it('does not retire terminals before a quit request can be cancelled by failed saves', () => {
+    const beforeQuit = INDEX.indexOf("app.on('before-quit'")
+    const willQuit = INDEX.indexOf("app.on('will-quit'")
+    expect(willQuit).toBeGreaterThan(beforeQuit)
+    expect(INDEX.slice(beforeQuit, willQuit)).not.toContain('terminal.killAll()')
+    expect(INDEX.slice(willQuit)).toContain('terminal.killAll()')
   })
 })

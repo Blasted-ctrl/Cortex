@@ -751,6 +751,121 @@ loading, not another fresh full-suite/types/build/native run, remote CI, signed
 installer or human trial. The preceding independent inclusive audit remains red
 at 25 findings; normal npm install success is not an audit pass or release approval.
 
+## Separate terminal ownership hardening (2026-10-10)
+
+This is a source safety fix after the completed Vitest checkpoint, not another
+dependency migration. The working tree on parent `cc82a4a` changes only terminal
+session ownership and terminal quit timing; Electron 33.4.11, PTY 0.14.1,
+package/lock bytes, tooling configuration and production native files are unchanged.
+The owned report fingerprints the exact main/service source and copied build;
+the preceding `88a9044` fresh-install evidence does not cover this new source.
+
+### Deterministic regressions and review
+
+Fifteen actual-service cases cover retired same-ID data/exit, writable/resizable
+replacements, synchronous and reentrant kill callbacks, overlapping deferred
+creates during loading/cached teardown, destroyed windows, natural final output
+and exit, slot/duplicate limits and backend/spawn errors. Their closed VM loader
+transpiles the actual service source and cannot import a real native dependency.
+The first mock-factory fixture exposed an overlapping-import escape to the native
+module; that fixture was replaced, retaining all assertions and both concurrent
+creates. Its retained failure is not claimed as a hermetic production regression.
+No production loader workaround, test suppression or deadline/skip change was added.
+
+The quit-wiring guard fails before moving terminal cleanup from
+`before-quit` to `will-quit`: one failure and 37 passes, exit 1 in 5108 ms.
+Afterward all four focused suites/38 cases pass. Inverting only the data-ownership
+check deliberately fails six cases (exit 1); restoring it passes all 38 again
+(exit 0, 7246 ms). Full Node/renderer typechecks pass (37854 ms), as does the
+desktop/tools build (65300 ms), under pinned Node 22.20.0/npm 10.9.3.
+Independent source and fixture review reports no scoped blocker. Focused,
+mutation, type and build receipts remain under `.cortex/release-smoke/terminal-*`.
+The full regression and CLI closing gates are recorded below, separately from
+the earlier Vitest clean-install evidence.
+
+### Genuine Windows desktop and bounded child controls
+
+An immutable production copy with all 43 initial output hashes matching the root
+build runs in new owned `D:/cortex-native-smoke/cortex-terminal-JXwgjE`, with its
+own profile/project and no provider or hardware operation. Default PowerShell
+uses its unchanged empty argument list; a read-only preflight finds all four
+startup profiles absent. Host Node is 22.20.0; unchanged Electron embeds Node
+20.18.3. Actual preview CLI 27848 owns Electron 12964, with CDP port 9346.
+
+- Actual typed dirty edits and an externally deleted owned file make a genuine
+  `app.quit()` save fail. `before-quit` occurs without `will-quit`; the dirty
+  buffer and same native PowerShell PID 29420/session remain usable, producing
+  a computed post-failure stdout marker. Restoring the original owned file and
+  real Ctrl+S save the exact dirty bytes. No buffer is discarded to close the app.
+- Genuine terminal input/natural exit 0, Restart, Close Folder disposal and
+  Open Recent/new-project shell pass. Disposed sessions send no stale renderer
+  exit; current natural exits still do. Screenshots are visually inspected.
+- A finite genuine shell/Node child/grandchild graph is alive before explicit
+  kill. PIDs 3768/26300/26016 are gone at 7679 ms after kill, before the earliest
+  natural expiry; the independent sibling graph 16660/29560/22000 is still alive
+  then and later exits naturally with code 0. This is controlled attached-process
+  evidence, not a guarantee about arbitrary detached pipelines.
+- Same-ID replacement PID 16784 spawns at 01:00:05.394 UTC; the original native
+  exit actually arrives later at 01:00:05.463. No stale renderer exit is forwarded;
+  replacement input works and its own natural exit 0 is forwarded.
+- Normal clean-window close exits the CLI with code 0. All 92 captured exact
+  PID/creation-time identities are gone, CDP 9346 is released, and there are zero
+  renderer exceptions. Five protected source/config/manifest hashes, unchanged
+  Electron version/executable, PTY version/JavaScript and seven native files match
+  their before/after baselines. The host helper itself exits 0; no forced app kill is used.
+
+The intentional file-save failure and two upstream `AttachConsole failed`
+console-list-helper errors remain in raw stderr. In the unchanged PTY library,
+kill starts asynchronous console enumeration and immediately closes the native
+PTY; enumeration has a five-second shell-PID fallback. The recorded failures and
+successful bounded graph control do not prove a warning fix, eliminate PID-reuse
+risk in that upstream fallback or establish arbitrary descendant cleanup. That
+separate investigation/remediation task remains open; no warning filter, native
+file patch or silently changed shell/backend was applied. Pending native-load
+timing is deterministic-service coverage, not a delayed real-native-import claim.
+
+The [matching tagged native source](https://raw.githubusercontent.com/homebridge/node-pty-prebuilt-multiarch/v0.14.1/src/win/conpty_console_list.cc)
+throws a generic attachment error without recording the Win32 error code.
+Teardown racing enumeration is a supported inference, also described in the
+[upstream issue](https://github.com/microsoft/node-pty/issues/952), not proof of
+the exact OS failure in this run. The installed public `useConptyDll` option is
+explicitly experimental and changes teardown/output behavior; it was not enabled
+as a warning workaround. Registry review finds no newer stable 0.14 patch.
+Any backend/prerelease migration or experimental A/B needs its own reviewed scope
+and native/platform evidence under the cautious dependency strategy.
+
+The canonical `artifacts/terminal-owned-run.json`, full probe/observations/raw
+logs and `terminal-cancelled-quit-live.png`/`terminal-natural-ui.png` are retained
+in that owned D: directory. Local artifacts are not a signed installer, remote
+CI result, hardware test, human trial or customer-release approval.
+
+### Closing regression, firmware and audit gates
+
+Root runs the actual full Vitest 4.1.11 suite under pinned Node 22.20.0/npm 10.9.3:
+100 suites, 1813 passes and the same five existing skips, exit 0 in 478721 ms
+independent parent (476.85 seconds Vitest). Expected invalid-PDF diagnostics and
+owned temporary local-Git fixture output remain visible. Review finds no new
+suppressions, removed/skipped assertions, changed deadlines or incomplete stubs;
+production imports, native dependencies and CI scheduling remain unchanged.
+
+The final CLI suite repeats each of the three scenarios three times: nine passes,
+29 assertions per three-scenario suite and identical repeated virtual traces,
+exit 0 in 23715 ms. Self-test exits 0 in 18731 ms because it catches the broken
+firmware's `sensor-timeout-shutdown` failure at 480 virtual ms and the hanging
+fixture's independent 1000 ms wall-clock runner error; neither negative fixture
+is counted as passing firmware. The ten-run benchmark plus two warmups passes
+with identical workload traces, exit 0 in 12351 ms. Its host median is 40.40 ms,
+p95 45.76 ms, recorded separately from model throughput. The saved baseline is
+incompatible and unchanged; no speedup or virtual/hardware timing claim follows.
+
+The refreshed inclusive `npm audit --include=dev --include=optional --audit-level=high`
+exits 1 in 8678 ms: 25 findings, one critical, 18 high and six moderate. This is
+a release-blocking result, not a tolerated functional-test failure or waiver.
+Gate results/logs and complete CLI reports are retained under
+`.cortex/release-smoke/terminal-final-*`; root independently reads the actual
+receipts. All other external release requirements and the separate ConPTY
+remediation remain open.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

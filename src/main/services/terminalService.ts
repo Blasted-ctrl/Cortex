@@ -27,6 +27,7 @@ export async function isAvailable(): Promise<boolean> {
 }
 
 const sessions = new Map<string, IPty>()
+let shutdownGeneration = 0
 
 function send(win: BrowserWindow, channel: string, payload: unknown): void {
   if (!win.isDestroyed()) win.webContents.send(channel, payload)
@@ -40,7 +41,11 @@ function send(win: BrowserWindow, channel: string, payload: unknown): void {
  * keystrokes reach it only through write().
  */
 export async function create(win: BrowserWindow, req: TerminalCreateRequest): Promise<TerminalCreateResult> {
+  const generation = shutdownGeneration
   const m = await load()
+  if (generation !== shutdownGeneration || win.isDestroyed()) {
+    return { ok: false, error: 'Terminal creation was cancelled during window teardown.' }
+  }
   if (!m) return { ok: false, error: 'The terminal backend (node-pty) is unavailable on this machine.' }
   if (sessions.has(req.id)) return { ok: false, error: 'A terminal with this id already exists.' }
   if (sessions.size >= MAX_TERMINALS) {
@@ -66,8 +71,12 @@ export async function create(win: BrowserWindow, req: TerminalCreateRequest): Pr
   }
 
   sessions.set(req.id, pty)
-  pty.onData((data) => send(win, IPC.TERMINAL_DATA, { id: req.id, data }))
+  pty.onData((data) => {
+    if (sessions.get(req.id) !== pty) return
+    send(win, IPC.TERMINAL_DATA, { id: req.id, data })
+  })
   pty.onExit(({ exitCode, signal }) => {
+    if (sessions.get(req.id) !== pty) return
     sessions.delete(req.id)
     send(win, IPC.TERMINAL_EXIT, { id: req.id, exitCode, signal })
   })
@@ -101,17 +110,18 @@ export function kill(id: string): void {
   }
 }
 
-/** Kill every live session. Called on window close and before quit so no shell
- *  outlives the app. */
+/** Retire owned sessions and pending creates on renderer reload, close or quit. */
 export function killAll(): void {
-  for (const [, p] of sessions) {
+  shutdownGeneration++
+  const owned = [...sessions.values()]
+  sessions.clear()
+  for (const p of owned) {
     try {
       p.kill()
     } catch {
       // Already gone.
     }
   }
-  sessions.clear()
 }
 
 /** Live session count, for tests and diagnostics. */

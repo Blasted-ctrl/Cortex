@@ -847,5 +847,7 @@ app.on('before-quit', () => {
   sim.killAll()
   debug.stop()
   lsp.killAll()
-  terminal.killAll()
 })
+
+// A failed close-time save can cancel quit; keep its terminal session usable.
+app.on('will-quit', () => { terminal.killAll() })

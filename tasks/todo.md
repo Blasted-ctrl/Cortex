@@ -218,16 +218,23 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   focused277/types/build/CLI/native checks pass. Exact-source new-lock normal
   clean install plus 277 focused cases pass separately; first C: disk-space
   failure is retained. Audit remains red at 25. Electron/PDF remain unchanged.
-- [ ] Investigate the observed upstream Windows ConPTY explicit-kill cleanup
-  warning with owned child-process controls. Fresh terminal input, natural exit
-  and kill pass, but this does not establish arbitrary pipeline cleanup or clean
-  stderr. Keep this separate from the isolated Vitest dependency migration.
-- [ ] Separately reproduce and fix terminal-service ownership races: retired
+- [ ] Remediate the investigated upstream Windows ConPTY explicit-kill cleanup
+  warning. Owned finite attached child/grandchild
+  controls now pass beyond the five-second fallback before natural expiry, with
+  an unaffected sibling control. The confirmed console-list-helper attachment
+  failure and likely teardown race are documented; two raw warnings remain.
+  No arbitrary detached-pipeline, clean-stderr or experimental-backend claim is
+  made. Keep this separate from the isolated Vitest dependency migration.
+- [x] Separately reproduce and fix terminal-service ownership races: retired
   same-ID callbacks must not affect a replacement, teardown must cancel a
-  deferred native load, and reentrant killAll must retire each owned session
+  deferred terminal create, and reentrant killAll must retire each owned session
   once. Preserve active natural output/exit; explicit disposal is not an exit
   acknowledgement. Unit and owned native controls cannot establish arbitrary
   descendant teardown or fix the upstream ConPTY warning by themselves.
+  Verify: 38 focused cases, full 100-suite/1813-case regression with the same
+  five skips, types/build/CLI/self-test/benchmark and genuine default-PowerShell
+  cancelled-quit/old-exit-overlap/finite attached-child controls pass. Full source
+  and native evidence is separate from the preceding fresh dependency install.
 - [x] Close the discovered manual release-script bypass of CI quality/audit and
   draft-only guards; verify exact-target rejection without real publication.
   All 84 focused guard cases pass, including fail-closed fake gate/API paths and
@@ -250,7 +257,8 @@ Earlier checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF wor
 and `7f508e5` saved sessions. The corrected combined pass covers 89 suites/1610
 tests plus five existing explicit platform/local skips; types/build, CLI suite
 and negative self-tests pass. Session/keyboard follow-up adds 165 focused passes
-and zero type errors; native latest-snapshot checks remain in progress.
+and zero type errors; at that earlier checkpoint, native snapshot checks were
+still in progress. Later acceptance is recorded separately in the release ledger.
 
 Actual desktop correct/broken/deleted-scenario-replay/fixed runs and live hanging
 fixture Stop passed in an isolated project. Genuine built PDF-worker import and
@@ -261,7 +269,7 @@ it predates the committed panel-height fix. Fresh locked source
 installation/build/native terminal passed; its full suite also passed: 89 suites,
 1610 tests and the same five existing skips on the archived `f89dce0` snapshot.
 This fresh-install result does not substitute for verification of later source.
-Latest baseline: implementation `c15627f` passes the 99-suite/1797-case combined
+Historical Vite baseline: implementation `c15627f` passes the 99-suite/1797-case combined
 gate with the same five skips. A separate exact-source archive passes normal
 locked installation with lifecycle scripts and optional/development dependencies,
 both typechecks, production/tools build and genuine sandbox/preload/native

@@ -34,6 +34,12 @@ relationships. See [Projects](PROJECTS.md) for controls, budgets and recovery li
 - ⬜ Search *and replace*; go-to-symbol across the workspace
 
 ## Build & run
+
+The integrated local terminal preserves its shell across panel/tab changes,
+supports restart after natural exit and retires old sessions on project/reload
+teardown without corrupting replacements. A failed save that cancels quit keeps
+the shell usable. See [terminal controls and limits](PROJECTS.md#integrated-terminal).
+
 - ✅ **Toolchain auto-detection** (GCC, Clang, ARM/AVR-GCC, Python, Node, CMake, Ninja, GDB, PlatformIO, Arduino-CLI, OpenOCD)
 - ✅ **Compile & run C/C++** with a **selectable compiler, standard (C++11 → C++23/2c), and optimization level**
 - ✅ Run Python and JavaScript
