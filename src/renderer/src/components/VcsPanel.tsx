@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { GitBranch, RefreshCw, ArrowUp, ArrowDown, Plus, Minus, Check, ChevronDown, Download, Save } from 'lucide-react'
 import PanelHeader from './PanelHeader'
 import DiffView from './DiffView'
-import { useStore } from '../store/useStore'
+import { captureWorkspaceOwnership, useStore } from '../store/useStore'
 import type { GitStatus, GitFileStatus, GitFileDiff, GitDiffKind, GitOpResult, GitBranches } from '@shared/ipc'
 
 const baseName = (p: string): string => p.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() || p
@@ -87,21 +87,23 @@ export default function VcsPanel(): JSX.Element {
   const busyRef = useRef(false)
   const branchButton = useRef<HTMLButtonElement>(null)
 
-  const loadDiff = useCallback(async (d: OpenDesc): Promise<void> => {
+  const loadDiff = useCallback(async (d: OpenDesc, owns = captureWorkspaceOwnership(workspaceRoot)): Promise<void> => {
+    if (!owns()) return
     const my = ++diffGen.current
     setDiffError(null)
     try {
       const res = await window.api.gitDiff(d.path, d.kind, d.orig)
-      if (my === diffGen.current) {
+      if (my === diffGen.current && owns()) {
         setDiff(res)
         if (!res) setDiffError('Could not load this diff. Files over 4 MB and paths outside this project are not shown. Refresh or open the repository root.')
       }
     } catch {
-      if (my === diffGen.current) setDiffError('Could not load this diff. Refresh and try again.')
+      if (my === diffGen.current && owns()) setDiffError('Could not load this diff. Refresh and try again.')
     }
-  }, [])
+  }, [workspaceRoot])
 
-  const refresh = useCallback(async (): Promise<void> => {
+  const refresh = useCallback(async (owns = captureWorkspaceOwnership(workspaceRoot)): Promise<void> => {
+    if (!owns()) return
     const my = ++statusGen.current
     setLoading(true)
     let s: GitStatus
@@ -110,7 +112,7 @@ export default function VcsPanel(): JSX.Element {
     } catch {
       s = { isRepo: false, files: [], ahead: 0, behind: 0, error: 'Could not read source control status. Refresh and try again.' }
     }
-    if (my !== statusGen.current) return // a newer refresh superseded this one
+    if (my !== statusGen.current || !owns()) return
     setStatus(s)
     setLoading(false)
     // Reconcile the open diff: drop it if its file left that section, otherwise
@@ -123,10 +125,10 @@ export default function VcsPanel(): JSX.Element {
         setOpen(null)
         setDiff(null)
       } else {
-        void loadDiff(cur)
+        void loadDiff(cur, owns)
       }
     }
-  }, [loadDiff])
+  }, [loadDiff, workspaceRoot])
 
   useEffect(() => {
     ++diffGen.current
@@ -162,6 +164,8 @@ export default function VcsPanel(): JSX.Element {
   }, [refresh])
 
   const select = (d: OpenDesc): void => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns()) return
     if (openRef.current?.key === d.key) {
       ++diffGen.current
       openRef.current = null
@@ -173,34 +177,48 @@ export default function VcsPanel(): JSX.Element {
     openRef.current = d
     setOpen(d)
     setDiff(null)
-    void loadDiff(d)
+    void loadDiff(d, owns)
   }
 
-  // Run a mutating op, then refresh. Serialized behind `busy` so a double click
-  // cannot fire two overlapping stage/commit calls.
-  const doOp = async (op: () => Promise<GitOpResult>): Promise<GitOpResult> => {
-    if (workspaceRoot !== useStore.getState().workspaceRoot) return { ok: false, error: 'The open project changed. Try again.' }
+  const doOp = async (owns: () => boolean, op: () => Promise<GitOpResult>, reconcile?: () => Promise<void>): Promise<GitOpResult | null> => {
+    if (!owns()) return null
     if (busyRef.current) return { ok: false, error: 'A git operation is already running.' }
     busyRef.current = true
     setBusy(true)
-    let r: GitOpResult
     try {
-      r = await op()
-    } catch {
-      r = { ok: false, error: 'git operation failed.' }
-    }
-    // Stay busy THROUGH the refresh: clearing it before the gitStatus round-trip
-    // reopens a window where the (still-stale) staged count + message re-enable
-    // Commit, so a held Enter could fire a second (spurious) commit.
-    try {
-      await refresh()
-    } catch {
-      /* refresh guards its own errors; never leave busy stuck */
+      let result: GitOpResult
+      try { result = await op() } catch { result = { ok: false, error: 'git operation failed.' } }
+      if (!owns()) return null
+      try {
+        if (result.ok && reconcile) await reconcile()
+        if (!owns()) return null
+        await refresh(owns)
+      } catch {
+        result = { ok: false, error: 'Git finished, but project files could not be refreshed. Refresh and try again.' }
+      }
+      return owns() ? result : null
     } finally {
       setBusy(false)
       busyRef.current = false
     }
-    return r
+  }
+
+  const reconcile = async (owns: () => boolean): Promise<void> => {
+    if (!owns()) return
+    await reloadOpenTabsFromDisk()
+    if (!owns()) return
+    await refreshTree()
+  }
+
+  const doSaveAll = async (): Promise<void> => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns() || busyRef.current) return
+    try {
+      await saveAll()
+      if (owns()) await refresh(owns)
+    } catch {
+      if (owns()) notify('error', 'Could not save all files')
+    }
   }
 
   const files = status?.files ?? []
@@ -210,9 +228,12 @@ export default function VcsPanel(): JSX.Element {
   const canCommit = stagedCount > 0 && msg.trim().length > 0 && !busy && !unsaved && !conflicts
 
   const doCommit = async (): Promise<void> => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns()) return
     if (!canCommit || useStore.getState().tabs.some((t) => t.content !== t.savedContent)) return
     setCommitError(null)
-    const r = await doOp(() => window.api.gitCommit(msg))
+    const r = await doOp(owns, () => window.api.gitCommit(msg))
+    if (!r || !owns()) return
     if (r.ok) {
       notify('success', 'Committed', `${stagedCount} file${stagedCount === 1 ? '' : 's'}`)
       setMsg('')
@@ -225,6 +246,8 @@ export default function VcsPanel(): JSX.Element {
   // first and is never automatic. The Push affordance only appears when there
   // are commits ahead of a known upstream, so this guard is belt-and-braces.
   const doPush = async (): Promise<void> => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns()) return
     const s = status
     if (busy || !s?.upstream || s.ahead < 1) return
     const ok = await confirm({
@@ -232,21 +255,24 @@ export default function VcsPanel(): JSX.Element {
       message: `Push ${s.ahead} commit${s.ahead === 1 ? '' : 's'} to ${s.upstream}?`,
       confirmLabel: 'Push'
     })
-    if (!ok) return
-    const r = await doOp(() => window.api.gitPush())
+    if (!ok || !owns()) return
+    const r = await doOp(owns, () => window.api.gitPush())
+    if (!r || !owns()) return
     if (r.ok) notify('success', 'Pushed', `to ${s.upstream}`)
     else notify('error', 'Push failed', r.error)
   }
 
   const openBranchMenu = async (): Promise<void> => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns()) return
     const my = ++branchGen.current
     setBranchList(null)
     setBranchMenu(true)
     try {
       const list = await window.api.gitBranches()
-      if (my === branchGen.current) setBranchList(list)
+      if (my === branchGen.current && owns()) setBranchList(list)
     } catch {
-      if (my === branchGen.current) {
+      if (my === branchGen.current && owns()) {
         setBranchMenu(false)
         notify('error', 'Could not read branches', 'Refresh and try again.')
       }
@@ -254,6 +280,8 @@ export default function VcsPanel(): JSX.Element {
   }
 
   const doSwitch = async (name: string): Promise<void> => {
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns()) return
     setBranchMenu(false)
     if (busy || name === branchList?.current) return
     // git only sees the DISK; an unsaved editor buffer would be silently
@@ -262,11 +290,9 @@ export default function VcsPanel(): JSX.Element {
       notify('info', 'Cannot switch branch', 'Save or discard your open changes first.')
       return
     }
-    const r = await doOp(() => window.api.gitSwitch(name))
+    const r = await doOp(owns, () => window.api.gitSwitch(name), () => reconcile(owns))
+    if (!r || !owns()) return
     if (r.ok) {
-      // The checkout rewrote files on disk; bring open tabs + the tree in sync.
-      await reloadOpenTabsFromDisk()
-      await refreshTree()
       notify('success', 'Switched branch', name)
     } else {
       notify('error', 'Could not switch branch', r.error)
@@ -274,37 +300,40 @@ export default function VcsPanel(): JSX.Element {
   }
 
   const doInit = async (): Promise<void> => {
-    if (busyRef.current) return
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns() || busyRef.current) return
     const ok = await confirm({
       title: 'Initialize repository',
       message: 'Track this project folder with Git? Files stay on your laptop. Nothing is uploaded.',
       confirmLabel: 'Initialize'
     })
-    if (!ok) return
-    const r = await doOp(() => window.api.gitInit())
+    if (!ok || !owns()) return
+    const r = await doOp(owns, () => window.api.gitInit())
+    if (!r || !owns()) return
     if (!r.ok) notify('error', 'Could not initialize repository', r.error)
     else notify('success', 'Repository initialized')
   }
 
   const doCreateBranch = async (): Promise<void> => {
-    if (!newBranch.trim() || busyRef.current) return
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns() || !newBranch.trim() || busyRef.current) return
     if (useStore.getState().tabs.some((t) => t.content !== t.savedContent)) {
       notify('info', 'Cannot create branch', 'Save or discard your open changes first.')
       return
     }
-    const r = await doOp(() => window.api.gitCreateBranch(newBranch.trim()))
+    const r = await doOp(owns, () => window.api.gitCreateBranch(newBranch.trim()), () => reconcile(owns))
+    if (!r || !owns()) return
     if (!r.ok) notify('error', 'Could not create branch', r.error)
     else {
       setBranchMenu(false)
       setNewBranch('')
-      await reloadOpenTabsFromDisk()
-      await refreshTree()
       notify('success', 'Branch created')
     }
   }
 
   const doSync = async (pull: boolean): Promise<void> => {
-    if (busyRef.current) return
+    const owns = captureWorkspaceOwnership(workspaceRoot)
+    if (!owns() || busyRef.current) return
     if (pull && useStore.getState().tabs.some((t) => t.content !== t.savedContent)) {
       notify('info', 'Cannot pull changes', 'Save or discard your open changes first.')
       return
@@ -316,18 +345,15 @@ export default function VcsPanel(): JSX.Element {
         : 'Contact the configured remotes to check for changes? Your working files will not change.',
       confirmLabel: pull ? 'Pull' : 'Fetch'
     })
-    if (!ok) return
+    if (!ok || !owns()) return
     if (pull && useStore.getState().tabs.some((t) => t.content !== t.savedContent)) {
       notify('info', 'Cannot pull changes', 'Save or discard your open changes first.')
       return
     }
-    const r = await doOp(() => pull ? window.api.gitPull() : window.api.gitFetch())
+    const r = await doOp(owns, () => pull ? window.api.gitPull() : window.api.gitFetch(), pull ? () => reconcile(owns) : undefined)
+    if (!r || !owns()) return
     if (!r.ok) notify('error', pull ? 'Pull failed' : 'Fetch failed', r.error)
     else {
-      if (pull) {
-        await reloadOpenTabsFromDisk()
-        await refreshTree()
-      }
       notify('success', pull ? 'Branch updated' : 'Remote changes fetched')
     }
   }
@@ -400,12 +426,14 @@ export default function VcsPanel(): JSX.Element {
       disabled={busy}
       onClick={(e) => {
         e.stopPropagation()
+        const owns = captureWorkspaceOwnership(workspaceRoot)
+        if (!owns()) return
         if (kind !== 'staged' && useStore.getState().tabs.some((t) => t.content !== t.savedContent)) {
           notify('info', 'Save files before staging', 'Source Control reads files on disk. Use Save all files above, then stage your changes.')
           return
         }
-        void doOp(() => (kind === 'staged' ? window.api.gitUnstage(paths) : window.api.gitStage(paths))).then((r) => {
-          if (!r.ok) notify('error', kind === 'staged' ? 'Could not unstage changes' : 'Could not stage changes', r.error)
+        void doOp(owns, () => (kind === 'staged' ? window.api.gitUnstage(paths) : window.api.gitStage(paths))).then((r) => {
+          if (r && !r.ok && owns()) notify('error', kind === 'staged' ? 'Could not unstage changes' : 'Could not stage changes', r.error)
         })
       }}
     >
@@ -419,7 +447,7 @@ export default function VcsPanel(): JSX.Element {
       {unsaved && (
         <div className="border-b border-ide-border/60 px-3 py-2 text-[11px] text-ide-muted">
           <div>Save your editor changes before staging or committing. Diffs show the files on disk.</div>
-          <button className="btn mt-1 h-6" disabled={busy} onClick={() => void saveAll().then(() => refresh()).catch(() => notify('error', 'Could not save all files'))}>
+          <button className="btn mt-1 h-6" disabled={busy} onClick={() => void doSaveAll()}>
             <Save size={12} /> Save all files
           </button>
         </div>

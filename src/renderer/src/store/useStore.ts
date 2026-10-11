@@ -864,6 +864,10 @@ function isMissingFileRead(error: unknown): boolean {
   // Electron serializes errno into this prefix; a quoted path is not evidence.
   return error instanceof Error && /^(?:Error invoking remote method 'fs:readFile': )?(?:Error: )?ENOENT:/.test(error.message)
 }
+export function captureWorkspaceOwnership(root: string | null): () => boolean {
+  const generation = workspaceGeneration
+  return () => root !== null && useStore.getState().workspaceRoot === root && workspaceGeneration === generation
+}
 function savedSessions(): WorkspaceSession[] {
   try { return decodeSessions(localStorage.getItem(SESSION_STORAGE_KEY)) } catch { return [] }
 }
@@ -919,6 +923,7 @@ const pendingSaves = new Map<string, Promise<void>>()
 let simStartToken: object | null = null
 let runStartToken: object | null = null
 let treeRefreshToken: object | null = null
+let tabReconciliationToken: object | null = null
 
 /** A save can outlive Stop or a project/target change. Reserve one preparation
  *  and revalidate its target before issuing any launch request. */
@@ -1362,9 +1367,16 @@ export const useStore = create<State>((set, get) => ({
   async closeTab(path) {
     const root = get().workspaceRoot
     const generation = workspaceGeneration
+    if (!get().tabs.some(tab => tab.path === path)) return
     const pending = pendingSaves.get(normPath(path))
-    if (pending) await pending.catch(() => {})
-    if (workspaceGeneration !== generation || get().workspaceRoot !== root) return
+    let removed = false
+    if (pending) {
+      const stopTracking = useStore.subscribe(state => {
+        if (!state.tabs.some(tab => normPath(tab.path) === normPath(path))) removed = true
+      })
+      try { await pending.catch(() => {}) } finally { stopTracking() }
+    }
+    if (removed || workspaceGeneration !== generation || get().workspaceRoot !== root) return
     const closing = get().tabs.find((t) => t.path === path)
     if (!closing) return
     // Guard against silent data loss on unsaved edits (themed confirm).
@@ -1396,35 +1408,37 @@ export const useStore = create<State>((set, get) => ({
     })
   },
   async reloadOpenTabsFromDisk() {
-    // The working tree changed underneath the editor (a branch switch). Bring
-    // each open tab back in sync with disk. The caller checks for unsaved edits
-    // BEFORE the switch, but the editor stays live during the async checkout, so
-    // re-check each tab LIVE here and NEVER overwrite one that is dirty now - a
-    // clean tab is safe to adopt (and to close, since closeTab only saves dirty
-    // tabs), a dirty one keeps the user's in-flight edit.
-    const paths = get().tabs.map((t) => t.path)
-    const live = (p: string): Tab | undefined => get().tabs.find((t) => normPath(t.path) === normPath(p))
-    for (const p of paths) {
-      const t0 = live(p)
-      if (!t0 || t0.content !== t0.savedContent) continue // gone from the list, or edited during the switch
-      let r: FileReadResult
-      try {
-        r = await window.api.readFile(p)
-      } catch {
-        await get().closeTab(p) // file no longer exists on the new tree
-        continue
+    const ownsWorkspace = captureWorkspaceOwnership(get().workspaceRoot)
+    const token = {}
+    tabReconciliationToken = token
+    const tabs = get().tabs.filter(tab => tab.content === tab.savedContent)
+    const owns = (tab: Tab): boolean => ownsWorkspace() && tabReconciliationToken === token &&
+      get().tabs.find(current => normPath(current.path) === normPath(tab.path)) === tab && tab.content === tab.savedContent
+    const closeOwned = async (tab: Tab): Promise<void> => {
+      const pending = pendingSaves.get(normPath(tab.path))
+      if (pending) await pending.catch(() => {})
+      if (owns(tab)) set(groupPatch(removeTabFromGroups(get(), tab.path)))
+    }
+    try {
+      for (const tab of tabs) {
+        if (!owns(tab)) continue
+        let read: FileReadResult
+        try {
+          read = await window.api.readFile(tab.path)
+        } catch (error) {
+          if (!owns(tab)) continue
+          if (isMissingFileRead(error)) await closeOwned(tab)
+          else get().notify('error', `Could not reload ${tab.name}`, 'Your open file was kept. Check the file and its permissions, then retry Reload from disk.')
+          continue
+        }
+        if (!owns(tab)) continue
+        if (read.kind === 'text') {
+          if (tab.readOnlyReason) await closeOwned(tab)
+          else get().applyExternalEdit(tab.path, read.content)
+        } else if (!tab.readOnlyReason) await closeOwned(tab)
       }
-      const t = live(p)
-      if (!t || t.content !== t.savedContent) continue // became dirty during the read
-      if (r.kind === 'text') {
-        if (t.readOnlyReason) await get().closeTab(p) // was a placeholder, now editable text: drop the stale placeholder
-        else get().applyExternalEdit(p, r.content) // clean editable text: adopt the new content
-      } else if (!t.readOnlyReason) {
-        // was editable text, now binary/too-large: the stale editable buffer
-        // would overwrite the new file on save, so drop it (it is clean).
-        await get().closeTab(p)
-      }
-      // else: still a read-only placeholder - leave it.
+    } finally {
+      if (tabReconciliationToken === token) tabReconciliationToken = null
     }
   },
 

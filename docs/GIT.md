@@ -33,6 +33,19 @@ Text diff previews are limited to 4 MB per side. Binary files, large files, and 
 
 Open the branch selector to switch to an existing local branch or enter a new branch name. Save or discard unsaved editor changes first. Cortex does not force a switch over conflicting changes.
 
+After switching, creating a branch or pulling, clean editor tabs reload from
+disk while Source Control remains busy. Dirty buffers are left alone. A reload
+belongs to the original clean tab and project session: closing/reopening a tab,
+editing/saving it, changing projects (even away and back), or starting a newer
+reload invalidates the older response. A confirmed missing file closes only
+its still-owned clean tab; other read failures preserve it and show an error.
+Waiting for a save before closing a tab cannot close a replacement tab.
+
+Git actions also retain their original project session through confirmations,
+requests and reconciliation. A late response cannot refresh a replacement
+project, clear its drafts or announce success there. This does not undo a Git
+operation already executed against its captured repository.
+
 Use **Fetch remote changes** to update remote-tracking references without changing working files. Fetching requires confirmation. After fetching, **Pull** appears when the branch is behind its upstream.
 
 Pull requires a clean working tree, including no untracked files, and no unsaved editor changes. It fast-forwards only. It does not create merge commits, rebase local commits, or overwrite a divergent branch. Handle divergent history or advanced conflict resolution in your Git tool or Cortex's terminal.
@@ -54,7 +67,11 @@ Read operations stop after 15 seconds; mutations stop after 60 seconds. Errors a
 Run the focused checks with:
 
 ```sh
-npx vitest run test/gitService.test.ts test/gitCommandSafety.test.ts test/gitStatus.test.ts
+npx vitest run test/gitService.test.ts test/gitCommandSafety.test.ts test/gitStatus.test.ts test/gitTabReconciliation.test.ts test/vcsOperationOwnership.test.ts
 ```
 
 Integration tests create fresh temporary repositories and a local bare remote. They cover staging, partial edits, first-commit unstaging, renames, literal and unusual names, project confinement, linked directories, environment overrides, branch validation, fetch, fast-forward and divergent pulls, and current-branch-only pushes. They do not modify Cortex's own repository or contact an external remote. Newline/backslash filename integration is POSIX-only because Windows cannot create those names.
+
+Separate deferred store/component tests exercise project/tab ownership and
+post-operation busy state, with Git IPC outcomes substituted. These are race
+regressions, not proof of remote credentials or native timing on every platform.
