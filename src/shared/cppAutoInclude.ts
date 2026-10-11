@@ -1,3 +1,5 @@
+import { maskCppNonCode } from './cppLexical'
+
 /** Exact standard-library owners, not guesses based on a class's spelling. */
 const headerSymbols: Record<string, readonly string[]> = {
   thread: ['thread', 'jthread', 'this_thread'],
@@ -59,57 +61,10 @@ const symbolHeaders = new Map(Object.entries(headerSymbols).flatMap(([header, sy
 export interface CppChangedRange { start: number; end: number }
 export interface CppIncludeEdit { offset: number; text: string; headers: string[] }
 
-// Preserve UTF-16 offsets and newlines, including in unfinished literals while
-// typing. A single lexical pass avoids treating // inside a string as a comment.
-function maskNonCode(source: string, hideStrings = true): string {
-  const pieces: string[] = []
-  let plainStart = 0
-  let i = 0
-  const hide = (end: number): void => {
-    pieces.push(source.slice(plainStart, i), source.slice(i, end).replace(/[^\r\n]/g, ' '))
-    i = end
-    plainStart = end
-  }
-  while (i < source.length) {
-    if (source.startsWith('//', i)) {
-      let end = source.indexOf('\n', i + 2)
-      while (end >= 0 && source[end - (source[end - 1] === '\r' ? 2 : 1)] === '\\') {
-        end = source.indexOf('\n', end + 1)
-      }
-      hide(end < 0 ? source.length : end)
-    } else if (source.startsWith('/*', i)) {
-      const end = source.indexOf('*/', i + 2)
-      hide(end < 0 ? source.length : end + 2)
-    } else if (source.startsWith('R"', i)) {
-      const opening = /^R"([^\s()\\]{0,16})\(/.exec(source.slice(i, i + 20))
-      if (!opening) { i++; continue }
-      const close = `)${opening[1]}"`
-      const end = source.indexOf(close, i + opening[0].length)
-      const after = end < 0 ? source.length : end + close.length
-      if (hideStrings) hide(after)
-      else i = after
-    } else if (source[i] === '"' || source[i] === "'") {
-      // An apostrophe inside a numeric token is a C++ digit separator.
-      if (source[i] === "'" && /[\da-fA-F]/.test(source[i - 1] ?? '') && /[\da-fA-F]/.test(source[i + 1] ?? '')) { i++; continue }
-      const quote = source[i]
-      let end = i + 1
-      while (end < source.length && source[end] !== quote && source[end] !== '\n' && source[end] !== '\r') {
-        if (source[end] === '\\') end += source[end + 1] === '\r' && source[end + 2] === '\n' ? 3 : 2
-        else end++
-      }
-      if (source[end] === quote) end++
-      if (hideStrings) hide(Math.min(end, source.length))
-      else i = end
-    } else i++
-  }
-  pieces.push(source.slice(plainStart))
-  return pieces.join('')
-}
-
 /** Only symbols actually touched by an insertion/replacement trigger edits. */
 export function cppHeadersForChanges(source: string, changes: readonly CppChangedRange[]): string[] {
   const headers = new Set<string>()
-  const code = maskNonCode(source)
+  const code = maskCppNonCode(source)
   for (const match of code.matchAll(/\bstd\s*::\s*([A-Za-z_]\w*)\b/g)) {
     const start = match.index!
     const end = start + match[0].length
@@ -135,9 +90,9 @@ function conditionalEnd(lines: readonly SourceLine[], start: number): { end: num
 /** Plan one insertion; never rewrite/reorder the user's existing headers. */
 export function planCppAutoIncludes(source: string, requestedHeaders: readonly string[]): CppIncludeEdit | null {
   const required = new Set(cppHeadersForChanges(source, [{ start: 0, end: source.length }]))
-  const code = maskNonCode(source)
+  const code = maskCppNonCode(source)
   if (/^\s*(?:export\s+)?module(?:\s|;|:)/m.test(code)) return null
-  const commentsMasked = maskNonCode(source, false)
+  const commentsMasked = maskCppNonCode(source, false)
   const lines: SourceLine[] = []
   let offset = source.charCodeAt(0) === 0xfeff ? 1 : 0
   while (offset < source.length) {
