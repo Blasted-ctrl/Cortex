@@ -149,8 +149,12 @@ The final approved-Vite combined baseline now passes on implementation source
 `c15627f`: 99 suites/1797 cases plus the same five existing skips, exact Node
 22.20.0, both types/build, nine reproducible CLI runs, expected negative self-tests
 and a ten-run advisory benchmark. Latest native approval/Stop/program-exit and
-the separately bounded dev/HMR checks also pass. Normal fresh installation is
-still in progress; next-major installation remains held until that result.
+the separately bounded dev/HMR checks also pass. The exact-source normal fresh
+locked install, types/build and native terminal controls now pass separately;
+this is not a fresh second full-suite result. The observed upstream explicit-kill
+ConPTY warning remains a bounded investigation task, not a clean-stderr claim.
+The approved isolated Vitest migration may now start; remaining majors still
+require separate review and approval.
 
 ## External release gates
 

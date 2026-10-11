@@ -164,6 +164,13 @@ Nested old test tooling still contributes affected paths. No forced Vitest
 upgrade or security waiver follows from this step; verify every remaining gate
 before proposing another major.
 
+The final combined baseline subsequently passes on implementation `c15627f`:
+99 suites/1797 cases plus the same five skips, types/build and CLI checks. Its
+normal fresh locked install, types/build and genuine native terminal controls
+also pass separately. Explicit kill retains an upstream ConPTY cleanup warning
+and follow-up; no fresh full-suite, clean-stderr or release claim is inferred.
+The next-major baseline condition is now satisfied. See the validation ledger.
+
 ## Approved next isolated step: Vitest 4.1.11
 
 The user approved this isolated step on 2026-10-10, after the current combined

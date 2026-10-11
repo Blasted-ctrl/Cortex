@@ -554,9 +554,49 @@ CLI/benchmark metadata records HEAD `0da8fab` with dirty-worktree status from th
 preserved unrelated untracked user file. Every tracked source/test/tooling/config
 and dependency-manifest diff from `c15627f` is empty; subsequent commits contain
 documentation only. The normal fresh `c15627f` installation remains a separate
-in-progress check. This baseline still uses Vitest 2.1.9; the user approved
+completed check below. This baseline still uses Vitest 2.1.9; the user approved
 Vitest 4.1.11 only after combined/fresh acceptance. No major install, release,
 remote push, physical upload or customer/human validation is inferred.
+
+## Final approved-Vite normal fresh installation
+
+An archive of exact implementation `c15627f9a14a8b0e2f3dfe8e0a1a4664d9430518`
+(SHA256 `1759c5311f9c13444a377748e0875b3932eb3edfc651569af7886907bd84e62c`)
+was extracted into an owned temporary directory with no initial dependencies.
+Portable Node 22.20.0/npm 10.9.3 ran normal `npm ci --include=dev --include=optional`
+against the official registry, retaining lifecycle scripts and all optional/dev
+packages. Owned caches and process-local empty user/global npm configs avoid
+modifying original settings. Installation exits 0 in 95589 ms; complete dependency
+tree validation exits 0. Both types exit 0 in 41909 ms and production/tools build
+exits 0 in 103377 ms. No independent watchdog fires. Canonical manifest/lock
+contents match the committed blobs despite archive/working-copy EOL differences.
+
+The actual fresh Electron 33.4.11 binary starts its built CommonJS main, sandboxed
+renderer and genuine preload bridge. Electron embeds Node 20.18.3, ABI 130/NAPI 9;
+the configured pinned-Node REPL shell crosses real PTY create/input/data/exit and
+kill IPC. Computed markers cannot pass by input echo. Natural exit returns 0;
+explicit kill returns its expected signal exit. Fresh ConPTY and serial NAPI
+bindings load; PDF dependency import succeeds. This probe does not open a serial
+port, test a physical board, parse a PDF, or establish default PowerShell behavior.
+The earlier dev probe is separate default-PowerShell evidence.
+
+The bounded native probe exits 0 in 9399 ms and its window closes normally.
+Explicit kill prints upstream `AttachConsole failed` from the ConPTY console-list
+helper; stderr and the
+[upstream race report](https://github.com/microsoft/node-pty/issues/952) are retained.
+Observed owned processes are gone, but arbitrary detached-pipeline cleanup and
+clean stderr are not established. A separate investigation remains open.
+The initial harness's assumption that `getLastWebPreferences()` returns a preload
+path failed before PTY interaction; actual configured source/hash plus real bridge
+invocation replace that invalid assumption. Its failed receipt remains separate.
+
+Root independently reads the receipts and screenshot, and verifies unchanged
+original manifests, six npm-config paths, eight package versions and all 70
+Electron/native binary hashes. Owned processes close without touching user
+windows. Local artifacts live under Temp `cortex-fresh-c15627f-5c24cc1f32724249bbdc342b1f2c8564/receipts`.
+This is fresh install/types/build/native evidence, not a second full-suite result,
+customer installer test, human trial, or an audit pass. The audit remains red at
+31 findings; the condition for starting the approved Vitest migration is satisfied.
 
 ## Native desktop checks
 

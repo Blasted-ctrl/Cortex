@@ -205,12 +205,19 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   around the editor; a real two-pixel drag and hide/show preserve the new 508
   preference. Genuine noisy-firmware failure details scroll internally, not the
   document. The full combined regression remains a separate gate.
-- [ ] Finish combined verification of separately approved Vite 7.3.7 and its
+- [x] Finish combined verification of separately approved Vite 7.3.7 and its
   demonstrated Vitest config/typing/packaging migrations; keep Electron unchanged.
+  Final implementation `c15627f` passes 99 suites/1797 cases plus the same five
+  skips, types/build and CLI checks. Its separately archived normal install,
+  types/build and native terminal pass; this is not a second fresh full-suite run.
 - [ ] After that combined/fresh-install baseline finishes, execute the separately
   approved Vitest 2.1.9 to 4.1.11 test-stack migration. Preserve isolation,
   scheduling, assertions, timeouts and skips; rerun checks and audit before any
   other major upgrade. Electron/PDF remain unchanged.
+- [ ] Investigate the observed upstream Windows ConPTY explicit-kill cleanup
+  warning with owned child-process controls. Fresh terminal input, natural exit
+  and kill pass, but this does not establish arbitrary pipeline cleanup or clean
+  stderr. Keep this separate from the isolated Vitest dependency migration.
 - [x] Close the discovered manual release-script bypass of CI quality/audit and
   draft-only guards; verify exact-target rejection without real publication.
   All 84 focused guard cases pass, including fail-closed fake gate/API paths and
@@ -228,7 +235,7 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   Electron approval controls pass. Seeded proposals do not prove provider access.
 - [x] Reconcile stale capability/status documentation against actual source evidence.
 
-Current checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,
+Earlier checkpoint evidence: `f89dce0` desktop tests/security, `2d429fb` PDF worker,
 `b9fca01` debugger state, `b1ca901` advanced optimization, `2d96c01` keyboard/ARIA,
 and `7f508e5` saved sessions. The corrected combined pass covers 89 suites/1610
 tests plus five existing explicit platform/local skips; types/build, CLI suite
@@ -244,4 +251,11 @@ it predates the committed panel-height fix. Fresh locked source
 installation/build/native terminal passed; its full suite also passed: 89 suites,
 1610 tests and the same five existing skips on the archived `f89dce0` snapshot.
 This fresh-install result does not substitute for verification of later source.
-These statements are local evidence, not human trials or customer release approval.
+Latest baseline: implementation `c15627f` passes the 99-suite/1797-case combined
+gate with the same five skips. A separate exact-source archive passes normal
+locked installation with lifecycle scripts and optional/development dependencies,
+both typechecks, production/tools build and genuine sandbox/preload/native
+terminal controls. The configured Node REPL shell is not default PowerShell
+evidence; its explicit-kill ConPTY warning is retained. See the validation ledger
+for source boundaries and receipts. These statements are local evidence, not
+human trials or customer release approval.
