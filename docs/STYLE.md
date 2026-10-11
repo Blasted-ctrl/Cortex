@@ -46,7 +46,9 @@ screenshotting the app at 1000x680 with every panel open:
 Panels size to their container, not the viewport, so a viewport media query is the wrong tool here.
 
 ## Enforcement
-The punctuation rules above are enforced by `test/style.test.ts`, which scans `src/`, `docs/`, and
-`README.md` and fails with the offending file and line. They are enforced because they drifted back
+The punctuation rules above are enforced by `test/style.test.ts`, which scans
+repository source/text files, including examples and plans. It excludes dependency
+and build output, Git/editor metadata and `package-lock.json`; failures identify
+the offending file and line. They are enforced because they drifted back
 twice by hand: an em dash reached a UI string as a "no pin" placeholder, and the unicode ellipsis
 spread to seven call sites while the rest of the app used three dots.

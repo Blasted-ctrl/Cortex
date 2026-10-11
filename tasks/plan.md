@@ -1,5 +1,19 @@
 # Automated firmware testing and CI benchmarks
 
+## Current production-readiness slice
+
+The [reviewed workbench plan](../.turbo/plans/cortex-production-workbench.md)
+is verified after a complete audit of the 50 tracked Markdown files at
+`da1aee3`. It protects global settings persistence and exact AI-approved disk
+snapshots, fits horizontal docks, and adds keyboard-accessible recent projects.
+The next execution uses the
+[reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md):
+main-derived proposal existence and lifetime-safe Git/editor reconciliation.
+That plan is ready, not yet implemented or validated by the workbench checks.
+The firmware design below remains implemented historical context, not a fresh
+unstarted task list. Remote Windows and firmware CI failures and the red
+dependency audit remain open; see [Task audit](../docs/TASK-AUDIT.md).
+
 First release: sections 1-3 of the requested feature and a complete quickstart.
 The actual Uno sketch runs as a host C++ executable against Cortex's existing
 Arduino shim; this is firmware logic testing, not AVR instruction emulation.

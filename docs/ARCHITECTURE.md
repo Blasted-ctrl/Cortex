@@ -46,6 +46,11 @@ surface.
 - `services/aiService.ts` - streams completions via Anthropic Messages API or any OpenAI-compatible
   endpoint (OpenAI, Ollama, LM Studio...). Falls back to an offline stub when unconfigured.
 - `services/settingsService.ts` - JSON settings persisted in `app.getPath('userData')`.
+  Captured patches serialize behind a shared initialization, reread the disk
+  baseline and stage/sync/rename before publishing cache state. Unknown stored
+  fields survive; public responses expose only supported fields with credentials
+  redacted. Failed saves keep committed cache/disk state, without promising an
+  OS-level compare-and-swap or power-loss durability.
 
 ### Preload - `src/preload/`
 The only bridge. The bundled CommonJS `index.ts` exposes a **typed, minimal

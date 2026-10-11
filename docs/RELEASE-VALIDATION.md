@@ -1,6 +1,6 @@
 # Customer-release validation evidence
 
-Started 2026-10-09; updated 2026-10-10 after tooling verification. This is local
+Started 2026-10-09; updated 2026-10-11 during workbench verification. This is local
 Windows evidence, not release approval, a claim
 of zero edge cases, or proof that every supported platform/board works.
 The evidence below was collected before the local source checkpoint commits;
@@ -1089,6 +1089,107 @@ The audit remains a customer-release blocker. Local receipts/logs use the ignore
 `builder26-final` prefix; temporary D: evidence is not shipped or guaranteed to
 survive later cleanup. Installer/signing, hardware, remote CI and human trials
 remain separate release gates.
+
+## Production workbench checkpoints and encoding stop-line
+
+The requested push put `da1aee3` on remote `main`. Later completed checkpoints
+are local commits, not automatically pushed: `cfc1f30` serializes global settings
+and fixes recent-project keyboard controls; `c145913` preserves physical project
+ownership across admitted path aliases; `2f1c84a` fits horizontal docks and error
+cards; `852dd12` reports settings-save failures and preserves newer mounted drafts.
+`da99c9b` preserves exact approval/editor encoding snapshots through typing and
+saves. These are verified local checkpoints, not a new remote CI pass.
+
+Local focused evidence includes 38 settings service/default cases, 84 physical
+alias/Git/config cases plus one unchanged local platform skip, 43 horizontal/
+bottom/debug/notification cases, and 78 settings service/default/UI cases. Actual
+original-behavior and faithful regression experiments failed the relevant checks
+before exact restoration. The final pre-encoding full run exits 0: 106 suites,
+1924 passes plus the same five explicit skips (1929 total); Vitest 629.09 seconds,
+parent 635283 ms, no watchdog. Its `workbench-drafts-final-tests` receipt predates
+the new editor-model tests and final encoding correction; it is not their gate.
+
+Three separately retained native attempts explain the encoding stop-line:
+
+- `native-vaSywM` fails in the inspection helper before UI acceptance. Its later
+  OS absence does not retroactively establish successful native cleanup.
+- `native-ZWNMAC` reaches the genuine sandboxed window but fails to observe Enter
+  activation because its CDP key helper omitted character text. Normal close/
+  owned cleanup pass; unfinished UI scenarios do not.
+- `native-yhF8Rt` proves trusted recent-project Enter/Space actions, dock fitting
+  at 1366/900/1800 pixels, contained highly zoomed notifications, continuous
+  two-pixel dragging, original Simulator switching, and real settings failure/
+  repair/retry. It closes normally with no renderer/main exceptions and all
+  23 observed exact owned identities gone. However, its driver `passed` flag
+  missed a duplicated BOM after Monaco typing. Raw saved bytes contain UTF-8
+  EFBBBF at offsets 0 and 20; disk/saved-snapshot equality alone is insufficient.
+  This attempt is **not file-integrity acceptance**.
+
+All three reports/logs/screenshots remain in separate children of the owned
+`D:/cortex-workbench-acceptance` directory. None used customer files, provider
+calls or hardware. The initial correction's later types/build pass does not close
+the defect: review also found that stripping a marker before initial model
+construction loses an intentional second leading UFEFF. Initial construction and
+controlled updates have different Monaco semantics. No old failure is overwritten
+or reclassified as a pass.
+
+The final correction separates raw model construction from controlled text and
+tracks each mounted model's raw-snapshot/marker provenance. Save acknowledgements
+cannot reinterpret a newly typed literal as encoding metadata. The existing
+store action has an optional exact-raw mode for this encoding-aware editor;
+ordinary callers retain their previous BOM-preservation behavior. Actual-component
+regressions use the installed React wrapper and production store/native filesystem,
+with only Monaco/browser/host boundaries substituted. Final focused verification
+passes 59 cases across three suites. Faithful construction and raw-boundary
+regressions fail seven and one cases respectively before exact restoration.
+Both typechecks and desktop/tools build pass; nine firmware runs pass 87
+assertions with identical per-scenario traces. The broken shutdown and independent
+hang watchdog are caught by the separate self-test. Full combined regression and
+the advisory benchmark now pass. The first full encoding run retained a style
+failure in the new plan (1938 passes, one failure and five skips, exit 1). After
+correcting only that punctuation, all four style cases pass and the full rerun
+exits 0: 107 suites, 1939 passes and the same five skips (1944 total), Vitest
+547.14 seconds and parent 550567 ms, without watchdog. Application source hashes
+remain unchanged between those runs and the verified encoding commit. The
+`workbench-encoding-style-corrected-tests` receipt is the final full gate.
+
+The final ten-run benchmark passes after two warmups with identical virtual
+traces; host execution median is 46.54 ms and p95 is 50.74 ms. Its saved baseline
+is incompatible because the workload/shim and host Node differ; this is not a
+measured speed regression, and no baseline is replaced. Host and virtual metrics
+remain separate and comparisons advisory. This report records pre-commit
+`852dd12` with a dirty worktree; it does not identify a clean committed revision.
+
+Fresh native `native-DTQyHJ` now passes the six planned workflows in the original
+sandboxed production Electron 33.4.11, with genuine preload IPC, Monaco typing,
+Ctrl+S and unkeyed file switching. Whole saved files match independently constructed
+expected bytes: `main.cpp` is 59 bytes with only its encoding BOM; `literal.cpp`
+is 63 bytes with its encoding marker and intentional interior U+FEFF. Tail and
+prefix edits preserve the original two-marker file. Keyboard recents, fitted
+docks, contained notifications, two-pixel dragging, original Simulator and real
+settings failure/repair/retry also pass. Root and the native tester inspect the
+actual screenshots, not just geometry flags. Runtime exception arrays are empty;
+raw logs retain the two expected owned missing-folder/corrupt-settings errors.
+Normal close exits 0; all 19 observed exact owned PID/creation identities are
+absent and both inspection ports are free. Source/build/native hash inventories
+and root's four Git tree checks are unchanged. Wrapper exit 0 takes 26816 ms
+without timeout. The report SHA256 is
+`7fff089f501277ffc8838fd339388a65243ac307cfcef11134d09329e681b44f`.
+This closes the scoped native file-integrity stop-line, not external release gates.
+
+The portable verification runtime's extracted C: directory subsequently became
+unavailable while its official archive and old receipts remained. Restoration
+uses the same Node 22.20.0/npm 10.9.3 archive, verified again against Node's
+official release SHA256, in an owned D: tools directory. This is not a toolchain
+upgrade, global installation or fresh app dependency installation.
+
+The actual remote workflows on `da1aee3` remain failed. Local alias fixes and
+Electron-free service test boundaries have passed locally but have not run on a
+new pushed revision. Dependency audit still blocks release at 17 findings (seven
+high, ten moderate). Signed OS installers, selected hardware and human trials
+remain unverified. Subsequent file-provenance/Git-reconciliation implementation
+can now begin under its separately reviewed written plan; it is not verified by
+these workbench receipts.
 
 ## Native desktop checks
 

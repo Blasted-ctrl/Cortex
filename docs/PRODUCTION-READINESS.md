@@ -9,7 +9,7 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
 1. Dependency remediation. After compatible fixes and the approved tooling
    changes, local
    `npm audit --include=dev --include=optional --audit-level=high` still fails
-   with 25 findings: one critical, 18 high and six moderate (initially 43,
+   with 17 findings: zero critical, seven high and ten moderate (initially 43,
    then 32 after compatible fixes and 31 after the first tooling upgrade).
    The separately approved electron-vite 4.0.1 upgrade removes one moderate
    affected dependency group. Root Vite 7.3.7 is separately approved and installed;
@@ -21,14 +21,17 @@ The executable quality floor is [CONSTRAINTS.md](../CONSTRAINTS.md).
    Combined/native upgrade verification is recorded separately, not inferred from
    an audit count. This includes desktop and
    build/test tooling; dev-only is not automatically unreachable. The audit remains
-   a blocking CI gate. Remaining major Electron/packaging changes need version-by-
+   a blocking CI gate. Exact electron-builder 26.15.3 passes local full regression,
+   normal locked installation, unpublished original-config Windows packaging and
+   native packaged CLI/serial/terminal/PDF/circuit controls. Remaining major Electron/PDF changes need version-by-
    version review and verification; no forced upgrade or advisory waiver was applied.
    Owner: project maintainer; review date: 2026-10-10; deadline: before any release.
    See [Dependency remediation](DEPENDENCY-REMEDIATION.md) for the path-based triage.
 2. Signing and clean-machine installer tests. Windows Authenticode and macOS
-   signing/notarization still need owner credentials. A local Windows package
-   attempt hit the signing-tools archive's symlink privilege requirement. A staged
-   bundled-tools preview is not proof that installation/uninstallation works.
+   signing/notarization still need owner credentials. The original-config
+   unpublished Windows directory package passes; a historical package attempt
+   failed on a signing-tools archive symlink privilege requirement. Neither a
+   directory package nor a bundled-tools preview proves installation/uninstallation.
    Run and install the actual Windows/macOS/Linux workflow artifacts.
 3. Hardware validation. Verify/Upload needs a matching board core, explicit
    port, USB permissions and sometimes vendor drivers/bootloader setup. No real

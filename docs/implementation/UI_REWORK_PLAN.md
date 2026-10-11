@@ -9,7 +9,17 @@ per iteration  -  plan → implement → typecheck + test + build → live-verif
 This is the living checklist. Each phase lists the concrete audit findings it
 closes (from the `cortex-ui-audit` workflow, 2026-09-01).
 
-## Current-state facts (audit)
+## Status of this historical plan (2026-10-10)
+
+The audit facts below describe the original rework baseline, not today's app.
+Subsequent slices implemented Git operations, local projects/recents, advanced
+optimization choices and debugger view-state retention. The old 6c and
+mount-local debugger debt notes are superseded by those implementations.
+Use [TASK-AUDIT.md](../TASK-AUDIT.md) for the reviewed current queue and release
+boundaries. This document's historical loop is not standing authorization for
+push, release publication or hardware actions.
+
+## Original-state facts (audit)
 
 - Shell (App.tsx): `TitleBar → [ActivityBar | SideBar? | main(EditorArea + BottomPanel) | AiPanel?] → StatusBar`. Panels are flush (no framed islands). No right-edge rail; the AI panel is a left-rail-toggled right panel. Splitters resize sidebar/ai/bottom.
 - Theme: a real semantic token set exists (`ide-*` in tailwind.config.js, documented in docs/THEME.md) and is used consistently (audit found ZERO raw non-ide color classes). Only ONE theme (Cortex Dark); a persisted `theme: 'dark'|'light'` field is dead.

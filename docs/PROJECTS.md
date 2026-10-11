@@ -18,6 +18,9 @@ browser sandbox or an account, and you can open the same folder in another edito
    current one first. The full path is available on hover. Welcome also shows
    recent project names and paths. Cortex remembers the eight most recent
    folders locally and reopens the last folder on launch.
+   Welcome's Open and Remove controls are separate native buttons: Tab reaches
+   either, and Enter or Space activates only that action. Their labels include
+   the full path, and keyboard focus makes Remove visible.
 5. **File > Close Folder** saves open edits and an edited circuit before returning
    to Welcome. Opening another folder also saves first. If a save fails, the
    current project stays open. Closing the application has the same protection.
@@ -76,6 +79,19 @@ space above the panel where possible, and a small splitter drag starts from the
 displayed height rather than an offscreen saved size. Layout behavior is covered
 by `test/bottomPanelLayout.test.ts`; native overflow and focus checks remain
 separate from those controlled React geometry tests.
+
+The sidebar and shared Agent/Datasheets dock also fit the actual workbench width,
+reserving a 320-pixel center where possible. Automatic fitting keeps saved widths
+intact, so widening the window restores them. A drag starts at the displayed
+width; when both docks are constrained, it deliberately adjusts their saved
+ratio within existing bounds. At very narrow widths the docks can fall below
+their saved minimum sizes. `test/horizontalPanelLayout.test.ts` covers actual
+App wiring with controlled geometry; native-window checks are recorded separately.
+
+Notifications follow the displayed right-dock width and stay inside the viewport.
+On very narrow or highly zoomed windows, visibility takes priority over clearing
+the dock and rail. Errors remain until dismissed; the status-bar bell retains
+the notification history.
 
 Tree hierarchy, expansion, file selection, tab selection and panel relationships
 are exposed to assistive technology. These controls follow the
@@ -158,6 +174,25 @@ Hardware uploads still need validation on intentionally selected physical boards
   replacement. Malformed/unreadable configuration and linked metadata entries
   are not overwritten. A save failure shows an error: the selected setting stays
   active for the session, but the previous disk configuration remains unchanged.
+- Global `settings.json` updates also serialize, stage and flush before replacement.
+  Reads and renderer responses reflect committed settings, not an attempted save.
+  Invalid/unreadable existing files are not overwritten; repair a copy and retry.
+  Unknown stored fields and unreadable encrypted credentials survive unrelated
+  updates. New files request owner-only POSIX permissions; Windows ACL privacy
+  and cross-process locking are not guaranteed. Credentials remain redacted from
+  renderer responses. When no OS keyring is available, keys are stored locally
+  without encryption.
+- Failed global saves show one credential-safe notification without adopting the
+  attempted setting. Retry after repairing the underlying file or permission
+  problem. Failed key/board-URL drafts remain available, and an earlier save's
+  completion cannot clear a newer draft. A selected live serial baud rate still
+  applies for that session even when saving its default fails.
+- Text settings keep newer edits while an earlier save completes, including an
+  edit that returns to the same submitted text. Clean fields adopt committed
+  external updates; Escape resets to the latest committed value. Failed text
+  saves keep the draft for retry. Fields retain their identity when a nearby
+  conditional setting appears or disappears. These are mounted-view drafts,
+  not durable storage: leaving the category/view can discard an unsaved draft.
 - Rapid file switching handles Monaco's delayed word-highlight cancellation
   through a narrow upstream backport. Highlighting stays enabled and unrelated
   errors remain visible; no global error filter is installed.
@@ -175,6 +210,9 @@ Hardware uploads still need validation on intentionally selected physical boards
 - UTF-8 BOMs and existing editor line endings are preserved. Binary files,
   invalid UTF-8, and files larger than 8 MB open as read-only placeholders.
   Other encodings are not yet editable; convert a copy with an appropriate tool.
+  Monaco consumes one leading BOM when constructing its model; later updates
+  keep that encoding marker out of editable text. Intentional additional leading
+  or interior U+FEFF characters remain text through typing, saves and file switches.
 - File creation, writes, rename, and delete require an open project. Paths and
   symlink or junction targets must stay inside that project. The workspace root
   itself cannot be renamed or deleted through the Explorer.

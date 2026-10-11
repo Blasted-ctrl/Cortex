@@ -62,11 +62,13 @@ One JSON file per language under `src/shared/stdlib/` (e.g. `cpp.json`,
   C++23 inside `<vector>`, which has existed since C++98).
 - `since: null` means "no gate, always available" - most of the C library surface
   inherited into C++, for instance.
-- Cortex only ever uses this file to enrich an item the LSP already proposed
-  (matched by qualified name) or to fill in `detail`/`documentation` when the LSP gave
-  none. It never invents a completion the server didn't already offer, and it never
-  overrides a version gate the compiler itself already enforces - if clangd offered
-  it under the project's configured standard, it's offerable.
+- Completion enrichment supplements items the LSP already proposed; it does not
+  create additional library completions. The current index matches bare labels,
+  not verified qualified names. Ambiguous names such as `clear` can therefore
+  receive unrelated library documentation; requiring library provenance is an
+  open task in [TASK-AUDIT.md](TASK-AUDIT.md). Hover enrichment has the same
+  attribution limitation. Compiler/LSP availability and standard configuration
+  remain separate from this documentation lookup.
 
 ## The agent's loop
 
@@ -74,7 +76,7 @@ Run this as its own background/scheduled agent, separate from interactive coding
 sessions, so it doesn't compete with normal work for this session's attention:
 
 1. Pick one language, one library already partially covered (or a well-known library
-   not covered at all yet - e.g. C++ has `<vector>` but not yet `<chrono>`).
+   not covered at all yet; inspect the current JSON before selecting a library).
 2. Read that library's real reference documentation (cppreference for C++, the
    Python docs for Python, the std docs / docs.rs for Rust).
 3. Diff: which public symbols does the reference doc list that `src/shared/stdlib/<lang>.json`
@@ -87,7 +89,7 @@ sessions, so it doesn't compete with normal work for this session's attention:
    std::vector members").
 
 Coverage priority order for C++ once `<vector>`/`<string>`/`<algorithm>` basics
-exist: `<chrono>`, `<map>`/`<unordered_map>`, `<memory>` (smart pointers),
+exist: extend the seeded `<chrono>` coverage, then `<map>`/`<unordered_map>`, `<memory>` (smart pointers),
 `<thread>`/`<mutex>`, `<optional>`/`<variant>`, `<filesystem>`. For Python:
 `os`, `sys`, `pathlib`, `json`, `re`, `itertools`, `collections`, `typing`. Adjust
 as real usage in opened projects shows what's actually being typed.
@@ -107,7 +109,7 @@ The loader and merge logic are live in `lspClient.ts` (`enrichDocumentation`,
 `resolveCompletionItem`, and from the hover provider via the identifier under
 the cursor. Seeded so far:
 
-- `src/shared/stdlib/python.json`: `time` (full module), `os` (a few common
+- `src/shared/stdlib/python.json`: `time` (ten seeded entries), `os` (a few common
   entries), `random`
 - `src/shared/stdlib/cpp.json`: `<vector>`, `<chrono>`
 
@@ -123,10 +125,8 @@ call-parens insertion (`withCallParens` in lspClient.ts) so a bare function
 completion like `print` inserts `print()` with the cursor between the
 parens, regardless of whether the server itself supports that.
 
-The recurring agent is scheduled: a daily cloud routine (Claude Code
-routines) that follows this document - picks one under-covered library per
-run, adds 10-20 verified entries to the JSON files, runs the checks, and
-commits. It covers the stdlib dictionary; extending its scope to the
-hardware DEVICE_MAP in `src/shared/hardwareGraph.ts` (same curation rules:
-small verified batches, real documentation only) is the intended next step
-but is not part of its task yet.
+The intended daily cloud routine follows this document: choose one under-covered
+library, add 10-20 verified entries, run checks and commit. Its external schedule
+and successful runs are not verified by this checkout. Extending it to the hardware
+DEVICE_MAP in `src/shared/hardwareGraph.ts` requires the same small, source-verified
+batches and separate scope authorization.

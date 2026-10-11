@@ -174,6 +174,16 @@ system permissions or install a global CLI. Source checkpoints are saved separat
 
 See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
 
+- [x] Complete the reviewed workbench integrity slice: serialized global settings,
+  fitted docks/notifications, keyboard recents, retained mounted settings drafts
+  and exact BOM/CRLF approval/editor saves. Final types/build, 107 suites/1939
+  passes with the same five skips, repeated firmware/self-test, advisory benchmark
+  and original sandboxed native desktop checks pass. Retain earlier failures;
+  dependency advisories, new remote CI and external release gates remain open.
+- [ ] Execute the reviewed file-ownership slice: main-derived proposal existence,
+  conservative legacy review, owned Git tab reloads/save-wait closes and VCS
+  reconciliation. Prove negative cases and normal creation/save/branch controls;
+  preserve exact bytes, existing guards and the separate release blockers.
 - [x] Remove simulator tutorial clutter without hiding useful controls or errors.
   Acceptance: no empty-canvas or duplicate wiring instruction banners in 2D/3D;
   concise connection state, wiring/Cancel/Escape, pin details and warnings remain.

@@ -9,7 +9,7 @@
 ## Setup
 ```bash
 cd customIDE
-npm install
+npm ci
 npm run dev
 ```
 
@@ -48,8 +48,9 @@ src/
 
 ## How to add a feature that crosses the IPC boundary
 1. **Define it** in `src/shared/ipc.ts`: add a channel name to `IPC` and any payload types.
-2. **Handle it** in `src/main/index.ts` (`ipcMain.handle(...)`), delegating to a service in
-   `src/main/services/`.
+2. **Handle it** through the local guarded `handle(...)`/`on(...)` wrappers in
+   `src/main/index.ts`, delegating to a service in `src/main/services/`. Keep trusted
+   renderer validation and payload/path checks; do not register an unguarded handler.
 3. **Expose it** in `src/preload/index.ts` on the `api` object (keep it typed).
 4. **Consume it** from `src/renderer/src/store/useStore.ts` via `window.api.*`, and render in a
    component.
@@ -68,4 +69,7 @@ Edit `src/shared/languages.ts` - add a `LanguageDef` (id, Monaco language id, ex
 - Tailwind for styling; use the `ide-*` palette tokens from `tailwind.config.js`.
 - Keep the main process the only place with Node/native access; the renderer talks only through
   `window.api`.
-- Run `npm run typecheck` before committing.
+- Follow [CONSTRAINTS.md](../CONSTRAINTS.md): run types, applicable regression tests,
+  build and firmware/self-test checks. Dependency advisories remain a release gate,
+  including development and optional dependencies. A local green test run does not
+  establish clean-machine, hardware or remote CI acceptance.

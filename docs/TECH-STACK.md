@@ -5,7 +5,7 @@
 | Layer | Choice | Why |
 |---|---|---|
 | Desktop shell | **Electron 33.4.11** | Existing CommonJS desktop/native-module integration; the runtime upgrade and dependency audit remain release blockers. |
-| Build tooling | **electron-vite 4.0.1** + **Vite 7.3.7** | ESM tooling builds main/preload/renderer; React plugin 4.7.0 admits Vite 7. Vitest 2 retains its own Vite 5 until a separately reviewed upgrade. |
+| Build tooling | **electron-vite 4.0.1** + **Vite 7.3.7** | ESM tooling builds main/preload/renderer; React plugin 4.7.0 admits Vite 7. Vitest 4.1.11 shares root Vite 7.3.7. |
 | UI | **React 18 + TypeScript** | Component model the whole team knows; strict typing across the IPC boundary. |
 | Styling | **Tailwind CSS 3** | Semantic CSS-variable tokens for Cortex Dark and Light; see [THEME.md](THEME.md). |
 | Editor | **Monaco** (`@monaco-editor/react`) | Literally VS Code's editor - syntax highlighting, minimap, IntelliSense, folding, multi-cursor for free. Bundled locally (no CDN) for CSP. |
@@ -14,7 +14,7 @@
 | Serial | **serialport** (native) | Cross-platform serial I/O; lazy-loaded so a failed native build never blocks startup. |
 | File watching | **chokidar** | Robust cross-platform FS events. |
 | AI | **fetch** → Anthropic / Gemini / OpenAI-compatible | Streaming completions; provider-agnostic, including local compatible endpoints. |
-| Packaging | **electron-builder** | NSIS (Windows), DMG (macOS), AppImage/deb (Linux). |
+| Packaging | **electron-builder 26.15.3** | NSIS (Windows), DMG (macOS), AppImage/deb (Linux). Unpublished Windows directory packaging is verified; clean-machine installers remain separate. |
 
 The tooling configs are `electron.vite.config.mts` and `vitest.config.mts`; the
 application remains CommonJS. Both are covered by the normal Node typecheck

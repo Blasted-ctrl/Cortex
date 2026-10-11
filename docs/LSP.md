@@ -179,6 +179,6 @@ live without restarting the app.
 
 Add it to `LSP_SERVERS` (command + args) and `LSP_SERVER_LABEL` in
 `src/shared/lsp.ts`, extend `langForFile` for its extensions, and allowlist the
-command in `src/shared/security.ts`. Pyright and rust-analyzer are wired but were
-not installed on the dev machine; they need no toolchain bridge (Pyright finds
-its own stdlib, rust-analyzer uses cargo).
+command in `src/shared/security.ts`. Pyright and rust-analyzer are wired and
+available when their executables are installed and detected. They need no C++
+toolchain bridge: Pyright finds its own stdlib, and rust-analyzer uses Cargo.

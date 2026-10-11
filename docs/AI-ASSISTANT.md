@@ -29,6 +29,13 @@ file cannot apply concurrently. Typing during a dispatched write stays in the
 editor as unsaved work; closing/reopening a tab or changing projects prevents
 late approval results from adopting that new editor session.
 
+Approval preserves the reviewed disk file's UTF-8 BOM and line endings even when
+the model proposes LF-only text without a BOM. The saved editor snapshot retains
+the exact written text, so an ordinary later save does not mistake CRLF for an
+external change. Real external edits still trigger the existing conflict guard.
+`test/agentEditApprovalFilesystem.test.ts` exercises approval followed by ordinary
+save against the native filesystem, including the genuine external-edit refusal.
+
 Creating a file requires an absent, unopened path and an empty reviewed old
 content. The current proposal format cannot distinguish this from a deleted
 empty file that was not open. Disk comparison is not an OS-level atomic

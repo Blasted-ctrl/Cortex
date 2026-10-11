@@ -7,6 +7,154 @@ mark a customer release ready. Use [tasks/todo.md](../tasks/todo.md) for the
 firmware acceptance checklist, [tasks/plan.md](../tasks/plan.md) for the active
 slice and [CONSTRAINTS.md](../CONSTRAINTS.md) for the unchanged quality floor.
 
+## Complete Markdown audit and verified workbench checkpoint
+
+All 50 tracked Markdown files at `da1aee318de35b4ce321074ed18b37d56ec7ac87`
+were read in full, including the hidden project guidance, example READMEs and
+application prompt. Vendor dependencies, generated output and unrelated untracked
+files are not product-task sources. The new [written plan](../.turbo/plans/cortex-production-workbench.md)
+was independently reviewed before implementation.
+
+The completed workbench checkpoint covers global settings save integrity,
+horizontal dock fitting, keyboard recent-project controls and exact BOM/CRLF
+snapshots after AI approval. Local commits are `cfc1f30`, `c145913`, `2f1c84a`,
+`852dd12` and `da99c9b`; only the earlier baseline was pushed. Focused regressions,
+types/build, the 107-suite full run (1939 passes and five unchanged skips),
+repeated firmware, negative self-tests, advisory benchmark and fresh native
+desktop acceptance pass. See [Release validation](RELEASE-VALIDATION.md) for
+source boundaries and the retained failed attempts, including a native BOM
+defect and the new plan's corrected typography failure.
+
+An additional accepted finding arose while reviewing that checkpoint: Settings
+event handlers dropped rejected saves, including success-only key/URL draft
+clearing. The verified renderer fix reports one credential-safe error, preserves
+the programmatic rejection contract and retains failed or newer mounted drafts.
+This is a scoped persistence follow-up, not a dependency or API migration.
+
+Cross-component review also found that notifications still used saved right-dock
+widths after the dock fitted a smaller window. The accepted remedy shares the
+displayed width and caps the inset for narrow CSS viewports. Five actual
+App/Toasts regressions fail with the stored-width behavior and pass with the fix;
+native constrained/zoomed rendering also passes separately. Malformed settings
+patch tests prove rejection, unchanged disk/cache, no staging leftovers and later
+valid-save recovery without changing the production guards.
+
+The independent remainder review also found that a successful earlier text-field
+save resets newer typing through the generic settings input. This behavior already
+exists at the baseline; it is an accepted settings-integrity follow-up, not a new
+regression introduced by persistence. The verified remedy preserves newer edit
+revisions, adopts external values only while clean, retains failed-save retry
+and makes Escape restore the latest committed value. Deferred responses,
+A-to-B-to-A edits and stable field identity have actual component regressions.
+These drafts are not durable: leaving a category/view can discard unsaved input.
+
+The next executable slice is the separately
+[reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md),
+covering queue items 2 and 3 below. Corrected native encoding acceptance and the
+combined workbench gate have passed; that next plan remains unimplemented at this
+checkpoint. Later dictionary, diagnostic and keyboard slices remain queued.
+
+Remaining executable queue, in priority order:
+
+1. Validate the locally corrected failures in exact-revision remote CI without
+   weakening assertions or timeouts. Baseline Windows logs show 27 failed cases
+   across datasheet/Git/configuration
+   persistence and actual `RUNNER~1` temporary paths. Physical-versus-lexical root
+   comparisons reject admitted aliases; the config race fixture intercepts the
+   wrong path. Baseline firmware CI fails before collecting two service suites because
+   their transitive Electron imports reach a deliberately absent desktop binary.
+   Local corrections retain real filesystem/Git/PDF/compiler behavior, isolate
+   only that main-runtime test boundary, and pass the combined regression.
+   A new remote pass is still required; the failed baseline jobs are not passes.
+2. Preserve explicit file-existence provenance in reviewed AI proposals. An empty
+   original is not proof that creation was reviewed; retain absence/conflict guards.
+3. Fence delayed Git-triggered tab reloads by workspace and tab ownership, so a
+   closed/reopened tab cannot adopt an older asynchronous read.
+4. Require library provenance before applying supplemental stdlib documentation
+   to ambiguous completion labels such as a user-defined `clear` or `size`.
+5. Measure and bound compiler-diagnostic captures, retaining real diagnostics and
+   explicit omission signals. Display retention alone is not a producer-memory bound.
+6. Complete More-tools menu focus/navigation and keyboard splitter resizing.
+
+Policy-dependent work remains unsaved-draft Restore/Discard and retention,
+recoverable deletion, and release-update/crash-reporting policy. Larger product
+increments include bounded Git history, genuine selected-core Arduino IntelliSense,
+multi-file project builds and additional simulator engines. Board pin/device-map
+curation requires authoritative board evidence; unsupported behavior must remain
+explicit. Signing, OS installer trials, actual hardware and teammate/outside-team
+testing remain external release gates.
+
+### Exact pushed-revision CI evidence
+
+The connected GitHub job-log reader confirms the failures at the exact revision
+above. [CI run 38105055828](https://github.com/Blasted-ctrl/Cortex/actions/runs/38105055828)
+completed with Ubuntu types/tests/build passing and dependency advisories failing;
+Windows types passed, tests failed and build/audit were skipped.
+[Firmware run 38105055817](https://github.com/Blasted-ctrl/Cortex/actions/runs/38105055817)
+passed types but failed unit collection (`datasheetService.test.ts` and
+`projectModel.test.ts`: Electron installation-path lookup). Its desktop build,
+scenarios, self-test and benchmark were skipped. Public annotation counts are not
+the complete failure inventory; the decoded job logs supersede them. Both workflows
+remain failed, not validated remote acceptance.
+
+<details>
+<summary>Audited Markdown files at the baseline (50)</summary>
+
+```text
+.claude/claude.md
+AGENTS.md
+CONSTRAINTS.md
+README.md
+benchmarks/README.md
+docs/AI-ASSISTANT.md
+docs/ARCHITECTURE.md
+docs/AUDIT-ROUND4.md
+docs/AUDIT-ROUND5.md
+docs/AUDIT-SESSION-3D-UI.md
+docs/BACKLOG.md
+docs/BOARD-TOOLS.md
+docs/BOARDS-AND-LIBRARIES.md
+docs/CONTRIBUTING.md
+docs/CPP-AUTO-INCLUDES.md
+docs/DATASHEETS.md
+docs/DEBUGGING.md
+docs/DEPENDENCY-REMEDIATION.md
+docs/FEATURES.md
+docs/FIRMWARE-TESTING.md
+docs/GIT.md
+docs/LANGUAGES.md
+docs/LSP.md
+docs/PRODUCTION-READINESS.md
+docs/PROJECT-CONFIG.md
+docs/PROJECT-MODEL.md
+docs/PROJECTS.md
+docs/RELEASE-VALIDATION.md
+docs/ROADMAP.md
+docs/SIMULATION-WORKBENCH.md
+docs/SIMULATOR-3D.md
+docs/SIMULATOR.md
+docs/STDLIB-DICTIONARY-WORKFLOW.md
+docs/STYLE.md
+docs/TASK-AUDIT.md
+docs/TECH-STACK.md
+docs/THEME.md
+docs/VISION.md
+docs/demos/README.md
+docs/implementation/CORTEX_DECISIONS.md
+docs/implementation/CORTEX_IMPLEMENTATION_PLAN.md
+docs/implementation/CORTEX_PROGRESS.md
+docs/implementation/INTELLIGENT_DEPENDENCY_SYSTEM.md
+docs/implementation/UI_REWORK_PLAN.md
+examples/firmware-testing/README.md
+examples/multilang/README.md
+examples/robot/README.md
+src/main/prompts/embedded-engineer.md
+tasks/plan.md
+tasks/todo.md
+```
+
+</details>
+
 ## Existing baseline and stale completed items
 
 The CLI first release covers the user's sections 1-3 plus the quickstart:

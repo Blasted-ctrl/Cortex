@@ -8,7 +8,7 @@ actually gets today, and what it does not.
 
 | Language | Highlighting | IntelliSense (LSP) | Run | Debug | Notes |
 |---|---|---|---|---|---|
-| **C++** (`.cpp .cc .cxx .c++ .hpp .hh .hxx .h`) | yes | **clangd** | yes | **yes (gdb)** | Standard selectable C++11 → C++23 |
+| **C++** (`.cpp .cc .cxx .c++ .hpp .hh .hxx .h`) | yes | **clangd** | yes | **yes (gdb)** | Standard selectable C++11 → C++23, plus experimental `c++2c` when the selected compiler supports it |
 | **C** (`.c`) | yes | **clangd** | yes | **yes (gdb)** | Built with `gcc` and a **C** standard (c99/c11/c17/c23) |
 | **Arduino** (`.ino`) | yes (as C++) | no (by design) | Verify/Upload + **3D Simulator** | no | clangd cannot find the Arduino core without a compile DB |
 | **Python** (`.py .pyw`) | yes | Pyright *(if installed)* | yes | not yet | Falls back to `python3` when `python` is absent |
