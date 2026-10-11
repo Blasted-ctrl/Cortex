@@ -1,21 +1,17 @@
-import { useEffect, useState } from 'react'
 import {
   Files,
   Search,
-  Cpu,
-  Library,
   Network,
   PackageCheck,
-  Bug,
   Radio,
   GitBranch,
   Settings,
   CircuitBoard,
-  MoreHorizontal,
   Terminal,
   AlertTriangle
 } from 'lucide-react'
 import { useStore, type SidebarView } from '../store/useStore'
+import MoreTools from './MoreTools'
 
 type Item = { view: SidebarView; icon: typeof Files; label: string }
 
@@ -32,11 +28,6 @@ const PRIMARY: Item[] = [
   { view: 'serial', icon: Radio, label: 'Serial & Devices' },
   { view: 'vcs', icon: GitBranch, label: 'Source Control' }
 ]
-const MORE: Item[] = [
-  { view: 'boards', icon: Cpu, label: 'Boards Manager' },
-  { view: 'libraries', icon: Library, label: 'Library Manager' },
-  { view: 'debug', icon: Bug, label: 'Debug' }
-]
 
 export default function ActivityBar(): JSX.Element {
   const sidebarView = useStore((s) => s.sidebarView)
@@ -51,7 +42,6 @@ export default function ActivityBar(): JSX.Element {
   const openTerminal = useStore((s) => s.openTerminal)
   const toggleBottom = useStore((s) => s.toggleBottom)
 
-  const moreActive = MORE.some((m) => m.view === sidebarView) && sidebarVisible
   // Terminal only lives in the editor view; clicking it there toggles it.
   const terminalActive = bottomVisible && bottomView === 'terminal' && mainView === 'editor'
   // Mirror terminalActive's editor guard: the bottom dock is not rendered in the
@@ -64,19 +54,6 @@ export default function ActivityBar(): JSX.Element {
     if (problemsActive) toggleBottom()
     else setBottom('problems')
   }
-
-  const [moreOpen, setMoreOpen] = useState(false)
-  useEffect(() => {
-    if (!moreOpen) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setMoreOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [moreOpen])
 
   const railButton = (active: boolean, label: string, Icon: typeof Files, onClick: () => void): JSX.Element => (
     <button
@@ -104,43 +81,7 @@ export default function ActivityBar(): JSX.Element {
         railButton(sidebarVisible && sidebarView === view, label, icon, () => setSidebar(view))
       )}
 
-      {/* More tools: the overflow the rail declutters into. Opens a labelled
-          popover to the right; highlights when the tool you are in lives here. */}
-      <div className="relative w-full">
-        {railButton(moreActive || moreOpen, 'More tools', MoreHorizontal, () => setMoreOpen((o) => !o))}
-        {moreOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
-            <div
-              role="menu"
-              className="absolute left-full top-0 z-50 ml-1 w-52 rounded-md border border-ide-border bg-ide-panel py-1 shadow-xl"
-            >
-              <div className="px-3 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ide-faint">
-                More tools
-              </div>
-              {MORE.map(({ view, icon: Icon, label }) => {
-                const active = sidebarVisible && sidebarView === view
-                return (
-                  <button
-                    key={view}
-                    role="menuitem"
-                    className={`row w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] hover:bg-ide-hover ${
-                      active ? 'text-ide-text' : 'text-ide-muted'
-                    }`}
-                    onClick={() => {
-                      setSidebar(view)
-                      setMoreOpen(false)
-                    }}
-                  >
-                    <Icon size={15} className={active ? 'text-ide-accent' : ''} />
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </>
-        )}
-      </div>
+      <MoreTools />
 
       {divider}
 
