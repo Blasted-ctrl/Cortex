@@ -226,6 +226,13 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   focused277/types/build/CLI/native checks pass. Exact-source new-lock normal
   clean install plus 277 focused cases pass separately; first C: disk-space
   failure is retained. Audit remains red at 25. Electron/PDF remain unchanged.
+- [ ] Complete the separately approved electron-builder 25.1.8 to exactly
+  26.15.3 upgrade after the terminal and simulator checkpoints. Review the
+  packaging-only lock closure, every resolved tar fix, installed peers/engines,
+  unchanged native/runtime files and actual builder schema/release guards before
+  full types/tests/build/CLI checks and unpublished Windows packaging acceptance.
+  Keep Electron/PDF/native versions, CommonJS, `npmRebuild: false` and CI pins;
+  do not waive remaining audit, signing, hardware or human-validation gates.
 - [ ] Remediate the investigated upstream Windows ConPTY explicit-kill cleanup
   warning. Owned finite attached child/grandchild
   controls now pass beyond the five-second fallback before natural expiry, with

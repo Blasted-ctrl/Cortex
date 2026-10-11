@@ -910,6 +910,122 @@ The refreshed inclusive audit still exits 1 with 25 findings (one critical,
 18 high and six moderate). This UI cleanup does not waive security remediation,
 ConPTY remediation or external customer-release validation.
 
+## Approved isolated electron-builder upgrade (2026-10-10)
+
+After the terminal and simulator checkpoints, the user separately approves
+25.1.8 to exactly 26.15.3. Parent is `0ebf813e2a4bff85c3c2bf427e4ebf0e23acb71a`.
+The only manifest change is the exact builder pin; pinned Node 22.20.0/npm
+10.9.3 resolves and installs it normally with scripts disabled in the existing
+tree (39751 ms, exit 0). This deliberately preserves the held runtime/native
+files and is not normal fresh-install evidence. The existing CommonJS app,
+Electron 33.4.11, PDF 4.0.3, PTY 0.14.1, serialport 12, CI pins, original YAML,
+Arduino bundling hook and `npmRebuild: false` remain unchanged. No source/test
+migration, forced resolution, override or suppressed guard is needed.
+
+### Installed dependency and supply-chain review
+
+The immutable before/after receipts in owned
+`D:/cortex-dependency-checks/cortex-builder26-f2Ho50` retain the original
+manifest/lock, installed graph, engine/peer checks and protected byte inventories.
+All 602 materialized versions match; 74 unsupported optional platform packages
+are explicitly accounted for. All installed engines accept the pinned Node;
+`npm ls --all` exits 0 (1659 ms). The exact builder/Squirrel family is 26.15.3,
+builder-util-runtime 9.7.0, rebuild 4.2.1 and node-gyp 12.4.0. The sole resolved
+tar is 7.5.22, above the required 7.5.21 fix.
+
+The generated lock changes 244 packaging-closure/flag locations. Independent
+lock-aware traversal confirms the non-builder reachable graph still has 445
+locations/392 logical package names, with no changed version sets. The entire
+Electron distribution, all 70 held native binary hashes, protected package
+metadata, source/test/config/output inventory and six original npm-config paths
+match their before-install values. The approval does not upgrade the app runtime.
+
+Lifecycle review finds one added hook: electron-winstaller 5.4.0 copies bundled
+host-architecture 7-Zip files within its own package. An initial static concern
+about its `os.arch` expression is disproved by actual pinned Node evaluation;
+its custom primitive conversion selects `x64`. No workaround is installed.
+The previous six lifecycle package versions are unchanged; Darwin-only fsevents
+is not executed on Windows. Six Windows-runnable hooks are explicitly reviewed,
+including existing Electron downloads, esbuild binary validation and native
+PTY/serial fallback behavior. Sixteen inspected source files match the retained
+earlier same-version fresh copy; this is not a newly captured before-hook baseline.
+The official Electron archive checksum is frozen for the separate normal install.
+
+### Verification status
+
+The pre-install control passes seven focused suites/177 cases (51177 ms).
+After installation, the identical seven suites/177 cases pass (62097 ms),
+including actual installed CLI/schema/Packager/publisher construction without
+publication and the native/PDF boundary regressions. Typechecks exit 0 (27396 ms)
+and the production/tools build exits 0 (47713 ms). Expected invalid-PDF/control
+warnings remain in raw logs; passing focused tests are not a clean-stderr claim.
+The full regression then exits 0: 101 files, 1817 passes and the same five
+explicit skips (522299 ms parent, no watchdog). All original deadlines,
+assertions, native-file scheduling and isolation are preserved. CLI and
+packaged-app gates remain pending here.
+
+### Normal fresh installation
+
+Owned `D:/cortex-builder26-fresh/cortex-builder26-TkRTVA` starts with 367 tracked
+current-source files and no inherited dependency tree. With isolated empty npm
+configs and D: cache/temp/native-build locations, pinned npm 10.9.3 performs
+normal `ci --include=dev --include=optional` with scripts enabled, exit 0
+(135883.8035 ms, no watchdog). All six runnable lifecycle hooks exit 0, including
+the new local-copy installer hook. The existing PTY download/build fallback is
+not suppressed. Inherited binary, Electron, npm and Node override settings are
+cleared only in the owned child environment; no global configuration is changed.
+
+All 602 actual versions match the frozen lock. The 74 absent optional packages
+are individually platform-incompatible leaves, not ignored install failures.
+All reviewed lifecycle metadata/command hashes match; the fresh Electron ZIP
+matches the frozen official SHA256
+`f64c8a5a81d9b420b636fdba13e180f49d69f2198e1d86a8b01f858b17a9483c`.
+Seventy-seven native files are inventoried, including actual PTY and serial
+bindings. Root manifest/lock/runtime/native/config guards remain unchanged.
+This is normal install and file-inventory evidence, not native ABI execution,
+a second full regression/build or installer proof. The same seven focused
+suites/177 cases then pass (91332.475 ms parent, no watchdog), with all frozen
+source/root/config guards intact. Expected PDF rejection warnings remain in raw
+stderr; no test is skipped or weakened. Complete installation/focused receipts
+and stdout/stderr are retained under that fixture's `receipts` directory.
+
+### Original-config unpublished Windows package
+
+In owned `D:/cortex-builder26-acceptance/cortex-builder26-AASS6j`, the actual
+installed builder packages a tracked-source/current-output snapshot with a
+read-only original dependency junction. Its command is Windows x64 `--dir
+--publish never`, with only output/cache/temp location overrides. Original YAML,
+CommonJS hook, security/signing defaults and `npmRebuild: false` stay unchanged;
+no native rebuild occurs. The actual command exits 0 after approximately six
+minutes, including official Electron acquisition and bundled Arduino CLI setup.
+File traversal is slow but finite; dependency collection has already completed
+when the duplicate-reference diagnostic is printed. No watchdog fires.
+
+The first payload check fails because its ignored harness passes forward-slash
+names to the Windows ASAR reader. Two independent checks find the actual PDF
+worker in the archive and prove its bytes match the snapshot. The ignored helper
+uses native `path.join` lookups; no application/configuration change, second
+package or disk extraction is needed. The original failing `package-report.json`
+remains byte-identical and explicitly hash-linked in a separate
+`package-accepted-report.json`; a failed packaging command is never salvaged.
+
+Acceptance then verifies all 24 main/preload/renderer output members and eight
+Windows native payloads byte-for-byte. The entire 244-file outer package,
+root source/config/manifests/native/PDF/Electron/output and original logs remain
+unchanged. All six exact owned packager PID/creation-time identities are gone.
+Bundled CLI executable/license/notice/provenance hashes are retained. Runtime
+acceptance is still pending. This is an unpublished unpacked Windows app, not
+an NSIS installer, clean-machine installation or Authenticode certification.
+
+The inclusive audit exits 1 (4987 ms): 17 findings, zero critical/seven high/ten
+moderate, down from 25. The targeted AppImage/tar findings are absent. Packaging
+still has moderate findings and runtime/watcher/CSS findings remain high; no
+threshold is lowered and the audit's suggested builder downgrade is not applied.
+The audit remains a customer-release blocker. Local receipts/logs use the ignored
+`builder26-final` prefix; temporary D: evidence is not shipped or guaranteed to
+survive later cleanup. Installer/signing, hardware, remote CI and human trials
+remain separate release gates.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

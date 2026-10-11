@@ -232,10 +232,17 @@ dependencies exits 1 in 4435 ms: 25 findings (one critical, 18 high, six moderat
 down from 31. The audit remains release-blocking; all other verification gates
 remain required. Historical failure receipts are retained, not converted to passes.
 
-## Next packaging candidate: reviewed, not approved or installed
+## Fourth approved major: electron-builder 26.15.3
 
-Read-only preflight identifies electron-builder 25.1.8 to 26.15.3 as a bounded
-next security step. Resolve that exact approved target, not an unrestricted
+The user separately approved electron-builder 25.1.8 to exactly 26.15.3 after
+the terminal checkpoint. The terminal fix and simulator cleanup are committed;
+the latter passes 101 suites/1817 cases plus the same five skips and the CLI
+and native gates. The pre-install builder control passes seven suites/177 cases.
+The exact target is installed with pinned npm 10.9.3; the seven focused suites/
+177 cases, typechecks and production/tools build pass. A normal new-lock fresh
+installation and the same 177 focused cases pass separately. Combined regression
+and unpublished packaged-runtime acceptance remain separate gates.
+Resolve that exact approved target, not an unrestricted
 range that silently selects a different minor: upstream also has 26.17.0 on
 its maintained v26 branch. The [immutable 26.15.3 release](https://github.com/electron-userland/electron-builder/releases/tag/electron-builder@26.15.3)
 and [v26 migration notes](https://github.com/electron-userland/electron-builder/releases/tag/v26.0.0)
@@ -250,12 +257,27 @@ The [AppImage path advisory](https://github.com/electron-userland/electron-build
 requires app-builder-lib 26.15.0 or later. Its declared tar range is not enough:
 every affected resolved tar path must also reach at least the
 [7.5.21 fix](https://github.com/isaacs/node-tar/security/advisories/GHSA-r292-9mhp-454m).
-Before installation, this major still needs its separate user decision. Then
-review the packaging-only lock closure, installed peers/engines/config/native
+Review the packaging-only lock closure, installed peers/engines/config/native
 hashes and actual installed builder schema, matcher, CLI and publisher guard
 tests; rerun types/full tests/build/audit and unpublished packaged-app/native/
 bundled-CLI acceptance. Windows proof cannot establish macOS/Linux installers;
 the existing signing-helper symlink privilege limitation is not bypassed.
+
+The generated lock changes 244 packaging-closure/flag locations. Independent
+review confirms that the non-builder reachable graph retains all 445 locations/
+392 package names and their version sets. All 602 actual installed versions and
+Node 22.20.0 engines match; `npm ls --all` exits 0. The builder family resolves
+to 26.15.3 and the sole resolved tar is 7.5.22. Electron's entire installed
+runtime, 70 native binary hashes, protected package metadata, configuration,
+source/test files and original npm configuration paths remain unchanged during
+installation. No peer bypass, dependency override or native rebuild is used.
+
+The inclusive post-install audit exits 1: 17 findings, zero critical, seven high
+and ten moderate, down from 25. The AppImage and tar findings are absent; this is
+not a clean packaging-stack or customer-release verdict. Other packaging
+findings remain moderate and runtime/watcher/CSS findings remain high. Do not
+apply the audit's suggested builder downgrade or lower the release threshold.
+See [verification evidence](RELEASE-VALIDATION.md).
 
 ## Triage by code path
 
@@ -264,7 +286,7 @@ the existing signing-helper symlink privilege limitation is not bypassed.
 | Electron (high) | Shipped desktop runtime, preload isolation, navigation and native APIs | Release-blocking runtime upgrade and desktop/installer regression |
 | Vite/electron-vite (previous high/moderate) | Development server and renderer/backend builds | Approved Vite 7/electron-vite 4 installed; latest audit no longer flags these groups; upgrade validation remains required |
 | Vitest/tinypool (previous critical) | Test worker execution and optional UI/API server | Approved Vitest 4 installed and tinypool removed; latest audit no longer flags these groups; root full/native and new-lock normal install/focused gates pass, without waiving other findings |
-| tar/build packaging dependencies (critical) | electron-builder/native rebuild/cache archive handling | Review extraction paths and upgrade packaging stack; clean-machine packaging evidence required |
+| tar/build packaging dependencies (previous critical; packaging moderate remains) | electron-builder/native rebuild/cache archive handling | Approved exact builder 26.15.3 and resolved tar 7.5.22 remove the targeted findings; packaging/fresh-install evidence and remaining moderate findings still require review |
 | Chokidar/its transitive matching dependencies (high) | Desktop filesystem watcher and build tooling | Review actual dependency graph and watcher compatibility |
 | Tailwind/build dependencies (high), PostCSS (moderate) | Renderer CSS build/source maps | Review transitive fixes and CSS/migration regressions |
 

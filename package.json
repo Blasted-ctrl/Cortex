@@ -50,7 +50,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.6.1",
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "26.15.3",
     "electron-vite": "^4.0.1",
     "postcss": "^8.5.29",
     "react": "^18.3.1",
