@@ -7,12 +7,13 @@ import DatasheetsPanel from './DatasheetsPanel'
  * fills the frame; the right-edge rail toggles it, so no separate close button
  * is needed. Reuses the AI panel's width so the right dock keeps one width.
  */
-export default function DatasheetsDock({ width, panelRef }: { width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
+export default function DatasheetsDock({ id, width, panelRef }: { id: string; width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
   return (
     <div
+      id={id}
       ref={panelRef}
       className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
-      style={{ width }}
+      style={{ width, borderWidth: width < 2 ? 0 : undefined }}
     >
       <DatasheetsPanel />
     </div>

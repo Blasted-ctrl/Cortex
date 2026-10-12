@@ -148,7 +148,8 @@
   button:focus-visible,
   select:focus-visible,
   input:focus-visible,
-  textarea:focus-visible {
+  textarea:focus-visible,
+  [role='separator']:focus-visible {
     @apply outline-none ring-2 ring-ide-accent ring-offset-1 ring-offset-ide-bg;
   }
   .btn-accent {

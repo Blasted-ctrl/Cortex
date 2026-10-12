@@ -10,14 +10,40 @@ import { useRef } from 'react'
  */
 export default function Splitter({
   dir,
+  label,
+  controls,
+  value,
+  min,
+  max,
+  unit,
   onDelta,
+  onBoundary,
   title
 }: {
   dir: 'x' | 'y'
+  label: string
+  controls: string
+  value: number
+  min: number
+  max: number
+  unit: 'pixels' | 'percent'
   onDelta: (delta: number) => void
+  onBoundary: (edge: 'min' | 'max') => void
   title?: string
 }): JSX.Element {
   const last = useRef<number | null>(null)
+  const disabled = min === max
+
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+    const negative = dir === 'x' ? 'ArrowLeft' : 'ArrowUp'
+    const positive = dir === 'x' ? 'ArrowRight' : 'ArrowDown'
+    if (e.key !== negative && e.key !== positive && e.key !== 'Home' && e.key !== 'End') return
+    e.preventDefault()
+    if (disabled) return
+    if (e.key === 'Home' || e.key === 'End') onBoundary(e.key === 'Home' ? 'min' : 'max')
+    else onDelta(e.key === negative ? -10 : 10)
+  }
 
   const onPointerDown = (e: React.PointerEvent): void => {
     last.current = dir === 'x' ? e.clientX : e.clientY
@@ -40,8 +66,17 @@ export default function Splitter({
   return (
     <div
       role="separator"
+      tabIndex={0}
+      aria-label={label}
+      aria-controls={controls}
       aria-orientation={dir === 'x' ? 'vertical' : 'horizontal'}
+      aria-valuenow={value}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuetext={`${Number(value.toFixed(1))}${unit === 'percent' ? '%' : ' pixels'}`}
+      aria-disabled={disabled || undefined}
       title={title}
+      onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}

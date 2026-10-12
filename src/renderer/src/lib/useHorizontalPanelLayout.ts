@@ -9,6 +9,15 @@ const clamp = (value: number, min: number, max: number): number => Math.min(max,
 function normalizeWidth(preference: number, limits: { min: number; max: number }, fallback: number): number {
   return clamp(Number.isFinite(preference) ? preference : fallback, limits.min, limits.max)
 }
+function fitWidths(sidebar: number, right: number, budget: number): { sidebarWidth: number; rightWidth: number } {
+  if (right === 0) return { sidebarWidth: Math.min(sidebar, budget), rightWidth: 0 }
+  if (sidebar === 0) return { sidebarWidth: 0, rightWidth: Math.min(right, budget) }
+  const scale = sidebar + right > 0 ? Math.min(1, budget / (sidebar + right)) : 0
+  return { sidebarWidth: sidebar * scale, rightWidth: right * scale }
+}
+type Side = 'sidebar' | 'right'
+type Preferences = { sidebar?: number; right?: number }
+type Endpoint = { value: number; preferences: Preferences | null }
 
 export function useHorizontalPanelLayout(
   sidebarPreference: number,
@@ -25,9 +34,7 @@ export function useHorizontalPanelLayout(
   const sidebar = sidebarVisible ? normalizeWidth(sidebarPreference, LAYOUT_LIMITS.sidebar, 256) : 0
   const right = rightVisible ? normalizeWidth(rightPreference, LAYOUT_LIMITS.ai, 320) : 0
   const budget = Math.max(0, available - WORKBENCH_PADDING - DOCK_SPACING * (Number(sidebarVisible) + Number(rightVisible)) - EDITOR_MIN_WIDTH)
-  const scale = sidebar + right > 0 ? Math.min(1, budget / (sidebar + right)) : 0
-  const sidebarWidth = sidebar * scale
-  const rightWidth = right * scale
+  const { sidebarWidth, rightWidth } = fitWidths(sidebar, right, budget)
 
   useLayoutEffect(() => {
     const workbench = workbenchRef.current
@@ -39,14 +46,12 @@ export function useHorizontalPanelLayout(
     return () => observer.disconnect()
   }, [])
 
-  const onDelta = (side: 'sidebar' | 'right', delta: number): void => {
-    const renderedSidebar = sidebarRef.current?.getBoundingClientRect().width ?? sidebarWidth
-    const renderedRight = rightRef.current?.getBoundingClientRect().width ?? rightWidth
-    if (!sidebarVisible) { resizeRight(renderedRight - delta); return }
-    if (!rightVisible) { resizeSidebar(renderedSidebar + delta); return }
+  const preferencesForDelta = (side: Side, delta: number, renderedSidebar: number, renderedRight: number): Preferences | null => {
+    if (!sidebarVisible) return { right: renderedRight - delta }
+    if (!rightVisible) return { sidebar: renderedSidebar + delta }
 
     const total = Math.min(budget, renderedSidebar + renderedRight)
-    if (total <= 0) return
+    if (total <= 0) return null
     const fitted = sidebar + right >= budget
     const limits = side === 'sidebar' ? LAYOUT_LIMITS.sidebar : LAYOUT_LIMITS.ai
     const rendered = side === 'sidebar' ? renderedSidebar : renderedRight
@@ -63,11 +68,54 @@ export function useHorizontalPanelLayout(
     const minScale = Math.max(LAYOUT_LIMITS.sidebar.min / desiredSidebar, LAYOUT_LIMITS.ai.min / desiredRight)
     const maxScale = Math.min(LAYOUT_LIMITS.sidebar.max / desiredSidebar, LAYOUT_LIMITS.ai.max / desiredRight)
     const savedScale = clamp(1, minScale, maxScale)
-    resizeSidebar(desiredSidebar * savedScale)
-    resizeRight(desiredRight * savedScale)
+    return { sidebar: desiredSidebar * savedScale, right: desiredRight * savedScale }
+  }
+  const commitPreferences = (preferences: Preferences): void => {
+    if (preferences.sidebar !== undefined) resizeSidebar(preferences.sidebar)
+    if (preferences.right !== undefined) resizeRight(preferences.right)
+  }
+  const onDelta = (side: Side, delta: number): void => {
+    const renderedSidebar = sidebarRef.current?.getBoundingClientRect().width ?? sidebarWidth
+    const renderedRight = rightRef.current?.getBoundingClientRect().width ?? rightWidth
+    const preferences = preferencesForDelta(side, delta, renderedSidebar, renderedRight)
+    if (preferences) commitPreferences(preferences)
+  }
+  const rangeFor = (side: Side): { min: Endpoint; max: Endpoint } => {
+    const current = { value: side === 'sidebar' ? sidebarWidth : rightWidth, preferences: null }
+    const endpoints: Endpoint[] = [current]
+    if (side === 'sidebar' ? sidebarVisible : rightVisible) {
+      for (const delta of [-Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]) {
+        const preferences = preferencesForDelta(side, delta, sidebarWidth, rightWidth)
+        if (!preferences) continue
+        const nextSidebar = preferences.sidebar === undefined ? sidebar
+          : clamp(Math.round(preferences.sidebar), LAYOUT_LIMITS.sidebar.min, LAYOUT_LIMITS.sidebar.max)
+        const nextRight = preferences.right === undefined ? right
+          : clamp(Math.round(preferences.right), LAYOUT_LIMITS.ai.min, LAYOUT_LIMITS.ai.max)
+        const widths = fitWidths(
+          sidebarVisible ? normalizeWidth(nextSidebar, LAYOUT_LIMITS.sidebar, 256) : 0,
+          rightVisible ? normalizeWidth(nextRight, LAYOUT_LIMITS.ai, 320) : 0,
+          budget)
+        endpoints.push({ value: side === 'sidebar' ? widths.sidebarWidth : widths.rightWidth, preferences })
+      }
+    }
+    endpoints.sort((a, b) => a.value - b.value)
+    return { min: endpoints[0], max: endpoints[endpoints.length - 1] }
+  }
+  const sidebarRange = rangeFor('sidebar')
+  const rightRange = rangeFor('right')
+  const onBoundary = (side: Side, edge: 'min' | 'max'): void => {
+    const range = side === 'sidebar' ? sidebarRange : rightRange
+    const current = side === 'sidebar' ? sidebarWidth : rightWidth
+    const endpoint = range[edge]
+    if (range.min.value === range.max.value || endpoint.value === current || !endpoint.preferences) return
+    commitPreferences(endpoint.preferences)
   }
   return {
     workbenchRef, sidebarRef, rightRef, sidebarWidth, rightWidth,
+    sidebarMin: sidebarRange.min.value, sidebarMax: sidebarRange.max.value,
+    rightMin: rightRange.min.value, rightMax: rightRange.max.value,
     onSidebarDelta: (delta: number) => onDelta('sidebar', delta),
-    onRightDelta: (delta: number) => onDelta('right', delta) }
+    onRightDelta: (delta: number) => onDelta('right', delta),
+    onSidebarBoundary: (edge: 'min' | 'max') => onBoundary('sidebar', edge),
+    onRightBoundary: (edge: 'min' | 'max') => onBoundary('right', edge) }
 }

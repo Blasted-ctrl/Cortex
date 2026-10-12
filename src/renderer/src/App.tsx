@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useStore, LAST_WORKSPACE_KEY } from './store/useStore'
 import CommandPalette, { type PaletteMode } from './components/CommandPalette'
 import ConfirmDialog from './components/ConfirmDialog'
@@ -73,6 +73,7 @@ export default function App(): JSX.Element {
   // token (index.css) and the Monaco editor theme. Selected narrowly so only a
   // theme change re-runs the effect, not every settings write.
   const theme = useStore((s) => s.settings?.theme ?? 'dark')
+  const paneId = useId()
 
   const [palette, setPalette] = useState<PaletteMode | null>(null)
   // booting drives the splash's fade; splashMounted keeps it in the tree until
@@ -285,8 +286,12 @@ export default function App(): JSX.Element {
             live in those gutters, so a resize handle reads as the seam between
             two islands rather than a third panel. */}
         <div ref={horizontalLayout.workbenchRef} className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          <SideBar width={horizontalLayout.sidebarWidth} panelRef={horizontalLayout.sidebarRef} />
-          {sidebarVisible && <Splitter dir="x" title="Resize sidebar" onDelta={horizontalLayout.onSidebarDelta} />}
+          <SideBar id={`${paneId}-sidebar`} width={horizontalLayout.sidebarWidth} panelRef={horizontalLayout.sidebarRef} />
+          {sidebarVisible && (
+            <Splitter dir="x" label="Sidebar" controls={`${paneId}-sidebar`} title="Resize sidebar"
+              value={horizontalLayout.sidebarWidth} min={horizontalLayout.sidebarMin} max={horizontalLayout.sidebarMax} unit="pixels"
+              onDelta={horizontalLayout.onSidebarDelta} onBoundary={horizontalLayout.onSidebarBoundary} />
+          )}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The editor stays MOUNTED across view switches (hidden, not
                 unmounted) so Monaco keeps each file's undo history, scroll and
@@ -304,8 +309,10 @@ export default function App(): JSX.Element {
                 <EditorArea />
                 {bottomVisible && (
                   <>
-                    <Splitter dir="y" title="Resize panel" onDelta={panelLayout.onDelta} />
-                    <BottomPanel height={panelLayout.height} panelRef={panelLayout.panelRef} />
+                    <Splitter dir="y" label="Bottom panel" controls={`${paneId}-bottom`} title="Resize panel"
+                      value={panelLayout.height} min={panelLayout.min} max={panelLayout.max} unit="pixels"
+                      onDelta={panelLayout.onDelta} onBoundary={panelLayout.onBoundary} />
+                    <BottomPanel id={`${paneId}-bottom`} height={panelLayout.height} panelRef={panelLayout.panelRef} />
                   </>
                 )}
               </div>
@@ -318,10 +325,12 @@ export default function App(): JSX.Element {
               selected. One splitter/width serves both. */}
           {rightView && (
             <>
-              <Splitter dir="x" title="Resize panel" onDelta={horizontalLayout.onRightDelta} />
+              <Splitter dir="x" label={rightView === 'agent' ? 'Agent' : 'Datasheets'} controls={`${paneId}-right`} title="Resize panel"
+                value={horizontalLayout.rightWidth} min={horizontalLayout.rightMin} max={horizontalLayout.rightMax} unit="pixels"
+                onDelta={horizontalLayout.onRightDelta} onBoundary={horizontalLayout.onRightBoundary} />
               {rightView === 'agent'
-                ? <AiPanel width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />
-                : <DatasheetsDock width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />}
+                ? <AiPanel id={`${paneId}-right`} width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />
+                : <DatasheetsDock id={`${paneId}-right`} width={horizontalLayout.rightWidth} panelRef={horizontalLayout.rightRef} />}
             </>
           )}
         </div>

@@ -30,6 +30,7 @@ export default function EditorArea(): JSX.Element {
   const [dragActive, setDragActive] = useState(false)
   const [dropZone, setDropZone] = useState<{ group: number; half: 'left' | 'right' } | null>(null)
   const [ratio, setRatio] = useState(0.5)
+  const [containerWidth, setContainerWidth] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const tabRefs = useRef(new Map<string, HTMLButtonElement>())
   const closing = useRef(new Set<string>())
@@ -37,6 +38,7 @@ export default function EditorArea(): JSX.Element {
   const [focusedTabs, setFocusedTabs] = useState<Record<number, string | null>>({})
   const [focusRequest, setFocusRequest] = useState<{ root: string | null; path: string | null } | null>(null)
   const id = useId()
+  const leftPaneId = `${id}-left-pane`
   const pathToken = (path: string): string => Array.from(path, (character) => character.codePointAt(0)!.toString(16)).join('-')
   const tabId = (path: string): string => `${id}-tab-${pathToken(path)}`
   const panelId = (path: string): string => `${id}-panel-${pathToken(path)}`
@@ -45,6 +47,15 @@ export default function EditorArea(): JSX.Element {
     mounted.current = true
     return () => { mounted.current = false }
   }, [])
+  useEffect(() => {
+    const container = containerRef.current
+    if (!split || !container) return
+    const measure = (): void => { setContainerWidth(container.clientWidth) }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    return () => { observer.disconnect() }
+  }, [split])
   useEffect(() => { setFocusedTabs({}); setFocusRequest(null) }, [workspaceRoot])
   useEffect(() => {
     if (!focusRequest || focusRequest.root !== workspaceRoot) return
@@ -140,6 +151,10 @@ export default function EditorArea(): JSX.Element {
     if (!w) return
     setRatio((r) => Math.max(MIN_RATIO, Math.min(MAX_RATIO, r + delta / w)))
   }
+  const onSplitterBoundary = (boundary: 'min' | 'max'): void => {
+    if (!(containerRef.current?.clientWidth ?? 0)) return
+    setRatio(boundary === 'min' ? MIN_RATIO : MAX_RATIO)
+  }
 
   const pane = (group: number): JSX.Element => {
     const groupTabs = tabs.filter((t) => t.group === group)
@@ -151,6 +166,7 @@ export default function EditorArea(): JSX.Element {
 
     return (
       <div
+        id={group === 0 ? leftPaneId : undefined}
         className="flex min-h-0 min-w-0 flex-1 flex-col bg-ide-bg"
         style={split && group === 0 ? { flex: `0 0 ${ratio * 100}%` } : undefined}
         onMouseDownCapture={() => {
@@ -339,7 +355,20 @@ export default function EditorArea(): JSX.Element {
     >
       <span id={`${id}-tab-help`} className="sr-only">Use Left and Right arrows to focus tabs, Enter or Space to select, and Delete to close.</span>
       {pane(0)}
-      {split && <Splitter dir="x" title="Resize editor split" onDelta={onSplitterDelta} />}
+      {split && (
+        <Splitter
+          dir="x"
+          label="Left editor pane"
+          controls={leftPaneId}
+          value={ratio * 100}
+          min={containerWidth > 0 ? MIN_RATIO * 100 : ratio * 100}
+          max={containerWidth > 0 ? MAX_RATIO * 100 : ratio * 100}
+          unit="percent"
+          onDelta={onSplitterDelta}
+          onBoundary={onSplitterBoundary}
+          title="Resize editor split"
+        />
+      )}
       {split && pane(1)}
     </div>
   )

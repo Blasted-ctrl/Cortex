@@ -2,13 +2,23 @@ import { act, createElement } from 'react'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { langFromPath } from '../src/shared/languages'
-import { createHost, invoke, type HostNode } from './reactHost'
+import { createHost, descendants, invoke, type HostNode } from './reactHost'
 
 vi.mock('../src/renderer/src/components/CodeEditor', () => ({ default: () => createElement('textarea', { 'aria-label': 'Fixture editor' }) }))
 vi.stubGlobal('window', { api: {} })
-vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined })
+const storage = new Map<string, string>()
+vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) })
 vi.stubGlobal('React', React)
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+const observers = new Set<FixtureObserver>()
+class FixtureObserver {
+  target: HostNode | null = null
+  constructor(private callback: () => void) { observers.add(this) }
+  observe(target: HostNode): void { this.target = target; this.callback() }
+  disconnect(): void { observers.delete(this) }
+  fire(): void { this.callback() }
+}
+vi.stubGlobal('ResizeObserver', FixtureObserver)
 const { useStore } = await import('../src/renderer/src/store/useStore')
 const { default: EditorArea } = await import('../src/renderer/src/components/EditorArea')
 const initial = useStore.getState()
@@ -27,6 +37,11 @@ async function key(path: string, value: string): Promise<void> {
 const fixtureTab = (path: string, group = 0) => ({ path, name: path.split('/').at(-1)!, content: 'saved', savedContent: 'saved', language: langFromPath(path), group })
 
 beforeEach(async () => {
+  observers.clear()
+  storage.clear()
+  storage.set('cortex.sidebarWidth', String(initial.sidebarWidth))
+  storage.set('cortex.aiWidth', String(initial.aiWidth))
+  storage.set('cortex.bottomHeight', String(initial.bottomHeight))
   useStore.setState({ ...initial, workspaceRoot: rootPath, tabs: paths.map((path) => fixtureTab(path)), activePath: paths[0], activeGroup: 0, groupActive: { 0: paths[0], 1: null } }, true)
   host = createHost()
   await host.render(createElement(EditorArea))
@@ -127,5 +142,198 @@ describe('editor tab keyboard and relationships', () => {
     const active = tab(path)
     const panel = host.nodes().find((node) => node.props.id === active.props['aria-controls'])
     expect(panel?.props).toMatchObject({ role: 'tabpanel', 'aria-labelledby': active.props.id, tabIndex: 0 })
+  })
+})
+
+const editor = (): HostNode => {
+  const node = host.nodes().find((node) => node.props.role === 'region' && node.props['aria-label'] === 'Editor')
+  if (!node) throw new Error('Editor region missing')
+  return node
+}
+const editorSplitter = (): HostNode => {
+  const node = host.nodes().find((node) => node.props.role === 'separator' && node.props.title === 'Resize editor split')
+  if (!node) throw new Error('Editor splitter missing')
+  return node
+}
+const controlledLeftPane = (): HostNode => {
+  const controls = editorSplitter().props['aria-controls']
+  expect(controls).toEqual(expect.any(String))
+  const node = host.nodes().find((node) => node.props.id === controls)
+  expect(node).toBeDefined()
+  if (!node) throw new Error('Controlled left editor pane missing')
+  expect(descendants(node)).toContain(tab(paths[0]))
+  return node
+}
+function expectLeftPercentage(value: number): void {
+  expect(controlledLeftPane().props.style).toEqual({ flex: `0 0 ${value}%` })
+  expect(editorSplitter().props['aria-valuenow']).toBeCloseTo(value, 6)
+}
+const editorState = (): object => {
+  const state = useStore.getState()
+  return {
+    activePath: state.activePath, activeGroup: state.activeGroup, groupActive: { ...state.groupActive },
+    tabs: state.tabs.map(({ path, content, savedContent, group }) => ({ path, content, savedContent, group })),
+    mainView: state.mainView, sidebarView: state.sidebarView, sidebarVisible: state.sidebarVisible,
+    rightView: state.rightView, bottomView: state.bottomView, bottomVisible: state.bottomVisible,
+    sidebarWidth: state.sidebarWidth, aiWidth: state.aiWidth, bottomHeight: state.bottomHeight,
+    storage: [...storage]
+  }
+}
+async function measureEditor(width: number): Promise<void> {
+  const target = editor()
+  target.clientWidth = width
+  await act(async () => { for (const observer of observers) if (observer.target === target) observer.fire() })
+}
+async function splitEditor(width: number): Promise<void> {
+  await act(async () => { useStore.getState().moveTabToGroup(paths[2], 1) })
+  await measureEditor(width)
+}
+async function splitterKey(value: string, repeat = false): Promise<ReturnType<typeof vi.fn>> {
+  const target = editorSplitter()
+  const preventDefault = vi.fn()
+  await act(async () => {
+    const handler = target.props.onKeyDown
+    if (typeof handler === 'function') handler({ key: value, repeat, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false,
+      target, currentTarget: target, preventDefault, stopPropagation: () => undefined })
+  })
+  return preventDefault
+}
+
+describe('actual editor split keyboard layout', () => {
+  it('names the focusable vertical handle and connects it to the actual left editor wrapper', async () => {
+    await splitEditor(500)
+    expect(editorSplitter().props).toMatchObject({ tabIndex: 0, 'aria-label': 'Left editor pane', 'aria-orientation': 'vertical',
+      'aria-valuemin': 20, 'aria-valuemax': 80, 'aria-valuenow': 50 })
+    expect(editorSplitter().props['aria-valuetext']).toMatch(/50\s*%/)
+    const pane = controlledLeftPane()
+    const before = editorState()
+    await act(async () => { editorSplitter().focus() })
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+    await act(async () => { useStore.getState().updateContent(paths[0], 'unsaved split fixture') })
+    expect(controlledLeftPane()).toBe(pane)
+    expectLeftPercentage(50)
+  })
+
+  it.each([
+    { width: 500, key: 'ArrowRight', percentage: 52 },
+    { width: 500, key: 'ArrowLeft', percentage: 48 },
+    { width: 1000, key: 'ArrowRight', percentage: 51 }
+  ])('moves ten CSS pixels for $key at measured width $width without selecting a file', async ({ width, key, percentage }) => {
+    await splitEditor(width)
+    await act(async () => { useStore.getState().updateContent(paths[2], 'unsaved right fixture'); editorSplitter().focus() })
+    const before = editorState()
+    const preventDefault = await splitterKey(key)
+    expectLeftPercentage(percentage)
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it('uses the latest measured width for the next move without resetting its local split ratio', async () => {
+    await splitEditor(500)
+    await act(async () => { editorSplitter().focus() })
+    const before = editorState()
+    await splitterKey('ArrowRight')
+    expectLeftPercentage(52)
+    await measureEditor(1000)
+    expectLeftPercentage(52)
+    await splitterKey('ArrowLeft')
+    expectLeftPercentage(51)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it.each([{ key: 'Home', percentage: 20 }, { key: 'End', percentage: 80 }])('reaches its announced percentage endpoint with $key', async ({ key, percentage }) => {
+    await splitEditor(500)
+    await act(async () => { editorSplitter().focus() })
+    const before = editorState()
+    const preventDefault = await splitterKey(key)
+    expectLeftPercentage(percentage)
+    expect(editorSplitter().props[key === 'Home' ? 'aria-valuemin' : 'aria-valuemax']).toBe(percentage)
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it('clamps repeated axis keys at both local percentage endpoints', async () => {
+    await splitEditor(500)
+    await act(async () => { editorSplitter().focus() })
+    const before = editorState()
+    await splitterKey('End')
+    await splitterKey('ArrowRight', true)
+    expectLeftPercentage(80)
+    await splitterKey('Home')
+    await splitterKey('ArrowLeft', true)
+    expectLeftPercentage(20)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it('announces equal disabled endpoints at zero width, ignores resizing and recovers after measurement', async () => {
+    await splitEditor(0)
+    expect(editorSplitter().props).toMatchObject({ tabIndex: 0, 'aria-disabled': true,
+      'aria-valuemin': 50, 'aria-valuemax': 50, 'aria-valuenow': 50 })
+    await act(async () => { editorSplitter().focus() })
+    const before = editorState()
+    for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) await splitterKey(key)
+    expectLeftPercentage(50)
+    expect(editorState()).toEqual(before)
+    await measureEditor(500)
+    expect(editorSplitter().props).toMatchObject({ 'aria-valuemin': 20, 'aria-valuemax': 80 })
+    expect(editorSplitter().props['aria-disabled']).not.toBe(true)
+    await splitterKey('ArrowRight')
+    expectLeftPercentage(52)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it('keeps an adjusted local ratio when width becomes zero and restores its reachable range later', async () => {
+    await splitEditor(500)
+    await act(async () => { editorSplitter().focus() })
+    const before = editorState()
+    await splitterKey('ArrowRight')
+    expectLeftPercentage(52)
+    await measureEditor(0)
+    expect(editorSplitter().props).toMatchObject({ 'aria-disabled': true,
+      'aria-valuemin': 52, 'aria-valuemax': 52, 'aria-valuenow': 52 })
+    await splitterKey('Home')
+    await splitterKey('End')
+    expectLeftPercentage(52)
+    await measureEditor(1000)
+    expect(editorSplitter().props).toMatchObject({ 'aria-valuemin': 20, 'aria-valuemax': 80 })
+    expect(editorSplitter().props['aria-disabled']).not.toBe(true)
+    await splitterKey('ArrowLeft')
+    expectLeftPercentage(51)
+    expect(host.focused()).toBe(editorSplitter())
+    expect(editorState()).toEqual(before)
+  })
+
+  it('preserves the real pointer delta path and rendered ratio after adding keyboard semantics', async () => {
+    await splitEditor(500)
+    const before = editorState()
+    const splitter = editorSplitter()
+    await act(async () => {
+      invoke(splitter, 'onPointerDown', { clientX: 100, currentTarget: { setPointerCapture: () => undefined }, pointerId: 1 })
+      invoke(splitter, 'onPointerMove', { clientX: 110 })
+      invoke(splitter, 'onPointerUp', { currentTarget: { releasePointerCapture: () => undefined }, pointerId: 1 })
+    })
+    expectLeftPercentage(52)
+    expect(editorState()).toEqual(before)
+  })
+
+  it('adds no editor splitter when unsplit and removes it when the second group collapses', async () => {
+    expect(host.nodes().filter((node) => node.props.role === 'separator')).toHaveLength(0)
+    await splitEditor(500)
+    expect(editorSplitter().props.tabIndex).toBe(0)
+    await act(async () => { useStore.getState().moveTabToGroup(paths[2], 0) })
+    expect(host.nodes().filter((node) => node.props.role === 'separator')).toHaveLength(0)
+  })
+
+  it('observes the actual editor container and disconnects measurement on unmount', async () => {
+    await splitEditor(500)
+    expect([...observers].some((observer) => observer.target === editor())).toBe(true)
+    await host.render(null)
+    expect(observers.size).toBe(0)
   })
 })

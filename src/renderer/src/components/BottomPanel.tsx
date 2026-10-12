@@ -21,7 +21,7 @@ const TABS: { view: BottomView; icon: typeof Terminal; label: string }[] = [
   { view: 'tests', icon: FlaskConical, label: 'Firmware Tests' }
 ]
 
-export default function BottomPanel({ height, panelRef }: { height: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
+export default function BottomPanel({ id, height, panelRef }: { id: string; height: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
   const { bottomView, setBottom, toggleBottom, clearOutput, clearSerial, diagnostics, workspaceRoot } = useStore()
   const problemCount = diagnostics.length
   // Mount the terminal lazily on first open, then keep it mounted (hidden when
@@ -42,9 +42,10 @@ export default function BottomPanel({ height, panelRef }: { height: number; pane
 
   return (
     <div
+      id={id}
       ref={panelRef}
       className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel"
-      style={{ height }}
+      style={{ height, borderWidth: height < 2 ? 0 : undefined }}
     >
       {/* A narrow panel must never make a tab unreachable. Without nowrap the
           "Serial Monitor" label wrapped to two lines and broke the bar height,

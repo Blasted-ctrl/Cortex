@@ -10,7 +10,7 @@ import DevicesPanel from './DevicesPanel'
 import VcsPanel from './VcsPanel'
 import { useStore } from '../store/useStore'
 
-export default function SideBar({ width, panelRef }: { width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
+export default function SideBar({ id, width, panelRef }: { id: string; width: number; panelRef: RefObject<HTMLDivElement> }): JSX.Element {
   const view = useStore((s) => s.sidebarView)
   const visible = useStore((s) => s.sidebarVisible)
   const workspaceRoot = useStore((s) => s.workspaceRoot)
@@ -19,9 +19,10 @@ export default function SideBar({ width, panelRef }: { width: number; panelRef: 
 
   return (
     <div
+      id={id}
       ref={panelRef}
       className={`${visible ? 'flex' : 'hidden'} shrink-0 flex-col overflow-hidden rounded-lg border border-ide-border bg-ide-panel`}
-      style={{ width }}
+      style={{ width, borderWidth: width < 2 ? 0 : undefined }}
     >
       {view === 'explorer' && <FileExplorer />}
       {view === 'search' && <SearchPanel />}

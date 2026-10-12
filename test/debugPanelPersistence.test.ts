@@ -22,7 +22,7 @@ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 const { useStore } = await import('../src/renderer/src/store/useStore')
 const { default: SideBar } = await import('../src/renderer/src/components/SideBar')
 const initial = useStore.getState()
-const sidebarProps = { width: initial.sidebarWidth, panelRef: React.createRef<HTMLDivElement>() }
+const sidebarProps = { id: 'owned-debug-sidebar', width: initial.sidebarWidth, panelRef: React.createRef<HTMLDivElement>() }
 
 type Node = { type: string; props: Record<string, unknown>; children: Node[] }
 type Container = { children: Node[] }

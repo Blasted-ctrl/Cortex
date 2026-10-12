@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { LAYOUT_LIMITS } from '../store/useStore'
 
 const EDITOR_MIN_HEIGHT = 120
 const PANEL_CHROME_HEIGHT = 34
@@ -21,6 +22,8 @@ export function useBottomPanelLayout(
   const panelRef = useRef<HTMLDivElement>(null)
   const [available, setAvailable] = useState(0)
   const height = fitPanel(preference, available)
+  const min = Math.min(height, fitPanel(LAYOUT_LIMITS.bottom.min, available))
+  const max = Math.max(height, fitPanel(LAYOUT_LIMITS.bottom.max, available))
 
   useLayoutEffect(() => {
     const column = columnRef.current
@@ -38,5 +41,9 @@ export function useBottomPanelLayout(
     const rendered = panelRef.current?.getBoundingClientRect().height ?? height
     resize(rendered - delta)
   }
-  return { columnRef, panelRef, height, onDelta }
+  const onBoundary = (boundary: 'min' | 'max'): void => {
+    if (min === max || height === (boundary === 'min' ? min : max)) return
+    resize(LAYOUT_LIMITS.bottom[boundary])
+  }
+  return { columnRef, panelRef, height, min, max, onDelta, onBoundary }
 }
