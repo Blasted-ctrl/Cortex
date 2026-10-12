@@ -105,6 +105,54 @@ async function drag(side: 'sidebar' | 'right', delta: number, measured?: { sideb
   })
 }
 
+function separator(name: 'Sidebar' | 'Agent' | 'Datasheets'): HostNode {
+  const node = host.nodes().find((node) => node.props.role === 'separator' && node.props['aria-label'] === name)
+  if (!node) throw new Error(`Named horizontal separator missing: ${name}`)
+  return node
+}
+function announcedWidth(name: 'Sidebar' | 'Agent' | 'Datasheets', label: string): { min: number; max: number } {
+  const node = separator(name)
+  const min = Number(node.props['aria-valuemin'])
+  const max = Number(node.props['aria-valuemax'])
+  const value = Number(node.props['aria-valuenow'])
+  expect(node.props.tabIndex).toBe(0)
+  expect(node.props['aria-orientation']).toBe('vertical')
+  expect(node.props['aria-controls']).toEqual(expect.any(String))
+  expect(host.nodes().find((controlled) => controlled.props.id === node.props['aria-controls'])).toBe(dock(label))
+  expect([min, max, value].every(Number.isFinite)).toBe(true)
+  expect(min).toBeGreaterThanOrEqual(0)
+  expect(min).toBeLessThanOrEqual(value)
+  expect(value).toBeLessThanOrEqual(max)
+  expect(value).toBeCloseTo(width(label), 6)
+  expect(node.props['aria-valuetext']).toMatch(/ pixels$/)
+  return { min, max }
+}
+async function resizeKey(name: 'Sidebar' | 'Agent' | 'Datasheets', key: string): Promise<HostNode> {
+  for (const label of ['Fixture explorer', 'Fixture agent', 'Fixture datasheets']) {
+    if (!host.nodes().some((node) => node.props['aria-label'] === label)) continue
+    dock(label).getBoundingClientRect = () => ({ left: 0, top: 0, bottom: 500, width: width(label), height: 500 })
+  }
+  const node = separator(name)
+  await act(async () => {
+    node.focus()
+    invoke(node, 'onKeyDown', { key, currentTarget: node, target: node, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false,
+      preventDefault: vi.fn(), stopPropagation: vi.fn() })
+  })
+  expect(host.focused()).toBe(node)
+  return node
+}
+function expectSavedWidths(): void {
+  const { sidebarWidth, aiWidth } = useStore.getState()
+  expect(Number.isInteger(sidebarWidth)).toBe(true)
+  expect(Number.isInteger(aiWidth)).toBe(true)
+  expect(sidebarWidth).toBeGreaterThanOrEqual(LAYOUT_LIMITS.sidebar.min)
+  expect(sidebarWidth).toBeLessThanOrEqual(LAYOUT_LIMITS.sidebar.max)
+  expect(aiWidth).toBeGreaterThanOrEqual(LAYOUT_LIMITS.ai.min)
+  expect(aiWidth).toBeLessThanOrEqual(LAYOUT_LIMITS.ai.max)
+  expect(storage.get('cortex.sidebarWidth')).toBe(String(sidebarWidth))
+  expect(storage.get('cortex.aiWidth')).toBe(String(aiWidth))
+}
+
 beforeEach(async () => {
   innerWidth = 1270
   observers.clear()
@@ -300,5 +348,224 @@ describe('actual App horizontal dock layout', () => {
     expect(observers.size).toBeGreaterThan(0)
     await host.render(null)
     expect(observers.size).toBe(0)
+  })
+})
+
+describe('actual App horizontal splitter keyboard ownership', () => {
+  it('controls actual wrappers with stable IDs across shared Agent and Datasheets switches', async () => {
+    announcedWidth('Sidebar', 'Fixture explorer')
+    announcedWidth('Agent', 'Fixture agent')
+    const sidebarId = separator('Sidebar').props['aria-controls']
+    const rightId = separator('Agent').props['aria-controls']
+    expect(sidebarId).not.toBe(rightId)
+    await act(async () => { useStore.setState({ rightView: 'datasheets', mainView: 'settings' }) })
+    announcedWidth('Datasheets', 'Fixture datasheets')
+    expect(separator('Datasheets').props['aria-controls']).toBe(rightId)
+    const before = width('Fixture datasheets')
+    await resizeKey('Datasheets', 'ArrowRight')
+    expect(width('Fixture datasheets')).toBeCloseTo(before - 10, 0)
+    announcedWidth('Datasheets', 'Fixture datasheets')
+    await act(async () => { useStore.setState({ rightView: 'agent', mainView: 'editor' }) })
+    announcedWidth('Agent', 'Fixture agent')
+    expect(separator('Agent').props['aria-controls']).toBe(rightId)
+    expect(separator('Sidebar').props['aria-controls']).toBe(sidebarId)
+    expectSavedWidths()
+  })
+
+  it.each([
+    { available: 1270, name: 'Sidebar' as const },
+    { available: 1270, name: 'Agent' as const },
+    { available: 804, name: 'Sidebar' as const },
+    { available: 804, name: 'Agent' as const }
+  ])('moves the fitted $name divider right by ten pixels at inner width $available', async ({ available, name }) => {
+    await resize(available)
+    expectPreferences()
+    const sidebar = width('Fixture explorer')
+    const right = width('Fixture agent')
+    const view = useStore.getState().sidebarView
+    const tabs = useStore.getState().tabs
+    const handle = await resizeKey(name, 'ArrowRight')
+    expect(width('Fixture explorer')).toBeCloseTo(sidebar + 10, 0)
+    expect(width('Fixture agent')).toBeCloseTo(right - 10, 0)
+    announcedWidth('Sidebar', 'Fixture explorer')
+    announcedWidth('Agent', 'Fixture agent')
+    expectSavedWidths()
+    await resizeKey(name, 'ArrowLeft')
+    expect(width('Fixture explorer')).toBeCloseTo(sidebar, 0)
+    expect(width('Fixture agent')).toBeCloseTo(right, 0)
+    expect(host.focused()).toBe(handle)
+    expect(useStore.getState().sidebarView).toBe(view)
+    expect(useStore.getState().tabs).toBe(tabs)
+    expect(useStore.getState().sidebarVisible).toBe(true)
+    expect(useStore.getState().rightView).toBe('agent')
+    expectSavedWidths()
+  })
+
+  it.each([
+    { available: 1270, name: 'Sidebar' as const, label: 'Fixture explorer' },
+    { available: 1270, name: 'Agent' as const, label: 'Fixture agent' },
+    { available: 804, name: 'Sidebar' as const, label: 'Fixture explorer' },
+    { available: 804, name: 'Agent' as const, label: 'Fixture agent' }
+  ])('reaches the advertised fitted $name endpoints at inner width $available', async ({ available, name, label }) => {
+    await resize(available)
+    expectPreferences()
+    const min = announcedWidth(name, label).min
+    await resizeKey(name, 'Home')
+    expect(width(label)).toBeCloseTo(min, 0)
+    const max = announcedWidth(name, label).max
+    await resizeKey(name, 'End')
+    expect(width(label)).toBeCloseTo(max, 0)
+    announcedWidth(name, label)
+    expectSavedWidths()
+  })
+
+  it.each([
+    { name: 'Sidebar' as const, label: 'Fixture explorer', sidebarVisible: true, rightView: null, grow: 'ArrowRight' },
+    { name: 'Agent' as const, label: 'Fixture agent', sidebarVisible: false, rightView: 'agent' as const, grow: 'ArrowLeft' }
+  ])('announces and reaches a single fitted $name range without rewriting the other preference', async ({ name, label, sidebarVisible, rightView, grow }) => {
+    await resize(804)
+    await act(async () => { useStore.setState({ sidebarVisible, rightView }) })
+    expectPreferences()
+    expect(width(label)).toBe(451)
+    const min = announcedWidth(name, label).min
+    await resizeKey(name, 'Home')
+    expect(width(label)).toBeCloseTo(min, 0)
+    const before = width(label)
+    await resizeKey(name, grow)
+    expect(width(label)).toBeCloseTo(before + 10, 0)
+    const max = announcedWidth(name, label).max
+    await resizeKey(name, 'End')
+    expect(width(label)).toBeCloseTo(max, 0)
+    announcedWidth(name, label)
+    expectSavedWidths()
+    if (name === 'Sidebar') expect(useStore.getState().aiWidth).toBe(620)
+    else expect(useStore.getState().sidebarWidth).toBe(560)
+    expect(host.nodes().filter((node) => node.props.role === 'separator' && node.props['aria-orientation'] === 'vertical')).toHaveLength(1)
+  })
+
+  it.each(['Sidebar', 'Agent'] as const)('repeats signed ten-pixel $name keys through spare space without changing the other preference', async (name) => {
+    await resize(1600)
+    await act(async () => { useStore.getState().setSidebarWidth(256); useStore.getState().setAiWidth(320) })
+    expectPreferences(256, 320)
+    for (let index = 0; index < 3; index++) await resizeKey(name, 'ArrowRight')
+    expect(width('Fixture explorer')).toBe(name === 'Sidebar' ? 286 : 256)
+    expect(width('Fixture agent')).toBe(name === 'Agent' ? 290 : 320)
+    announcedWidth(name, name === 'Sidebar' ? 'Fixture explorer' : 'Fixture agent')
+    expectPreferences(name === 'Sidebar' ? 286 : 256, name === 'Agent' ? 290 : 320)
+  })
+
+  it.each([
+    { name: 'Sidebar' as const, label: 'Fixture explorer', available: 400, sidebarVisible: true, rightView: null },
+    { name: 'Agent' as const, label: 'Fixture agent', available: 392, sidebarVisible: false, rightView: 'agent' as const },
+    { name: 'Datasheets' as const, label: 'Fixture datasheets', available: 392, sidebarVisible: false, rightView: 'datasheets' as const }
+  ])('does not replace a saved $name width on an endpoint key when no visible movement is possible', async ({ name, label, available, sidebarVisible, rightView }) => {
+    await resize(available)
+    await act(async () => { useStore.setState({ sidebarVisible, rightView }) })
+    const displayed = width(label)
+    const saved = [...storage]
+    await resizeKey(name, 'End')
+    expect(width(label)).toBeCloseTo(displayed, 6)
+    expect([...storage]).toEqual(saved)
+    expectPreferences()
+  })
+
+  it.each([
+    { name: 'Sidebar' as const, label: 'Fixture explorer', sidebarVisible: true, rightView: null, budgets: [13, 47, 179.5, 180], grow: 'ArrowRight' },
+    { name: 'Agent' as const, label: 'Fixture agent', sidebarVisible: false, rightView: 'agent' as const, budgets: [13, 39, 259.5, 260], grow: 'ArrowLeft' },
+    { name: 'Datasheets' as const, label: 'Fixture datasheets', sidebarVisible: false, rightView: 'datasheets' as const, budgets: [13, 39, 259.5, 260], grow: 'ArrowLeft' }
+  ])('keeps a single constrained $name range equal without invisible preference writes and recovers', async ({ name, label, sidebarVisible, rightView, budgets, grow }) => {
+    await act(async () => { useStore.setState({ sidebarVisible, rightView }) })
+    for (const budget of budgets) {
+      await resize(353 + budget)
+      const displayed = width(label)
+      expect(displayed).toBe(budget)
+      expect(announcedWidth(name, label)).toEqual({ min: displayed, max: displayed })
+      expect(separator(name).props['aria-disabled']).toBe(true)
+      const saved = [...storage]
+      for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) {
+        await resizeKey(name, key)
+        expect(width(label)).toBe(displayed)
+        expect([...storage]).toEqual(saved)
+        expectPreferences()
+      }
+    }
+    await resize(804)
+    expectPreferences()
+    expect(separator(name).props['aria-disabled']).not.toBe(true)
+    await resizeKey(name, 'Home')
+    const before = width(label)
+    await resizeKey(name, grow)
+    expect(width(label)).toBeCloseTo(before + 10, 0)
+    expectSavedWidths()
+  })
+
+  it.each([
+    { label: 'Fixture explorer', sidebarVisible: true, rightView: null },
+    { label: 'Fixture agent', sidebarVisible: false, rightView: 'agent' as const },
+    { label: 'Fixture datasheets', sidebarVisible: false, rightView: 'datasheets' as const }
+  ])('removes the $label frame below two pixels and restores it without changing preferences', async ({ label, sidebarVisible, rightView }) => {
+    await act(async () => { useStore.setState({ sidebarVisible, rightView }) })
+    const saved = [...storage]
+    for (const budget of [0, 0.5, 1.984375, 2, 2.5]) {
+      await resize(353 + budget)
+      expect(width(label)).toBe(budget)
+      expect(dock(label).props.className).toContain('rounded-lg border border-ide-border')
+      expect((dock(label).props.style as { borderWidth?: number }).borderWidth).toBe(budget < 2 ? 0 : undefined)
+      expect([...storage]).toEqual(saved)
+      expectPreferences()
+    }
+    await resize(1600)
+    expect(width(label)).toBe(sidebarVisible ? 560 : 620)
+    expect((dock(label).props.style as { borderWidth?: number }).borderWidth).toBeUndefined()
+    expect([...storage]).toEqual(saved)
+    expectPreferences()
+  })
+
+  it('fits paired frames independently around the two-pixel threshold and restores normal frames', async () => {
+    const saved = [...storage]
+    await resize(374)
+    expect(width('Fixture explorer')).toBeCloseTo(560 * 4 / 1180, 6)
+    expect(width('Fixture agent')).toBeCloseTo(620 * 4 / 1180, 6)
+    expect((dock('Fixture explorer').props.style as { borderWidth?: number }).borderWidth).toBe(0)
+    expect((dock('Fixture agent').props.style as { borderWidth?: number }).borderWidth).toBeUndefined()
+    await resize(1600)
+    for (const label of ['Fixture explorer', 'Fixture agent']) {
+      expect((dock(label).props.style as { borderWidth?: number }).borderWidth).toBeUndefined()
+    }
+    expect(width('Fixture explorer')).toBe(560)
+    expect(width('Fixture agent')).toBe(620)
+    expect([...storage]).toEqual(saved)
+    expectPreferences()
+  })
+
+  it.each([250, 0])('announces equal disabled endpoints at inner width %i without writes and recovers when space returns', async (available) => {
+    await resize(available)
+    const saved = [...storage]
+    for (const [name, label] of [['Sidebar', 'Fixture explorer'], ['Agent', 'Fixture agent']] as const) {
+      expect(announcedWidth(name, label)).toEqual({ min: 0, max: 0 })
+      expect(separator(name).props['aria-disabled']).toBe(true)
+      for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) await resizeKey(name, key)
+      expect(width(label)).toBe(0)
+    }
+    expect([...storage]).toEqual(saved)
+    expectPreferences()
+    await resize(804)
+    expectPreferences()
+    const before = width('Fixture explorer')
+    expect(separator('Sidebar').props['aria-disabled']).not.toBe(true)
+    expect(announcedWidth('Sidebar', 'Fixture explorer').max).toBeGreaterThan(0)
+    await resizeKey('Sidebar', 'ArrowRight')
+    expect(width('Fixture explorer')).toBeCloseTo(before + 10, 0)
+    expectSavedWidths()
+  })
+
+  it.each([NaN, Infinity, -Infinity])('announces finite ordered widths for normalized %s preferences without automatic writes', async (invalid) => {
+    await resize(1600)
+    storage.set('cortex.sidebarWidth', String(invalid))
+    storage.set('cortex.aiWidth', String(invalid))
+    await act(async () => { useStore.setState({ sidebarWidth: invalid, aiWidth: invalid }) })
+    announcedWidth('Sidebar', 'Fixture explorer')
+    announcedWidth('Agent', 'Fixture agent')
+    expectPreferences(invalid, invalid)
   })
 })
