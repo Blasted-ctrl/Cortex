@@ -81,6 +81,19 @@ continue natively. Escape is handled only by the open menu, not a global listene
 outside clicks close it without forcing trigger focus. Primary rails and the
 sidebar store contract are unchanged.
 
+`Splitter.tsx` owns local keyboard input and separator semantics. Existing layout
+hooks and `EditorArea.tsx` own signed movement, reachable endpoints and sizing.
+Right/bottom pane sizes decrease when their divider moves right/down. Controlled
+wrapper IDs and values describe the displayed layout, not only persisted limits.
+Automatic fitting does not save preferences; deliberate dock changes use the
+existing setters, while the editor ratio stays local.
+
+Equal-range keys do not write sizes. The editor observes its actual container,
+disables keyboard adjustment at zero width and recovers when measurable. Dock
+wrappers remove outer borders below two owned CSS pixels to avoid a border-imposed
+minimum; ordinary frame styling returns at two. This is not a promise of exact
+rectangle equality at every zoom/DPI. Pointer capture/cancellation are unchanged.
+
 ### Shared - `src/shared/`
 Code imported by both sides:
 - `ipc.ts` - the channel-name constants and all payload/DTO types (the IPC contract).

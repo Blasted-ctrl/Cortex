@@ -23,11 +23,15 @@ measured record/array limits, genuine Cargo terminal authority and explicit
 omission evidence. Final 116-suite regression (2311 passes/five unchanged skips),
 types/build, serial CLI checks, guard mutations and actual GCC desktop controls
 pass. More tools focus/navigation is complete at `354dd1d`, with focused tests and
-37-control native acceptance. Keyboard splitter resizing remains pending a reviewed
-written plan, followed by the queued long-filename badge fix. The authorized
-JetBrains inspection is design reference, not Cortex acceptance or a Settings
-redesign. Keep the compact embedded IDE layout; no universal server or total-memory
-guarantee is implied.
+37-control native acceptance. Keyboard panel resizing is completed locally
+under the [reviewed resizing plan](../.turbo/plans/cortex-keyboard-panel-resizing.md).
+Implementation commits are `6f868d5`, `e007e8d` and `72e63dd`. It retains compact
+controls and pointer behavior, layout-owned endpoints and original-runtime
+desktop verification; see [its own evidence](../docs/RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint).
+The historical menu run does not establish this feature. The long-filename badge
+remains separately queued. The authorized JetBrains inspection is design reference,
+not Cortex acceptance or a completed Settings redesign. Keep the compact embedded
+IDE layout; no universal server or total-memory guarantee is implied.
 The firmware design below remains implemented historical context, not a fresh
 unstarted task list. Remote Windows and firmware CI failures and the red
 dependency audit remain open; see [Task audit](../docs/TASK-AUDIT.md).

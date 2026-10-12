@@ -76,10 +76,19 @@ More tools focus/navigation is complete locally at `354dd1d`, with 33 focused
 cases and native acceptance of 37 controls and 196 trusted input events. These
 include six normal Tab exits and nine single-transition tool activations. The
 requested 900x600 window was actually 900x601. This is not a complete accessibility
-audit or fresh-install, hardware, provider or remote CI acceptance. Keyboard
-splitter resizing remains pending a reviewed written plan. Native inspection also
+audit or fresh-install, hardware, provider or remote CI acceptance. At that menu
+checkpoint keyboard splitter resizing remained pending a reviewed written plan. Native inspection also
 found that a long review-card filename can clip its new-file badge; retain this
 visible layout follow-up without claiming every badge was readable.
+
+Keyboard panel resizing has now passed focused regressions, guard/direction
+mutations, independent review, types/build, the 118-file regression and owned
+native controls under the
+[reviewed plan](../.turbo/plans/cortex-keyboard-panel-resizing.md), with implementation
+commits `6f868d5`, `e007e8d` and `72e63dd`; see the
+[separate checkpoint](RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint)
+for exact receipts and retained failed attempts. The long-filename review badge
+remains separately queued. Remote CI, audit and external release gates remain open.
 
 Remaining executable queue, in priority order:
 
@@ -103,7 +112,7 @@ Remaining executable queue, in priority order:
    diagnostics and explicit omission signals. Display retention alone is not a
    producer-memory bound; full-process/peak memory remains a separate claim.
 6. More tools focus/navigation is completed locally; keyboard splitter resizing
-   remains pending a reviewed written plan.
+   is also verified and committed locally. The badge remains separately queued.
 
 Policy-dependent work remains unsaved-draft Restore/Discard and retention,
 recoverable deletion, and release-update/crash-reporting policy. Larger product

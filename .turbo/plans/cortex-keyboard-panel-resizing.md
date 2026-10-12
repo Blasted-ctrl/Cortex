@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 ---
 
 # Plan: Keyboard resizing for workbench and editor panels
@@ -20,7 +20,10 @@ accessible values and keyboard endpoints must describe this displayed layout,
 not blindly copy persisted limits. No dependencies, new persistence entities,
 collapse state or global key listeners are needed. The user chose arrows and
 Home/End with hiding left on the existing controls, not Enter-to-hide. Full
-native acceptance is pending; the diagnostic below is not that desktop gate.
+native acceptance and source review pass; implementation checkpoints are
+`6f868d5`, `e007e8d` and `72e63dd`. The diagnostic below remains separate from
+that desktop gate. See
+[checkpoint evidence](../../docs/RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint).
 
 ## Acceptance Criteria
 
@@ -158,7 +161,10 @@ Keep clamping, persistence, sign conversion and fitted endpoints in the existing
   prefer a sub-two-pixel border override over a new fitting policy or replacing
   every normal frame with outlines/padding. Ordinary zoom-out layouts remain
   spacious under the existing minimum window; this reasoning is not proof for
-  every OS/DPI. Native acceptance and complete implementation review are pending.
+  every OS/DPI. The final independent source peer, full regression and owned V6
+  native acceptance pass, with implementation committed in three checkpoints.
+  The checkpoint ledger retains failed attempts and separate release blockers;
+  documentation closure uses its own guarded style checks.
 
 ## Verification
 

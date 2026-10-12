@@ -201,9 +201,13 @@ See `docs/TASK-AUDIT.md` for current tasks versus historical and future scope.
   cases and 37 native controls, with 196 trusted input events, six Tab exits and
   nine single-transition tool activations. The requested 900x600 window measured
   900x601; this is scoped menu evidence, not complete accessibility certification.
-- [ ] Add keyboard splitter resizing after a written plan is reviewed. Preserve
-  the compact design; the authorized local JetBrains inspection is reference,
-  without reading or modifying user projects/settings.
+- [x] Complete keyboard panel resizing under the
+  [reviewed plan](../.turbo/plans/cortex-keyboard-panel-resizing.md), preserving
+  compact layout and existing hide/pointer controls. Verify 117 focused cases,
+  guard/direction mutations, types/build, 118 files/
+  2414 passes with five unchanged skips, serial firmware/self-test and owned
+  native controls. [Evidence and limitations](../docs/RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint)
+  retain failed attempts and separate release blockers.
 - [x] Complete the reviewed workbench integrity slice: serialized global settings,
   fitted docks/notifications, keyboard recents, retained mounted settings drafts
   and exact BOM/CRLF approval/editor saves. Final types/build, 107 suites/1939

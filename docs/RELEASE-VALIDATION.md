@@ -1607,6 +1607,175 @@ Settings redesign remain pending. No new remote-CI, installer, hardware, human
 trial, public release or push result is implied. The high-severity audit gate is
 unchanged and still blocks customer release.
 
+## Keyboard panel resizing checkpoint
+
+Local keyboard resizing covers Sidebar, the shared Agent/Datasheets dock, the
+bottom panel and the left split-editor pane. Tab reaches the named divider;
+unmodified axis arrows request ten CSS pixels of movement, limited by its current
+reachable range. Home/End chooses those endpoints. Tab/Shift+Tab leaves normally;
+modified/wrong-axis/unrelated keys and Enter are not captured. Existing controls
+retain hiding, and pointer capture/cancellation remain available.
+
+Values describe displayed geometry, which may fit below saved dock minima.
+Keyboard resizing at an equal range is disabled without rewriting preferences.
+Automatic fitting is not persisted; deliberate dock actions use existing setters.
+The editor observes its actual container and keeps its split ratio locally.
+Zero/sub-two-pixel dock frames suppress their outer border; at two pixels the
+ordinary frame returns. This removes the border-imposed minimum, not every native
+rounding difference or every accessibility limitation.
+
+The corrected physical source below is the same source used by the closed gates.
+Base main is `d4e14247900587222abe2f802ad9873cb3357491`. Implementation is committed
+at `6f868d5`, fitted-dock coverage at `e007e8d` and bottom-panel coverage at
+`72e63dd`; together they contain the same 16 verified source/test paths.
+Verification uses original dependencies/runtime, not a fresh install or installer.
+
+| Evidence | Closed receipt / exact scope |
+|---|---|
+| Source export | `D:/cortex-tool-navigation/source-eJC17r`, 397 files |
+| Descriptor | `splitter-frame-green-snapshot.json`, SHA-256 `ea708825e84f77ebeda3f51715e7a6069b248b07265179478a7396d70c1b3e55` |
+| Initial RED | 49 assertion failures/57 passes across five suites; no harness collection failure |
+| Guard mutation | One intended assertion failure/105 passes; restoration 106 passes |
+| Direction mutation | 24 intended assertion failures/82 passes; restoration 106 passes |
+| Single-dock correction | Six actual App failures expose invisible saved-width changes; canonical single fitting uses Math.min, paired scaling unchanged |
+| Frame correction | Five actual App failures/112 passes; four wrapper-only border overrides |
+| Final focused | Five suites/117 passes, 20873 ms parent, 18.14 s Vitest |
+| Both process types | Code 0/null/no timeout, 65407 ms |
+| Desktop/tools build | Code 0/null/no timeout, 87934 ms |
+| Full regression | 118 files, 2414 passes, five existing skips, 2419 total; 722091 ms parent/719.89 s Vitest |
+| Independent final peer | All six dimensions clear, Overall approve; 448966 ms; no timeout/forced settlement |
+| Peer text identity | `splitter-diff-peer-l8ckkb/peer-final.txt`, SHA-256 `173f3648f9a9c70bc83b321850728995b33d335368343efc2a1cf0ace3de00ec` |
+| Source stability | Final focused/types/build/full receipts each have matching 397 before/after source hashes; all 16 live paths still match the descriptor on 2026-10-12 |
+| Repeated firmware | Code 0, 39896 ms; nine runs/87 assertions pass, three traces per scenario identical |
+| Negative harness | Code 0, 26373 ms; broken shutdown assertion and independent hanging-firmware error caught |
+| Inclusive audit | Code 1, 13871 ms; 17 advisory findings: seven high, ten moderate, zero critical; no database error |
+| Final native V6 | `splitter-native-v6-gate-UFHe6C/native-v6-reviewed-result.json`: code 0/null, 116921 ms, no timeout/forced settlement/guard error, unchanged true |
+| Native report | `splitter-native-v6-OrHx9W/artifacts/splitter-native-v6-report.json`, SHA-256 `43014e2dec050802bfb7b54a785ec9c3b29ca30dc9428267628a92739ba67caa` |
+| Native controls/input | 356 recorded control/observation entries, 959 trusted inputs, 371 dispatched keys, 64 Tab predictions; five pointer drags and ten bidirectional Tab-exit controls |
+| Tiny/zoomed geometry | Paired one/four/fractional capacities, sole dock widths 0/1/2, bottom sub-two/zero and all normal recoveries reached |
+| Original PNG review | Root viewed all 38 original V6 PNGs; independent audit confirms artifact paths and all recorded PNG hashes |
+| Documentation style | Interim seven-file overlay: four cases pass, code 0/null, 22134 ms, no timeout/forced settlement/guard error; final closure overlay requires the same gate before its documentation commit |
+
+Focused host tests establish actual component props/callbacks and declared styles,
+not browser rectangles or an accessibility tree. The mutation runs precede the
+later roundoff/frame cases; they ran 106 cases, not the final 117. The peer did
+not execute tests or native actions; separate receipts establish those gates.
+
+Firmware receipts live in `splitter-firmware-audit-xW8TSU`. Invalid-input has
+14 assertions per run, normal eight and sensor-timeout seven, repeated three
+times each. The positive report exits 0 with reproducible true and matching
+trace hashes/timelines. The negative report exits 0 with expectedNegativeTests
+true: broken firmware fails `sensor-timeout-shutdown` and related actuator/fault/
+state checks; hanging firmware reports `Wall-clock timeout after 1000ms`.
+Host teardown elapsed time is separate from the configured watchdog and virtual
+time. No fresh benchmark is credited by this serial firmware/audit group.
+
+### Final native scope
+
+Original Electron 33.4.11/Node 20.18.3 reports sandbox true, contextIsolation true
+and nodeIntegration false. Profile, three-file project, build and reports are
+owned D: paths. Tests use actual Chromium keyboard/pointer input and the original
+preload; no simulated rectangles, provider replacement or hardware flash.
+
+At 948x604/zoom2/DPR3, paired capacity one changes Sidebar from 0.225 to
+0.6829268292682927 CSS pixels, with actual rectangles 0.2239583432674408 to
+0.6822916865348816 and a moved divider. PNG hashes differ and borders are zero.
+Capacity four restores a normal Sidebar border independently while the smaller
+Agent border stays zero. Fractional capacity 5.436492919921875 is measured at
+1004x604/zoom2.1, not guessed from a CSS grid. Sole Sidebar/Agent/Datasheets
+zero/one/two widths retain disabled focus, unchanged preferences and recovery.
+
+Bottom probes use an actual 1366x604 window. Requested zoom4 returns
+3.9999999999999996; the driver independently precomputes Electron's factor/level
+roundtrip and asserts the exact observed level/factor, with no epsilon or changed
+request. All 31 zoom/window observations pass. Requested 4.25 yields panel value
+0.49019622802734375 and rectangle 0.4901961088180542, with zero border; 4.375
+yields zero. Recovery at 1366x900/zoom1 yields 610.3333740234375 with the ordinary
+frame. Other focus/endpoints, guard keys, hidden return and pointer controls pass.
+These extreme probes are geometry evidence, not a claim that the entire UI is
+readable at those zoom levels or that every native DPI quantization is exact.
+
+The driver is `splitter-owned-native-v6.mjs`, SHA-256
+`5216f4586d8ec8f91ecab9aa55d8391e7deb092f83bcff3b4a207ffc97afedd6`;
+gate SHA-256 is `a5a4984d948e76b34265f85cea426b8838bdcc3fe8f2dac86c96291b67674b5b`.
+All 38 PNGs remain under the native report's artifacts directory, including
+`frame-budget-one-before-end`, `frame-budget-one-after-end`,
+`bottom-frame-sub-two`, `bottom-frame-zero` and recovery captures. Root inspected
+their original pixels; no visual credit is inherited from failed attempts.
+
+The report records normal application PID 17560 exit 0/null, birth identity
+2026-10-11T22:56:54.6992500Z, 45 sampled birth identities, immutable source/runtime/
+helper/build guards and exact unchanged fixture buffers. Independent receipt
+inspection confirms cleanup: sampled identities/owned paths absent and IPv4
+ports 9871/9872 released. This is not a new later live census, exhaustive fast-child
+coverage or all-address listener coverage. Renderer/main errors are absent;
+provider state is idle with no messages or activation.
+
+### Retained failed/partial attempts
+
+- The original build reaches renderer transformation and its unchanged 240-second
+  watchdog; a same-source retry passes in 236116 ms. Cause remains unproven.
+- Two earlier peers exceed unchanged ten-minute deadlines. Their partial hints
+  lead to independent RED/diagnostic evidence, not final review approval.
+- The obsolete `splitter-green-tests` run is deliberately cancelled after a real
+  defect is confirmed. Its termination error and later narrow PID absence are
+  retained; this is not a full pass or normal-native-close evidence.
+- `splitter-border-probe-E9jlQY` stops on requested 1366x601 becoming 1366x602;
+  OS cause is unproven. Probe `splitter-border-probe-v2-j3MabP` earns budget one
+  but End changes saved widths while both panes stay two pixels and PNGs are
+  identical. This establishes the original frame defect, not the corrected pass.
+- V2 `splitter-native-v2-umq5DV`: code 1/70195 ms, 211 controls; Agent focus-visible
+  assertion fails after capture. Normal close is recorded; cause is unproven.
+- V3 `splitter-native-v3-7YiajF`: code 1/79590 ms, 264 controls; reverse Sidebar
+  Tab reaches a zero-width rendered treeitem omitted by the predictor.
+- V4 `splitter-native-v4-RCI7dj`: code 1/86030 ms, 267 controls; reverse Agent
+  Tab reaches an implicit Problems scroll DIV rather than the predicted button.
+  The dedicated tiny-frame sweep is unreached.
+- V5 `splitter-native-v5-RgGMvC`: code 1/114978 ms, 315 controls/368 keys/950
+  trusted inputs. Horizontal tiny controls pass before requested zoom4 versus
+  returned 3.9999999999999996 stops the bottom search. No complete acceptance.
+
+V4 proves rendered zero-width treeitem eligibility. V5 independently predicts and
+actually focuses the Problems scroll DIV (tabIndex -1/no attribute, overflow auto,
+height8/scrollHeight72, width=scrollWidth285, no eligible descendants). V6 retains
+these strict Tab checks. The 356 V6 entries include 31 pre-assert zoom and 31
+resize observations; they are not 356 independent tests. Root viewed 16 of
+V5's 35 original PNGs, not all.
+V2-V5 normal exit, cleanup and unchanged-source/runtime/file facts stay attached
+to their failed receipts; none is substituted for complete V6 acceptance.
+
+### Documentation cache boundary and release limits
+
+The first `splitter-docs-style-gate.cjs` was prepared but unrun. Its whole
+node_modules junction would route default Vite config temp and Vitest caches to
+the shared C: install. No actual v1 cache mutation or cleanup is claimed. Historic
+whole-install-junction gates are not proof that every cache write stayed on D:.
+
+The reviewed replacement is `splitter-docs-style-v2-gate.cjs`, SHA-256
+`53dcabce9147fe500383a500c6ca3cb5ae97a200aa7734546afdc0c867a2f19f`.
+It preserves the exact style CLI/config/assertions/240-second deadline. Physical
+D: node_modules holds 405 package/scope junctions reusing the install, not copied
+shared caches or a fresh installation. Require unchanged shared C: .vite/.vite-temp
+snapshots, package maps, seven overlays and 397 source/self/descriptor/runtime
+guards. Before/after cache equality does not rule out every transient write.
+No configLoader or cache-disabling flag is added. The interim v2 receipt is
+`splitter-docs-style-v2-xvJ5i1/style-reviewed-result.json`: four cases pass in
+15.19 s Vitest/22134 ms parent, with code 0/null, unchanged true and no watchdog,
+forced settlement or guard error. It verifies 397 files, seven overlays and the
+405-package map. Actual D: `.vite/vitest` contains its results.json and `.vite-temp`
+is an empty physical directory; shared C: cache snapshots are unchanged.
+The final closure overlay is checked again with this same pinned helper before
+its documentation commit; retained receipts are under the owned
+`splitter-docs-style-v2-*` directories. No source/build/runtime gate is inherited
+from a documentation-only check.
+
+This is local functional evidence, not screen-reader/WCAG/full APG certification,
+every OS/DPI, fresh-install, remote-CI or installer validation. The seven-high
+audit gate still blocks customer release. Signing/notarization, clean OS installer
+trials, selected hardware, actual credentials/remotes/conflicts/offline recovery,
+two teammates and an outside team remain open. No public release, user-project
+commit/push or board flash is implied.
+
 ## Native desktop checks
 
 The desktop used an isolated Electron profile and a temporary laptop project,

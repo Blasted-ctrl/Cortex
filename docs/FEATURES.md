@@ -13,6 +13,18 @@ Debug. Arrows wrap focus, Home/End jump to the first/last item, and B/L/D move
 focus by initial. Enter/Space use native button activation; Escape returns to the
 trigger, while Tab/Shift+Tab continue the normal tab order.
 
+Tab to a panel divider. Unmodified arrows on its axis request ten CSS pixels of
+divider movement, subject to the currently reachable range. Home/End selects the
+controlled pane's minimum/maximum. Sidebar, Agent/Datasheets, bottom-panel and
+split-editor dividers have named controls and visible keyboard focus.
+Tab/Shift+Tab leaves normally; use the existing controls to hide panels, not Enter.
+Pointer resizing remains available.
+
+Divider values describe displayed sizes, which can be smaller than saved dock
+preferences in a fitted window. An unadjustable divider remains focusable and
+announces its disabled range. The editor split percentage is local, not saved.
+See [verified scope and limits](RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint).
+
 - ✅ Open folder as workspace; lazy file tree
 - ✅ Live filesystem watching (external changes refresh the tree)
 - ✅ Monaco editor: tabs, dirty indicators, close guard, syntax highlighting, minimap, bracket colorization
