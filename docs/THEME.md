@@ -68,6 +68,13 @@ Respect `prefers-reduced-motion`.
 | comment | `#7D8899` | faint, italic |
 | macro / `#define` / register | `#C58BE6` | violet |
 
+Monaco's bundled C++ grammar does not identify library class names on its own.
+For headers covered by `src/shared/stdlib/cpp-libraries.json`, Cortex marks
+their class names in live C++ code with `ide.amber` (orange), using a
+header-gated decoration. It does not color matches inside comments, strings,
+unrelated projects or foreign qualified symbols. Add new classes to the
+library dictionary rather than a hardcoded color-name list.
+
 `test/contrast.test.ts` checks designated chrome text/graphics, white accent-button
 labels and supported tinted status surfaces in both themes. This is evidence for
 those pairs, not a complete WCAG audit or a check of every syntax token. Preserve

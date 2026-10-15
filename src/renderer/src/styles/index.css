@@ -274,3 +274,9 @@
 .cortex-debug-line {
   background: rgba(232, 180, 74, 0.13);
 }
+
+/* Monaco's basic C++ grammar labels library classes as plain identifiers.
+   The header-gated class decoration uses the same amber as Cortex keywords. */
+.monaco-editor .cortex-cpp-class-token {
+  color: rgb(var(--ide-amber)) !important;
+}

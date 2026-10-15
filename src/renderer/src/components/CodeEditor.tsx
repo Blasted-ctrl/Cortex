@@ -34,6 +34,7 @@ import { useStore } from '../store/useStore'
 import { initLsp, openDoc, changeDoc, closeDoc } from '../lsp/lspClient'
 import { registerZig, registerJson } from '../monaco/zig'
 import { attachCppAutoIncludes } from '../monaco/cppAutoInclude'
+import { attachCppClassHighlight } from '../monaco/cppClassHighlight'
 
 // Bundle Monaco locally (no CDN) so it works under a strict CSP.
 // One worker: the json/css/html/ts language services are IntelliSense for
@@ -318,6 +319,7 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
         const rawContent = modelRef.current?.getValue(undefined, true) ?? text
         mountedModel.current = { path, rawContent, hasBom: rawContent !== text }
         const autoIncludes = attachCppAutoIncludes(editor, path)
+        const classHighlight = attachCppClassHighlight(editor)
         // Report the cursor to the status bar: the initial position on mount,
         // then every move. Cleared on dispose (below) so switching to the
         // Simulator or closing the last file empties the Ln/Col readout.
@@ -364,6 +366,7 @@ export default function CodeEditor({ path }: { path: string }): JSX.Element {
         if (container) ro.observe(container)
         editor.onDidDispose(() => {
           autoIncludes.dispose()
+          classHighlight.dispose()
           ro.disconnect()
           if (editorRef.current === editor) mountedModel.current = null
           if (w.__cortexEditor === editor) delete w.__cortexEditor
