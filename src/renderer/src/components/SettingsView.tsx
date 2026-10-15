@@ -5,6 +5,7 @@ import { isValidIndexUrl } from '@shared/boardUrls'
 import { BAUD_RATES } from '@shared/serial'
 import type { ToolchainInfo } from '@shared/ipc'
 import { NativeLibrariesSettings } from './NativeLibrariesSettings'
+import { AutoSaveSetting } from './AutoSaveSetting'
 
 const KIND_LABEL: Record<ToolchainInfo['kind'], string> = {
   cpp: 'C / C++',
@@ -185,6 +186,12 @@ export default function SettingsView(): JSX.Element {
   const fields: FieldDef[] = useMemo(() => {
     if (!settings) return []
     return [
+      {
+        cat: 'appearance',
+        label: 'Auto save',
+        keywords: 'autosave save files unsaved restart lose work editor',
+        el: <AutoSaveSetting />
+      },
       {
         cat: 'appearance',
         label: 'Theme',

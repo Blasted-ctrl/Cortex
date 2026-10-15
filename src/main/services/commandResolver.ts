@@ -75,8 +75,26 @@ export function resolveOnPath(cmd: string): string | null {
   if (found) return found
   // A toolchain installed after Cortex started (or installed without touching
   // PATH, as MSYS2's pacman does) is invisible to this process's frozen PATH.
+  // Only for toolchain commands: MSYS2 also ships python, node and others, and
+  // silently substituting those for a missing interpreter would be a surprise.
+  if (!TOOLCHAIN_COMMANDS.has(cmd.toLowerCase().replace(/\.exe$/, ''))) return null
   return addKnownToolDirs() ? search() : null
 }
+
+/** Commands found in the known toolchain directories when they are not on PATH. */
+const TOOLCHAIN_COMMANDS = new Set([
+  'g++',
+  'gcc',
+  'c++',
+  'cc',
+  'clang',
+  'clang++',
+  'gdb',
+  'make',
+  'mingw32-make',
+  'pkg-config',
+  'pkgconf'
+])
 
 /**
  * Where Windows toolchain installers put compilers without adding them to PATH.

@@ -5,7 +5,7 @@ import type { AppSettings } from '../src/renderer/src/store/useStore'
 import { createHost, descendants, invoke, type HostNode } from './reactHost'
 
 const storage = new Map<string, string>()
-const api = { setSettings: vi.fn(), serialClose: vi.fn(), serialOpen: vi.fn() }
+const api = { setSettings: vi.fn(), serialClose: vi.fn(), serialOpen: vi.fn(), nativeLibStatus: vi.fn().mockResolvedValue([]) }
 vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) })
 vi.stubGlobal('window', { api })
 vi.stubGlobal('React', React)

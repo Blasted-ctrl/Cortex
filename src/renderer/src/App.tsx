@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { useStore } from './store/useStore'
+import { startAutoSave } from './store/autoSave'
 import CommandPalette, { type PaletteMode } from './components/CommandPalette'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toasts from './components/Toasts'
@@ -213,6 +214,10 @@ export default function App(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [saveActive, toggleSidebar, toggleBottom, runActive, setSidebar, setMainView, setBottom, setSerialPlot, openWorkspace])
+
+  // Write dirty tabs shortly after typing stops, so a killed process or a dev
+  // restart cannot lose work (see store/autoSave.ts).
+  useEffect(() => startAutoSave(useStore, () => useStore.getState().saveAll()), [])
 
   // Closing the window used to just discard unsaved tabs. Main intercepts the
   // close once and waits here instead of dropping the window immediately, so

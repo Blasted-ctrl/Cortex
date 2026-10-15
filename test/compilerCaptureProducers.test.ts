@@ -6,11 +6,11 @@ import type { BrowserWindow } from 'electron'
 import type { RunDiagnostics, RunRequest } from '../src/shared/ipc'
 import { IPC } from '../src/shared/ipc'
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn(), mkdir: vi.fn(), access: vi.fn() }))
+const mocks = vi.hoisted(() => ({ spawn: vi.fn(), mkdir: vi.fn(), access: vi.fn(), readFile: vi.fn(async () => '') }))
 vi.mock('child_process', () => ({ spawn: mocks.spawn, execFile: vi.fn() }))
 vi.mock('fs', async importOriginal => {
   const original = await importOriginal<typeof import('fs')>()
-  return { ...original, promises: { ...original.promises, mkdir: mocks.mkdir, access: mocks.access } }
+  return { ...original, promises: { ...original.promises, mkdir: mocks.mkdir, access: mocks.access, readFile: mocks.readFile } }
 })
 vi.mock('fs/promises', () => ({ mkdir: mocks.mkdir }))
 vi.mock('../src/main/services/fsService', () => ({ getWorkspaceRoot: () => null, withinWorkspace: () => true }))

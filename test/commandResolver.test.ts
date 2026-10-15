@@ -130,4 +130,15 @@ describe.skipIf(!existsForMsys('C:/msys64/ucrt64/bin/g++.exe'))('known toolchain
       process.env['PATH'] = saved
     }
   })
+
+  it('does not substitute an MSYS2 python or node for a missing interpreter', () => {
+    const saved = process.env['PATH']
+    try {
+      process.env['PATH'] = 'C:/WINDOWS/system32'
+      expect(resolveOn('python')).toBeNull()
+      expect(resolveOn('node')).toBeNull()
+    } finally {
+      process.env['PATH'] = saved
+    }
+  })
 })

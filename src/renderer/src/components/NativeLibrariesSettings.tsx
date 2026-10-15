@@ -17,6 +17,12 @@ export function NativeLibrariesSettings(): JSX.Element {
   const [busy, setBusy] = useState('')
 
   const refresh = useCallback(() => {
+    // An app started before this feature existed has no such bridge call; say so
+    // instead of throwing inside an effect and blanking the whole Settings page.
+    if (typeof window.api.nativeLibStatus !== 'function') {
+      setError('This part of Cortex needs a restart to finish updating.')
+      return
+    }
     window.api
       .nativeLibStatus(useStore.getState().nativeLibQuery())
       .then((l) => {
@@ -41,7 +47,7 @@ export function NativeLibrariesSettings(): JSX.Element {
     }
   }
 
-  if (error) return <p className="text-[11px] text-ide-red">Could not read library status: {error}</p>
+  if (error) return <p className="text-[11px] text-ide-red">Library status unavailable: {error}</p>
   if (!libs) return <p className="text-[11px] text-ide-faint">Checking installed libraries...</p>
 
   const button = (lib: NativeLibStatus, target: 'cpp' | 'python', title: string): JSX.Element => {

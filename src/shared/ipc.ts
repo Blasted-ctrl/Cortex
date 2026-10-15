@@ -79,8 +79,8 @@ export const IPC = {
   LIB_INSTALLED: 'lib:installed',
   LIB_INSTALL: 'lib:install', // streamed
   LIB_UNINSTALL: 'lib:uninstall', // streamed
-  NATIVE_LIB_STATUS: 'nativeLib:status',
-  NATIVE_LIB_INSTALL: 'nativeLib:install', // streamed
+  NATIVE_LIB_STATUS: 'nativelib:status',
+  NATIVE_LIB_INSTALL: 'nativelib:install', // streamed
 
   // Debugger (gdb, host C/C++)
   DEBUG_START: 'debug:start',
