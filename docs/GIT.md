@@ -39,6 +39,8 @@ Text diff previews are limited to 4 MB per side. Binary files, large files, and 
 
 ## Branches and synchronization
 
+The bottom bar shows the current branch, an asterisk when files have uncommitted changes, and behind/ahead counts when an upstream is configured. Select either Git indicator to open Source Control. These are status indicators, not one-click push or pull actions.
+
 Open the branch selector to switch to an existing local branch or enter a new branch name. Save or discard unsaved editor changes first. Cortex does not force a switch over conflicting changes.
 
 After switching, creating a branch or pulling, clean editor tabs reload from

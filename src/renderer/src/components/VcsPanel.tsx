@@ -115,6 +115,7 @@ export default function VcsPanel(): JSX.Element {
     if (my !== statusGen.current || !owns()) return
     setStatus(s)
     setLoading(false)
+    window.dispatchEvent(new Event('cortex:git-changed'))
     // Reconcile the open diff: drop it if its file left that section, otherwise
     // re-fetch so an edit to the open file is reflected rather than going stale.
     const cur = openRef.current
