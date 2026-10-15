@@ -308,10 +308,10 @@ class LspServer {
    * and, only when it actually changed, restart the server and have the renderer
    * replay its open documents into the new one.
    */
-  private refreshToolchain(): void {
+  refreshToolchain(force = false): void {
     if (this.lang !== 'cpp' || !this.initialized) return
     const now = performance.now()
-    if (now - this.lastToolchainCheck < 15_000) return
+    if (!force && now - this.lastToolchainCheck < 15_000) return
     this.lastToolchainCheck = now
     const gen = this.generation
     void ensureClangdConfig(this.root)
@@ -544,6 +544,11 @@ export function notify(win: BrowserWindow, call: LspCall): void {
 
 export function reloadCompilationDatabase(root: string): void {
   servers.get(`cpp:${root}`)?.reloadCompilationDatabase()
+}
+
+/** Re-derive the C++ toolchain config now (e.g. after a library install) and restart clangd if it changed. */
+export function refreshCppToolchain(root: string): void {
+  servers.get(`cpp:${root}`)?.refreshToolchain(true)
 }
 
 export function killAll(): void {

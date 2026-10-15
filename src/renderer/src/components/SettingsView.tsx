@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore'
 import { isValidIndexUrl } from '@shared/boardUrls'
 import { BAUD_RATES } from '@shared/serial'
 import type { ToolchainInfo } from '@shared/ipc'
+import { NativeLibrariesSettings } from './NativeLibrariesSettings'
 
 const KIND_LABEL: Record<ToolchainInfo['kind'], string> = {
   cpp: 'C / C++',
@@ -16,10 +17,11 @@ const KIND_LABEL: Record<ToolchainInfo['kind'], string> = {
   other: 'CLI & Tools'
 }
 
-type Category = 'appearance' | 'build' | 'serial' | 'ai' | 'boards' | 'diagnostics'
+type Category = 'appearance' | 'build' | 'libraries' | 'serial' | 'ai' | 'boards' | 'diagnostics'
 const CATEGORIES: { id: Category; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'build', label: 'Build' },
+  { id: 'libraries', label: 'Libraries' },
   { id: 'serial', label: 'Serial' },
   { id: 'ai', label: 'Cortex Agent' },
   { id: 'boards', label: 'Board Manager' },
@@ -428,6 +430,12 @@ export default function SettingsView(): JSX.Element {
             </div>
           </div>
         )
+      },
+      {
+        cat: 'libraries',
+        label: 'C++ and Python libraries',
+        keywords: 'libraries opencv raylib sdl sdl2 glfw cv2 install headers include link dependencies numpy pip pacman msys2',
+        el: <NativeLibrariesSettings />
       },
       {
         cat: 'diagnostics',

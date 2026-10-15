@@ -15,6 +15,8 @@ import {
 } from '../../shared/diagnostics'
 import { isAllowedCommand, isBareCommand, commandBaseName, sanitizeExtraArgs, OPT_LEVELS } from '../../shared/security'
 import { withinWorkspace, getWorkspaceRoot } from './fsService'
+import { libsForCppSource } from '../../shared/nativeLibs'
+import { resolveBuildFlags } from './nativeLibFlags'
 import { safeCommand, commandMissing, needsShell } from './commandResolver'
 import { reserveRunOutput, deliverRunOutput, deliverRunExit, finishRunOutput, acknowledgeRunOutput, disposeRunOutput } from './runOutputDelivery'
 import { COMPILER_DIAGNOSTIC_LIMITS, createCompilerDiagnostics, createCompilerRecordStream, type CompilerDiagnosticsResult } from './compilerDiagnostics'
@@ -171,7 +173,21 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
   // discards the archive and the link fails on the user's own source; and
   // keeping them ahead of -o means a stray -o could not win anyway (the
   // sanitizer cannot admit one, but the ordering costs nothing).
-  args.push(req.filePath, ...kept, '-o', exePath)
+  // Libraries the source itself asks for (#include <opencv2/...>) get their real
+  // flags from the package manager, never from the repo. They follow the
+  // project's own flags so a hand-written -l still links in a sensible order.
+  const needed = libsForCppSource(await fs.readFile(req.filePath, 'utf8').catch(() => ''))
+  const native = needed.length ? await resolveBuildFlags(needed, compiler) : { flags: [], missing: [] }
+  args.push(req.filePath, ...kept, ...native.flags, '-o', exePath)
+  if (native.missing.length) {
+    out(
+      win,
+      req.id,
+      'system',
+      `This file uses ${native.missing.map((l) => l.name).join(', ')}, which is not installed. Open Settings > Libraries and press Install (or use the Quick Fix on the #include).
+`
+    )
+  }
 
   if (dropped.length) {
     out(
@@ -581,33 +597,18 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
       // would pass it. A venv interpreter IS a path, so paths stay allowed, but
       // an untrusted one only inside the open workspace, where running the
       // repo's own code is already what the user asked for.
-      let py = req.pythonPath || 'python'
-      // A cloned repo's config is whatever JSON.parse produced, so this may not
-      // be a string at all; isBareCommand string-coerces and commandBaseName
-      // then threw, killing the whole run before any spawn.
-      const pinned = typeof req.projectPython === 'string' ? req.projectPython : ''
-      if (pinned) {
-        // A relative pin (`.venv/Scripts/python.exe`, the natural way to write
-        // one) is relative to the PROJECT. Node would resolve a relative command
-        // against process.cwd() rather than the child's cwd, so resolve it here
-        // and both the check and the spawn use the same absolute path.
-        const abs = isBareCommand(pinned) ? pinned : resolve(req.cwd, pinned)
-        // Scoped to Python, not to the whole spawn allowlist: that list also
-        // holds node, cargo, arduino-cli and the language servers, so a repo
-        // pinning "pyright-langserver" became the interpreter and the run hung
-        // forever waiting on LSP frames.
-        const isPython = ['python', 'python3'].includes(commandBaseName(abs))
-        if (isPython && isAllowedCommand(abs) && (isBareCommand(abs) || withinWorkspace(abs))) py = abs
-        else {
-          // Say why, rather than silently running a different interpreter than
-          // the one the project asked for.
-          out(
-            win,
-            req.id,
-            'system',
-            `Ignoring the interpreter pinned in .cortex/config.json (${pinned}): it must be a Python command on PATH, or a path inside this workspace.\n`
-          )
-        }
+      const chosen = pickPythonInterpreter(req)
+      const py = chosen.py
+      if (chosen.ignoredPin) {
+        // Say why, rather than silently running a different interpreter than
+        // the one the project asked for.
+        out(
+          win,
+          req.id,
+          'system',
+          `Ignoring the interpreter pinned in .cortex/config.json (${chosen.ignoredPin}): it must be a Python command on PATH, or a path inside this workspace.
+`
+        )
       }
       if (!isAllowedCommand(py)) return reject(win, req.id, `Interpreter not allowed: ${py}`)
       runProcess(win, req, py, ['-u', req.filePath], dirname(req.filePath))
@@ -621,6 +622,29 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
       out(win, req.id, 'system', `No runner configured for language '${req.language}'.\n`)
       exit(win, { id: req.id, code: null, signal: null, durationMs: 0, phase: 'run' })
   }
+}
+
+/**
+ * The Python interpreter a run (or a package install into it) should use.
+ * Two sources with two trust levels: `pythonPath` is an app setting and trusted;
+ * `projectPython` comes from the workspace's .cortex/config.json, which travels
+ * with a cloned repo, so it is accepted only as a Python command on PATH or a
+ * path inside the open workspace (a venv). `ignoredPin` names a pin that was refused.
+ */
+export function pickPythonInterpreter(req: { pythonPath?: string; projectPython?: unknown; cwd: string }): { py: string; ignoredPin?: string } {
+  let py = req.pythonPath || 'python'
+  // A cloned repo's config is whatever JSON.parse produced, so this may not be a
+  // string at all; isBareCommand string-coerces and commandBaseName then threw.
+  const pinned = typeof req.projectPython === 'string' ? req.projectPython : ''
+  if (!pinned) return { py }
+  // A relative pin (`.venv/Scripts/python.exe`) is relative to the PROJECT; node
+  // would resolve it against process.cwd(), so resolve it here once.
+  const abs = isBareCommand(pinned) ? pinned : resolve(req.cwd, pinned)
+  // Scoped to Python, not the whole spawn allowlist: a repo pinning
+  // "pyright-langserver" would otherwise become the interpreter and hang the run.
+  const isPython = ['python', 'python3'].includes(commandBaseName(abs))
+  if (isPython && isAllowedCommand(abs) && (isBareCommand(abs) || withinWorkspace(abs))) return { py: abs }
+  return { py, ignoredPin: pinned }
 }
 
 export function stopRun(id: string): void {

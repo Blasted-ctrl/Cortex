@@ -48,7 +48,9 @@ describe('LSP completion additional edits', () => {
       'Struct', 'Event', 'Operator', 'TypeParameter'
     ]
     const m = {
+      editor: { registerCommand: vi.fn() },
       languages: {
+        registerCodeActionProvider: vi.fn(),
         CompletionItemKind: Object.fromEntries(kinds.map((kind, i) => [kind, i])),
         CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
         registerCompletionItemProvider: (id: string, p: monaco.languages.CompletionItemProvider) => {

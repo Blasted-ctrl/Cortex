@@ -46,6 +46,7 @@ import type { LspCall, LspAvailability, LspDiagnosticsPush, LspServerExit, LspBu
 import type { EnvironmentReport } from '../shared/environment'
 import type { CortexLock, LockCheck } from '../shared/lockfile'
 import type { DatasheetHit, DatasheetDocMeta, DatasheetImportResult } from '../shared/datasheet'
+import type { NativeLibInstallRequest, NativeLibQuery, NativeLibStatus } from '../shared/nativeLibs'
 import type { FirmwareTestRequest, FirmwareTestResponse, FirmwareTestSelection } from '../shared/firmwareTest'
 
 type Unsub = () => void
@@ -144,6 +145,8 @@ const api = {
   libInstalled: (): Promise<LibPackage[]> => ipcRenderer.invoke(IPC.LIB_INSTALLED),
   libInstall: (req: PackageInstallRequest): Promise<void> => ipcRenderer.invoke(IPC.LIB_INSTALL, req),
   libUninstall: (id: string, name: string): Promise<void> => ipcRenderer.invoke(IPC.LIB_UNINSTALL, id, name),
+  nativeLibStatus: (q: NativeLibQuery): Promise<NativeLibStatus[]> => ipcRenderer.invoke(IPC.NATIVE_LIB_STATUS, q),
+  nativeLibInstall: (req: NativeLibInstallRequest): Promise<number> => ipcRenderer.invoke(IPC.NATIVE_LIB_INSTALL, req),
 
   // debugger (gdb)
   debugStart: (req: DebugStartRequest): Promise<void> => ipcRenderer.invoke(IPC.DEBUG_START, req),

@@ -4,6 +4,7 @@ import { applyTextEdits } from '@shared/textEdit'
 import { maskCppNonCode } from '@shared/cppLexical'
 import { withDiagnosticHint } from '@shared/diagnosticHints'
 import { useStore } from '../store/useStore'
+import { registerNativeLibQuickFixes } from './nativeLibQuickFix'
 import { stdlibCompletionOwner, stdlibDocumentation, type StdlibOwner } from './stdlibDocumentation'
 import pythonSnippets from '@shared/stdlib/python-snippets.json'
 import cppSnippets from '@shared/stdlib/cpp-snippets.json'
@@ -728,6 +729,7 @@ async function doInitLsp(m: Mon): Promise<void> {
   // Surface availability to the status bar (read outside React via the store).
   useStore.getState().setLspServers({ ...available })
   registerProviders(m)
+  registerNativeLibQuickFixes(m)
 
   // Read-only introspection for diagnostics/support: which servers are live and
   // which documents are open. No behaviour depends on it.

@@ -90,7 +90,7 @@ const browser = vi.hoisted(() => {
           return editor
         },
         EditorOption: { readOnly: 91 },
-        defineTheme: noop, setTheme: noop, setModelLanguage: noop, setModelMarkers: noop,
+        defineTheme: noop, setTheme: noop, setModelLanguage: noop, setModelMarkers: noop, registerCommand: noop,
         onDidChangeMarkers: disposable,
         MouseTargetType: { GUTTER_GLYPH_MARGIN: 2 }
       },
@@ -99,7 +99,7 @@ const browser = vi.hoisted(() => {
         registerCompletionItemProvider: disposable, registerHoverProvider: disposable,
         registerDefinitionProvider: disposable, registerSignatureHelpProvider: disposable,
         registerReferenceProvider: disposable, registerDocumentFormattingEditProvider: disposable,
-        registerRenameProvider: disposable
+        registerRenameProvider: disposable, registerCodeActionProvider: disposable
       }
     }
   }

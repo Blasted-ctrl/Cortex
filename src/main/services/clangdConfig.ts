@@ -3,6 +3,7 @@ import { readFile, writeFile, readdir, stat } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
 import { getProjectConfig } from './projectConfigService'
+import { editorIncludeDirs } from './nativeLibFlags'
 import { safeCommand, needsShell } from './commandResolver'
 import { getWorkspaceRoot } from './fsService'
 import { isAllowedCommand, isBareCommand, hostCppOrNull } from '../../shared/security'
@@ -366,7 +367,10 @@ export async function ensureClangdConfig(root: string): Promise<boolean> {
   if (tc.includes.length === 0) return false
 
   const { project, deps } = await discoverIncludeDirs(root)
-  const content = buildClangdConfig(tc, cppStd, cStd, project, deps)
+  // Headers of every installed native library (OpenCV, raylib, ...) so their
+  // #includes resolve in the editor the moment they are installed.
+  const native = await editorIncludeDirs(compiler).catch(() => [] as string[])
+  const content = buildClangdConfig(tc, cppStd, cStd, project, [...deps, ...native])
   if (existing === content) return false
   try {
     await writeFile(cfgPath, content, 'utf8')

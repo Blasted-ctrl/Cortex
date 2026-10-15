@@ -141,8 +141,9 @@ beforeEach(async () => {
     'Struct', 'Event', 'Operator', 'TypeParameter'
   ]
   host = {
-    editor: { setModelMarkers: vi.fn() },
+    editor: { setModelMarkers: vi.fn(), registerCommand: vi.fn() },
     languages: {
+      registerCodeActionProvider: vi.fn(),
       CompletionItemKind: Object.fromEntries(kinds.map((kind, index) => [kind, index])),
       CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
       registerCompletionItemProvider: (id: string, provider: monaco.languages.CompletionItemProvider) => { completions.set(id, provider) },

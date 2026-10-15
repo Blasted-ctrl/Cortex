@@ -20,6 +20,7 @@ import type {
   SimExit,
   AgentEvent
 } from '@shared/ipc'
+import type { NativeLibQuery } from '@shared/nativeLibs'
 import { langFromPath, isHeaderPath, cDriver, cppDriver, type LanguageDef } from '@shared/languages'
 import { normalizeEol, detectEol, withEol } from '@shared/diff'
 import { appendConsoleEntry } from '@shared/consoleBuffer'
@@ -749,6 +750,9 @@ interface State {
   uninstallCore: (coreId: string) => Promise<void>
   updateCoreIndex: () => Promise<void>
   installLib: (name: string, version?: string) => Promise<void>
+  /** The interpreter/workspace facts the native-library status and install need. */
+  nativeLibQuery: () => NativeLibQuery
+  installNativeLib: (libId: string, target: 'cpp' | 'python') => Promise<void>
   uninstallLib: (name: string) => Promise<void>
 
   // debugger (gdb, host C/C++)
@@ -2902,6 +2906,24 @@ export const useStore = create<State>((set, get) => ({
   },
   async installLib(name, version) {
     await runPackageOp(get, set, (id) => window.api.libInstall({ id, name, version }))
+  },
+  nativeLibQuery() {
+    const state = get()
+    return {
+      projectPython: state.projectPython,
+      cwd: state.workspaceRoot ?? undefined,
+      pythonPath:
+        state.settings?.pythonPath ||
+        state.toolchains.find((t) => t.id === 'python' && t.available)?.command ||
+        state.toolchains.find((t) => t.id === 'python3' && t.available)?.command ||
+        'python'
+    }
+  },
+  async installNativeLib(libId, target) {
+    const query = get().nativeLibQuery()
+    await runPackageOp(get, set, async (id) => {
+      await window.api.nativeLibInstall({ ...query, id, libId, target })
+    })
   },
   async uninstallLib(name) {
     await runPackageOp(get, set, (id) => window.api.libUninstall(id, name))

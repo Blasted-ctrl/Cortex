@@ -8,6 +8,8 @@
  * editor's analysis, not a statement that the build itself fails.
  */
 
+import { libForDiagnostic } from './nativeLibs'
+
 /** Headers people commonly mistype or expect; matched case-insensitively. */
 export const COMMON_HEADERS: readonly string[] = [
   'Arduino.h',
@@ -61,6 +63,10 @@ export interface HintContext {
 
 /** A fix suggestion for a clangd message, or null when no rule applies. */
 export function diagnosticHint(message: string, ctx: HintContext = {}): string | null {
+  const native = libForDiagnostic(message)
+  if (native) {
+    return `Fix: ${native.lib.name} is not installed for ${native.target === 'cpp' ? 'C/C++' : 'Python'}. Press Ctrl+. and choose "Install ${native.lib.name}", or open Settings > Libraries. Cortex then sets up the include and link paths for you.`
+  }
   const missing = NOT_FOUND.exec(message)?.[1]
   if (!missing) return null
 

@@ -39,6 +39,8 @@ import * as sim from './services/simService'
 import * as firmwareTests from './services/firmwareTests'
 import type { FirmwareTestSelection } from '../shared/firmwareTest'
 import * as lsp from './services/lspService'
+import * as nativeLibs from './services/nativeLibService'
+import type { NativeLibInstallRequest, NativeLibQuery } from '../shared/nativeLibs'
 import * as terminal from './services/terminalService'
 import * as agent from './services/agentService'
 import type { LspCall } from '../shared/lsp'
@@ -730,6 +732,14 @@ function registerIpc(): void {
   handle(IPC.LIB_INSTALLED, () => pkg.libInstalled())
   handle(IPC.LIB_INSTALL, (_e, req: PackageInstallRequest) => pkg.libInstall(requireWindow(), req))
   handle(IPC.LIB_UNINSTALL, (_e, id: string, name: string) => pkg.libUninstall(requireWindow(), id, name))
+  handle(IPC.NATIVE_LIB_STATUS, (_e, q: NativeLibQuery) => nativeLibs.nativeLibOverview(q ?? {}))
+  handle(IPC.NATIVE_LIB_INSTALL, async (_e, req: NativeLibInstallRequest) => {
+    const code = await nativeLibs.installNativeLib(requireWindow(), req)
+    // A new library changes what the editor can resolve, so refresh clangd's config.
+    const root = fsService.getWorkspaceRoot()
+    if (code === 0 && root) lsp.refreshCppToolchain(root)
+    return code
+  })
 
   // ---- simulator ----
   handle(IPC.SIM_START, (_e, req: SimStartRequest) => sim.start(requireWindow(), req))
