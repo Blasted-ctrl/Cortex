@@ -83,6 +83,8 @@ You do not need to download Arduino CLI separately. First-time board setup and c
 
 More detail lives in `docs/`, including the architecture, the per-language support matrix, the debugger, the 3D simulator, and a roadmap of what's planned next.
 
+The public product and download site lives in its own repository, [Vexaile/Vexaile-Main-Website](https://github.com/Vexaile/Vexaile-Main-Website).
+
 ## Automated firmware tests
 
 With Node.js 22.20.0 and a host C++ compiler (`g++` or `clang++`) installed, run from
