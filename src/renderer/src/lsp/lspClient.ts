@@ -11,10 +11,13 @@ import cppSnippets from '@shared/stdlib/cpp-snippets.json'
 import cppLibraries from '@shared/stdlib/cpp-libraries.json'
 import {
   indexLibraries,
+  indexLibraryFunctions,
   includedHeaders,
   inferKnownType,
+  libEntryEnabled,
   librarySuggestions,
   libSuggestionDoc,
+  type LibFunctionEntry,
   type LibIndexEntry,
   type LibSuggestion,
   type LibraryDict
@@ -210,6 +213,11 @@ function cppLibraryIndex(): Map<string, LibIndexEntry> {
   if (!cppLibIndexCache) cppLibIndexCache = indexLibraries(cppLibraries as LibraryDict)
   return cppLibIndexCache
 }
+let cppLibFunctionsCache: LibFunctionEntry[] | null = null
+function cppLibraryFunctions(): LibFunctionEntry[] {
+  if (!cppLibFunctionsCache) cppLibFunctionsCache = indexLibraryFunctions(cppLibraries as LibraryDict)
+  return cppLibFunctionsCache
+}
 // Cache the code view and header set per model version: completion and hover
 // repeatedly scan unchanged buffers.
 const libScanCache = new WeakMap<monaco.editor.ITextModel, { version: number; clean: string; headers: Set<string> }>()
@@ -230,8 +238,8 @@ function libScan(model: monaco.editor.ITextModel): { clean: string; headers: Set
 /** Does the document include the header for at least one curated library? A
  *  cheap gate so a file that uses no curated library does no scanning work. */
 function usesAnyCuratedLibrary(idx: Map<string, LibIndexEntry>, headers: Set<string>): boolean {
-  for (const entry of idx.values()) if (headers.has(entry.header)) return true
-  return false
+  for (const entry of idx.values()) if (libEntryEnabled(entry, headers)) return true
+  return cppLibraryFunctions().some((f) => libEntryEnabled(f, headers))
 }
 
 /** The cursor and included header establish library ownership; the LSP still
@@ -244,10 +252,17 @@ function matchingLibrarySuggestion(
 ): LibSuggestion | undefined {
   const K = m.languages.CompletionItemKind
   const kind = completionKind(m, item.kind)
-  const name = (item.filterText || item.label).replace(/[(<:].*$/s, '').trim()
+  // clangd marks a symbol that needs its header added with a leading bullet.
+  const name = (item.filterText || item.label).replace(/^[•\s]+/, '').replace(/[(<:].*$/s, '').trim()
   const suggestion = suggestions.find(s => s.name === name)
   if (!suggestion) return undefined
-  if (suggestion.kind === 'class' ? kind !== K.Class && kind !== K.Constructor : kind !== K.Method && kind !== K.Function) return undefined
+  const matchesKind =
+    suggestion.kind === 'class'
+      ? kind === K.Class || kind === K.Constructor
+      : suggestion.kind === 'function'
+        ? kind === K.Function || kind === K.Method
+        : kind === K.Method || kind === K.Function || kind === K.Field || kind === K.Property
+  if (!matchesKind) return undefined
   const qualifiedOwner = item.detail?.match(new RegExp(`\\b([A-Za-z_]\\w*)::(?:~)?${name}\\b`))?.[1]
   if (qualifiedOwner && qualifiedOwner !== suggestion.className) return undefined
   return suggestion
@@ -284,18 +299,18 @@ function libraryCompletions(
     model.getOffsetAt(position)
   )
   const K = m.languages.CompletionItemKind
-  return librarySuggestions(idx, clean, linePrefix, headers)
+  return librarySuggestions(idx, clean, linePrefix, headers, cppLibraryFunctions())
     .filter((s) => !alreadyProvided.has(s.name))
     .map((s) => {
-      const isMember = s.kind === 'member'
+      const isMember = s.kind !== 'class'
       return {
         label: s.name,
-        kind: isMember ? K.Method : K.Class,
+        kind: s.kind === 'function' ? K.Function : isMember ? K.Method : K.Class,
         // Methods insert with parens and the cursor between them; a class name
         // is a type, so it inserts bare.
         insertText: isMember ? `${s.name}($0)` : s.name,
         insertTextRules: isMember ? m.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
-        detail: s.signature || (isMember ? `${s.className} member` : `${LANG_LABEL[lang]} library class`),
+        detail: s.signature || (isMember ? `${s.className || LANG_LABEL[lang]} ${s.kind === 'function' ? 'function' : 'member'}` : `${LANG_LABEL[lang]} library class`),
         documentation: { value: libSuggestionDoc(s) },
         // Members rank at the top after a dot (a real LSP member, if any, was
         // already filtered out above); a class suggestion ranks below real symbols.
@@ -322,6 +337,13 @@ function libraryHover(
   if (docText.slice(wordOffset, wordOffset + word.word.length) !== word.word) return null
   const lineStart = model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 })
   const prefix = docText.slice(lineStart, wordOffset)
+  // Namespaced and function entries (OpenCV's cv::imread, cv::Mat members, a
+  // global C call) resolve through the same context rules as completion, which
+  // check the namespace and the declaration instead of a bare name.
+  const resolved = librarySuggestions(idx, docText, prefix, headers, cppLibraryFunctions()).find(
+    (s) => s.name === word.word && (s.kind === 'function' || idx.get(s.kind === 'member' ? s.className : s.name)?.namespace)
+  )
+  if (resolved) return libSuggestionDoc(resolved)
   const receiver = /([A-Za-z_][A-Za-z0-9_]*)\s*(?:\.|->)\s*$/.exec(prefix)
   if (receiver) {
     // Do not reinterpret the tail of a chain or namespace as a simple local.
@@ -330,7 +352,8 @@ function libraryHover(
     const className = inferKnownType(docText, receiver[1], new Set(idx.keys()))
     const entry = className ? idx.get(className) : undefined
     const member = entry?.def.members[word.word]
-    if (entry && member && headers.has(entry.header)) {
+    // A namespaced class was already answered above, with its declaration checked.
+    if (entry && !entry.namespace && member && libEntryEnabled(entry, headers)) {
       return libSuggestionDoc({
         kind: 'member',
         name: word.word,
@@ -346,7 +369,7 @@ function libraryHover(
   // Calls, subscripts and parenthesized receivers are not local identifiers.
   if (/(?:\.|->)\s*$/.test(prefix)) return null
   const cls = idx.get(word.word)
-  if (cls && headers.has(cls.header)) {
+  if (cls && !cls.namespace && libEntryEnabled(cls, headers)) {
     return libSuggestionDoc({
       kind: 'class',
       name: word.word,
@@ -440,7 +463,7 @@ function registerProviders(m: Mon): void {
               model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 }),
               model.getOffsetAt(position)
             )
-            librarySuggestionsAtCursor = librarySuggestions(libraryIndex, clean, linePrefix, headers)
+            librarySuggestionsAtCursor = librarySuggestions(libraryIndex, clean, linePrefix, headers, cppLibraryFunctions())
           }
         }
         const base = items.slice(0, 200).map((it) => {

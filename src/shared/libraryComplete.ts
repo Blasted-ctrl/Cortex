@@ -27,21 +27,58 @@ export interface LibClass {
 }
 export interface LibFile {
   url?: string
+  /**
+   * Further lowercased header basenames that also enable this entry. A library
+   * like OpenCV is reached through many headers (opencv.hpp, imgproc.hpp, ...),
+   * so one include is not enough to name it.
+   */
+  headers?: string[]
+  /** The C++ namespace of `classes` and `functions` (e.g. "cv"); omitted for a global C API. */
+  namespace?: string
   classes: Record<string, LibClass>
+  /** Free functions, keyed by name. */
+  functions?: Record<string, LibMember>
 }
 /** Keyed by lowercased header basename, e.g. "esp32servo.h". */
 export type LibraryDict = Record<string, LibFile>
 
 export interface LibIndexEntry {
   header: string
+  /** `header` plus any alias headers: including any one of them enables the entry. */
+  headers: readonly string[]
+  namespace?: string
   def: LibClass
+}
+
+export interface LibFunctionEntry {
+  name: string
+  header: string
+  headers: readonly string[]
+  namespace?: string
+  def: LibMember
+}
+
+/** True when the document includes any of the entry's headers. */
+export function libEntryEnabled(entry: { header: string; headers?: readonly string[] }, included: ReadonlySet<string>): boolean {
+  return included.has(entry.header) || (entry.headers ?? []).some((h) => included.has(h))
 }
 
 /** class name -> { header, class definition }. Built once. */
 export function indexLibraries(dict: LibraryDict): Map<string, LibIndexEntry> {
   const out = new Map<string, LibIndexEntry>()
   for (const [header, file] of Object.entries(dict)) {
-    for (const [className, def] of Object.entries(file.classes)) out.set(className, { header, def })
+    const headers = [header, ...(file.headers ?? [])]
+    for (const [className, def] of Object.entries(file.classes)) out.set(className, { header, headers, namespace: file.namespace, def })
+  }
+  return out
+}
+
+/** Every curated free function, with the headers and namespace that own it. Built once. */
+export function indexLibraryFunctions(dict: LibraryDict): LibFunctionEntry[] {
+  const out: LibFunctionEntry[] = []
+  for (const [header, file] of Object.entries(dict)) {
+    const headers = [header, ...(file.headers ?? [])]
+    for (const [name, def] of Object.entries(file.functions ?? {})) out.push({ name, header, headers, namespace: file.namespace, def })
   }
   return out
 }
@@ -95,8 +132,9 @@ export function inferKnownType(text: string, varName: string, knownClasses: Set<
 }
 
 export interface LibSuggestion {
-  kind: 'class' | 'member'
+  kind: 'class' | 'member' | 'function'
   name: string
+  /** The owning class for a member; the namespace (or '') for a function. */
   className: string
   description: string
   signature?: string
@@ -104,56 +142,124 @@ export interface LibSuggestion {
   docUrl?: string
 }
 
+/** `using namespace ns;` in comment-stripped code. */
+function usesNamespace(docText: string, ns: string): boolean {
+  return new RegExp('\\busing\\s+namespace\\s+' + escape(ns) + '\\s*;').test(docText)
+}
+
+/** True when text before a qualified name shows it is itself a member or nested lookup. */
+function nestedLookup(before: string): boolean {
+  return /(?:\.|->|::)\s*$/.test(before.trimEnd()) || /\p{ID_Continue}$/u.test(before)
+}
+
+const classMembers = (className: string, entry: LibIndexEntry): LibSuggestion[] =>
+  Object.entries(entry.def.members).map(([name, m]) => ({
+    kind: 'member' as const,
+    name,
+    className,
+    description: m.description,
+    signature: m.signature,
+    example: m.example,
+    docUrl: m.docUrl ?? entry.def.docUrl
+  }))
+
+const classSuggestion = (className: string, entry: LibIndexEntry): LibSuggestion => ({
+  kind: 'class',
+  name: className,
+  className,
+  description: entry.def.description,
+  example: entry.def.example,
+  docUrl: entry.def.docUrl
+})
+
+const functionSuggestion = (f: LibFunctionEntry): LibSuggestion => ({
+  kind: 'function',
+  name: f.name,
+  className: f.namespace ?? '',
+  description: f.def.description,
+  signature: f.def.signature,
+  example: f.def.example,
+  docUrl: f.def.docUrl
+})
+
 /**
  * Suggestions for the cursor. `linePrefix` is the current line up to the
- * cursor. If it ends in `receiver.` / `receiver->` and `receiver` is a
- * known-typed variable whose header is included, returns that class's members.
- * Otherwise returns the known classes whose header is included (so typing
- * `Serv` offers `Servo`). Returns [] when nothing applies.
+ * cursor. It resolves, in order:
+ *  - `receiver.` / `receiver->` on a known-typed variable: that class's members;
+ *  - `ns::` for a curated namespace (`cv::`): its functions and classes;
+ *  - `Class::` / `ns::Class::` for a curated namespaced class: its members;
+ *  - otherwise an unqualified name: the global C functions of an included
+ *    library, plus a namespaced library's functions and classes when the file
+ *    says `using namespace ns;`, plus every unnamespaced class.
+ * An entry only applies when one of its headers is included, and a qualifier
+ * that is not the entry's own namespace gets nothing. Returns [] when nothing applies.
  */
 export function librarySuggestions(
   index: Map<string, LibIndexEntry>,
   docText: string,
   linePrefix: string,
-  precomputedHeaders?: Set<string>
+  precomputedHeaders?: Set<string>,
+  functions: readonly LibFunctionEntry[] = []
 ): LibSuggestion[] {
-  if (index.size === 0) return []
+  if (index.size === 0 && functions.length === 0) return []
   const headers = precomputedHeaders ?? includedHeaders(docText)
   const member = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)\s*(?:\.|->)\s*[A-Za-z0-9_]*$/)
   if (member) {
     const beforeReceiver = linePrefix.slice(0, member.index)
-    if (/(?:\.|->|::)$/.test(beforeReceiver.trimEnd()) || /\p{ID_Continue}$/u.test(beforeReceiver)) return []
+    if (nestedLookup(beforeReceiver)) return []
     const known = new Set(index.keys())
     const className = inferKnownType(docText, member[1], known)
     if (!className) return []
     const entry = index.get(className)!
-    if (!headers.has(entry.header)) return []
-    return Object.entries(entry.def.members).map(([name, m]) => ({
-      kind: 'member' as const,
-      name,
-      className,
-      description: m.description,
-      signature: m.signature,
-      example: m.example,
-      docUrl: m.docUrl ?? entry.def.docUrl
-    }))
+    if (!libEntryEnabled(entry, headers)) return []
+    // A namespaced class must be declared through its own namespace: `cv::Mat m`
+    // or `Mat m` after `using namespace cv;`, never `other::Mat m`.
+    if (entry.namespace && !declaredInNamespace(docText, member[1], className, entry.namespace)) return []
+    return classMembers(className, entry)
+  }
+  const qualified = /(?:\b([A-Za-z_]\w*)::)?\b([A-Za-z_]\w*)::\s*[A-Za-z0-9_]*$/.exec(linePrefix)
+  if (qualified) {
+    if (nestedLookup(linePrefix.slice(0, qualified.index))) return []
+    const [, outer, q] = qualified
+    if (!outer) {
+      // `ns::` - everything curated in that namespace.
+      const inNs = [...index.entries()].filter(([, e]) => e.namespace === q && libEntryEnabled(e, headers))
+      const fns = functions.filter((f) => f.namespace === q && libEntryEnabled(f, headers))
+      if (inNs.length || fns.length) return [...fns.map(functionSuggestion), ...inNs.map(([name, e]) => classSuggestion(name, e))]
+    }
+    // `Class::` after `using namespace ns;`, or `ns::Class::`.
+    const entry = index.get(q)
+    if (entry?.namespace && libEntryEnabled(entry, headers) && (outer ? entry.namespace === outer : usesNamespace(docText, entry.namespace))) {
+      return classMembers(q, entry)
+    }
+    return []
   }
   // A qualified lookup belongs to its qualifier, not to a globally named
   // class in the dictionary (for example, another namespace's Servo).
   if (/(?:\.|->|::)\s*[A-Za-z0-9_]*$/.test(linePrefix)) return []
   const out: LibSuggestion[] = []
   for (const [className, entry] of index) {
-    if (!headers.has(entry.header)) continue
-    out.push({
-      kind: 'class',
-      name: className,
-      className,
-      description: entry.def.description,
-      example: entry.def.example,
-      docUrl: entry.def.docUrl
-    })
+    if (!libEntryEnabled(entry, headers)) continue
+    if (entry.namespace && !usesNamespace(docText, entry.namespace)) continue
+    out.push(classSuggestion(className, entry))
+  }
+  for (const f of functions) {
+    if (!libEntryEnabled(f, headers)) continue
+    if (f.namespace && !usesNamespace(docText, f.namespace)) continue
+    out.push(functionSuggestion(f))
   }
   return out
+}
+
+/** True when `varName` is declared as `ns::Class name`, or as `Class name` with `using namespace ns;` in effect. */
+function declaredInNamespace(docText: string, varName: string, className: string, ns: string): boolean {
+  const re = new RegExp('(?:\\b([A-Za-z_]\\w*)::)?\\b' + escape(className) + '(?=[\\s*&])[\\s*&]*' + escape(varName) + '\\s*[;={([,)]', 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(docText))) {
+    if (m[1] === ns) return true
+    if (!m[1] && usesNamespace(docText, ns)) return true
+  }
+  return false
 }
 
 /** Markdown documentation for a suggestion, in the same shape the stdlib

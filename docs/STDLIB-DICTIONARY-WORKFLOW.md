@@ -28,6 +28,31 @@ documented methods. This is not a claim that every installed Arduino or Platform
 library is supported. The standard C++ entries remain in `cpp.json` and follow
 the separate qualified-owner rules below.
 
+### Namespaced libraries, free functions and global C APIs
+
+`cpp-libraries.json` entries may also carry three optional fields, used by the
+OpenCV, raylib, SDL2 and GLFW entries:
+
+- `headers`: further lowercased header basenames that also enable the entry. OpenCV is
+  reached through `opencv.hpp`, `imgproc.hpp`, `videoio.hpp` and others, so any one
+  include is enough.
+- `namespace`: the C++ namespace of the entry's classes and functions (`"cv"`). Its
+  names then apply after `cv::`, after `cv::Mat::` and for a `Mat m;` declared as
+  `cv::Mat` (or as `Mat` once `using namespace cv;` is in effect). `other::Mat` and
+  `other::imread` get nothing. Entries without a namespace are global (raylib,
+  SDL2, GLFW), and their functions apply as soon as the header is included.
+- `functions`: free functions, each with a real `signature`, `description`, `example`
+  and `docUrl`.
+
+The editor attaches this to clangd's own items (matched by the bare `filterText`, a
+leading bullet ignored) and to hover, so clangd still decides which symbol exists.
+Class examples must be complete programs (the include, then `main`); function
+examples are statement fragments. Compile every example against the real library
+before adding it; the OpenCV and C-library entries were checked this way, all of them
+(`-fsyntax-only` against the installed headers). Boundaries are pinned in
+`test/libraryNamespaces.test.ts` (pure logic) and `test/lspOpenCvDocs.test.ts` (the
+real editor path with clangd-shaped items).
+
 When adding another supported header, provide a class description, a working
 include-and-use example, a source documentation URL, and an entry for **each
 public method Cortex offers**. Each method needs its actual signature and a

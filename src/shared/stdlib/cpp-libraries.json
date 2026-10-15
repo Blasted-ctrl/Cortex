@@ -66,5 +66,955 @@
         }
       }
     }
+  },
+  "opencv.hpp": {
+    "headers": [
+      "core.hpp",
+      "imgproc.hpp",
+      "imgcodecs.hpp",
+      "highgui.hpp",
+      "videoio.hpp",
+      "objdetect.hpp",
+      "features2d.hpp",
+      "calib3d.hpp",
+      "video.hpp",
+      "photo.hpp",
+      "dnn.hpp",
+      "ml.hpp",
+      "cvv.hpp"
+    ],
+    "namespace": "cv",
+    "url": "https://docs.opencv.org/4.x/",
+    "classes": {
+      "Mat": {
+        "description": "The image container: a dense array of rows x cols pixels, each with channels() values of one depth. A color image from imread is CV_8UC3 (8-bit, 3 channels) in B, G, R order. Copying a Mat (Mat b = a;) shares the same pixel data; use clone() or copyTo() for an independent copy. img(cv::Rect(x, y, w, h)) is a view of a sub-region without copying. Memory is freed automatically.",
+        "docUrl": "https://docs.opencv.org/4.x/d3/d63/classcv_1_1Mat.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::Mat img(240, 320, CV_8UC3, cv::Scalar(0, 0, 0));  // 240 rows, 320 cols, black\n  img.at<cv::Vec3b>(10, 20) = cv::Vec3b(255, 0, 0);       // row 10, col 20 -> blue\n  cv::Mat copy = img.clone();                             // independent copy\n  std::cout << img.size() << \" \" << img.channels() << \" channels\" << std::endl;\n  return 0;\n}",
+        "members": {
+          "rows": {
+            "signature": "int rows",
+            "description": "Number of rows, which is the image height in pixels.",
+            "example": "cv::Mat img(240, 320, CV_8UC3);\nint height = img.rows;  // 240"
+          },
+          "cols": {
+            "signature": "int cols",
+            "description": "Number of columns, which is the image width in pixels.",
+            "example": "cv::Mat img(240, 320, CV_8UC3);\nint width = img.cols;  // 320"
+          },
+          "channels": {
+            "signature": "int channels() const",
+            "description": "Number of values per pixel: 1 for grayscale, 3 for color (B, G, R), 4 when there is an alpha channel.",
+            "example": "cv::Mat img(10, 10, CV_8UC3);\nint n = img.channels();  // 3"
+          },
+          "type": {
+            "signature": "int type() const",
+            "description": "The element type, combining depth and channel count, such as CV_8UC3 or CV_32FC1. Compare it against those constants to check what you were given.",
+            "example": "cv::Mat img(10, 10, CV_8UC3);\nbool isBgr8 = (img.type() == CV_8UC3);"
+          },
+          "depth": {
+            "signature": "int depth() const",
+            "description": "The depth of each channel, such as CV_8U (unsigned byte), CV_16S or CV_32F. It does not include the channel count; see type().",
+            "example": "cv::Mat img(10, 10, CV_32FC1);\nbool isFloat = (img.depth() == CV_32F);"
+          },
+          "empty": {
+            "signature": "bool empty() const",
+            "description": "True when the Mat holds no data. Check it after imread() or VideoCapture::read(), because those report failure by giving back an empty Mat.",
+            "example": "cv::Mat img = cv::imread(\"missing.png\");\nif (img.empty()) std::cerr << \"load failed\" << std::endl;"
+          },
+          "size": {
+            "signature": "Size size() const",
+            "description": "The size as Size(cols, rows), that is width first. Note that the Mat constructor takes rows first.",
+            "example": "cv::Mat img(240, 320, CV_8UC3);\ncv::Size s = img.size();  // 320 x 240"
+          },
+          "total": {
+            "signature": "size_t total() const",
+            "description": "The number of elements (rows * cols), not counting channels.",
+            "example": "cv::Mat img(10, 20, CV_8UC3);\nsize_t pixels = img.total();  // 200"
+          },
+          "clone": {
+            "signature": "Mat clone() const",
+            "description": "Makes a deep copy of the image data. Use it when you need to keep a frame or change a copy without touching the original (plain assignment shares data).",
+            "example": "cv::Mat a(10, 10, CV_8UC1, cv::Scalar(1));\ncv::Mat b = a.clone();\nb.setTo(cv::Scalar(2));  // a is unchanged"
+          },
+          "copyTo": {
+            "signature": "void copyTo(OutputArray m) const",
+            "description": "Copies this image into m (allocating it if needed). A second overload takes a mask and copies only the pixels where the mask is non-zero.",
+            "example": "cv::Mat src(100, 100, CV_8UC3, cv::Scalar(0, 255, 0));\ncv::Mat dst(100, 100, CV_8UC3, cv::Scalar::all(0));\ncv::Mat mask(100, 100, CV_8UC1, cv::Scalar(0));\ncv::circle(mask, cv::Point(50, 50), 20, cv::Scalar(255), cv::FILLED);\nsrc.copyTo(dst, mask);"
+          },
+          "convertTo": {
+            "signature": "void convertTo(OutputArray m, int rtype, double alpha = 1, double beta = 0) const",
+            "description": "Converts to another depth while scaling: m = this * alpha + beta. For example convert 8-bit to float in the range 0 to 1 with alpha = 1.0 / 255.",
+            "example": "cv::Mat img(10, 10, CV_8UC1, cv::Scalar(255));\ncv::Mat f;\nimg.convertTo(f, CV_32F, 1.0 / 255.0);  // values are now 1.0"
+          },
+          "at": {
+            "signature": "template<typename T> T& at(int row, int col)",
+            "description": "Reads or writes one pixel by (row, col). T must match the Mat's type: uchar for 8-bit gray, cv::Vec3b for 8-bit BGR, float for 32-bit float. The wrong T gives wrong values. It is convenient but slow in tight loops; use ptr() there.",
+            "example": "cv::Mat gray(10, 10, CV_8UC1, cv::Scalar(0));\ngray.at<uchar>(2, 3) = 255;\ncv::Mat bgr(10, 10, CV_8UC3, cv::Scalar(0));\ncv::Vec3b pixel = bgr.at<cv::Vec3b>(2, 3);  // B, G, R"
+          },
+          "ptr": {
+            "signature": "template<typename T> T* ptr(int row = 0)",
+            "description": "Returns a pointer to the start of a row, for fast pixel loops. The row is laid out left to right, with the channels of a pixel next to each other (B, G, R for color).",
+            "example": "cv::Mat gray(10, 10, CV_8UC1, cv::Scalar(0));\nfor (int y = 0; y < gray.rows; ++y) {\n  uchar* row = gray.ptr<uchar>(y);\n  for (int x = 0; x < gray.cols; ++x) row[x] = 255;\n}"
+          },
+          "row": {
+            "signature": "Mat row(int y) const",
+            "description": "A view of one row (no copy: changing it changes the original).",
+            "example": "cv::Mat img(10, 10, CV_8UC1, cv::Scalar(0));\nimg.row(0).setTo(cv::Scalar(255));"
+          },
+          "col": {
+            "signature": "Mat col(int x) const",
+            "description": "A view of one column (no copy: changing it changes the original).",
+            "example": "cv::Mat img(10, 10, CV_8UC1, cv::Scalar(0));\nimg.col(0).setTo(cv::Scalar(255));"
+          },
+          "create": {
+            "signature": "void create(int rows, int cols, int type)",
+            "description": "Allocates the image data for the given shape and type. It does nothing if the Mat already has that shape and type, and it does not initialize the pixels.",
+            "example": "cv::Mat m;\nm.create(100, 200, CV_8UC3);\nm.setTo(cv::Scalar::all(0));"
+          },
+          "setTo": {
+            "signature": "Mat& setTo(InputArray value, InputArray mask = noArray())",
+            "description": "Fills the image with a value. With a mask, only the pixels where the mask is non-zero are set.",
+            "example": "cv::Mat img(50, 50, CV_8UC3);\nimg.setTo(cv::Scalar(255, 255, 255));  // white"
+          },
+          "zeros": {
+            "signature": "static MatExpr zeros(int rows, int cols, int type)",
+            "description": "A Mat of the given shape with every element 0, for example cv::Mat::zeros(480, 640, CV_8UC3) for a black image.",
+            "example": "cv::Mat black = cv::Mat::zeros(480, 640, CV_8UC3);"
+          },
+          "ones": {
+            "signature": "static MatExpr ones(int rows, int cols, int type)",
+            "description": "A Mat of the given shape with every element 1. For a multi-channel type only the first channel is 1.",
+            "example": "cv::Mat k = cv::Mat::ones(3, 3, CV_32F) / 9.0;  // 3x3 averaging kernel"
+          },
+          "eye": {
+            "signature": "static MatExpr eye(int rows, int cols, int type)",
+            "description": "An identity matrix: 1 on the diagonal, 0 elsewhere.",
+            "example": "cv::Mat I = cv::Mat::eye(3, 3, CV_32F);"
+          },
+          "t": {
+            "signature": "MatExpr t() const",
+            "description": "The transpose (rows and columns swapped).",
+            "example": "cv::Mat m(2, 3, CV_32F, cv::Scalar(1));\ncv::Mat tr = m.t();  // 3 x 2"
+          },
+          "isContinuous": {
+            "signature": "bool isContinuous() const",
+            "description": "True when the rows are stored with no gaps between them, so the whole image can be processed as one long row.",
+            "example": "cv::Mat img(10, 10, CV_8UC1);\nbool flat = img.isContinuous();"
+          },
+          "reshape": {
+            "signature": "Mat reshape(int cn, int rows = 0) const",
+            "description": "Changes the number of channels and/or rows without copying the data. The total number of elements must stay the same.",
+            "example": "cv::Mat img(4, 4, CV_8UC3);\ncv::Mat flat = img.reshape(1, 16);  // 16 rows of 3 values"
+          },
+          "release": {
+            "signature": "void release()",
+            "description": "Drops this Mat's reference to its data, freeing the memory if nothing else shares it. It is called automatically when the Mat goes out of scope.",
+            "example": "cv::Mat big(1000, 1000, CV_8UC3);\nbig.release();"
+          },
+          "data": {
+            "signature": "uchar* data",
+            "description": "Raw pointer to the first pixel. Prefer at() or ptr() unless you are interfacing with other code.",
+            "example": "cv::Mat img(10, 10, CV_8UC1, cv::Scalar(7));\nuchar first = img.data[0];"
+          }
+        }
+      },
+      "VideoCapture": {
+        "description": "Reads frames from a camera, a video file or a stream. Open it with a device index (0 is the default camera) or a filename or URL. Always check isOpened(). read() returns false at the end of a file or when the camera stops. On Windows a camera can open faster with the DirectShow backend: cv::VideoCapture cap(0, cv::CAP_DSHOW).",
+        "docUrl": "https://docs.opencv.org/4.x/d8/dfe/classcv_1_1VideoCapture.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::VideoCapture cap(0);  // 0 = default camera\n  if (!cap.isOpened()) {\n    std::cerr << \"Cannot open camera\" << std::endl;\n    return 1;\n  }\n  cv::Mat frame;\n  while (cap.read(frame)) {\n    cv::imshow(\"camera\", frame);\n    if (cv::waitKey(1) == 27) break;  // Esc quits\n  }\n  return 0;\n}",
+        "members": {
+          "open": {
+            "signature": "bool open(int index, int apiPreference = CAP_ANY)",
+            "description": "Opens a camera by index (or, in another overload, a file or URL). Returns false on failure. You only need it to reopen a capture that was created without arguments.",
+            "example": "cv::VideoCapture cap;\nif (!cap.open(0)) std::cerr << \"no camera\" << std::endl;"
+          },
+          "isOpened": {
+            "signature": "bool isOpened() const",
+            "description": "True when the camera or file was opened successfully. Always check this before reading, since a missing camera does not throw.",
+            "example": "cv::VideoCapture cap(0);\nif (!cap.isOpened()) std::cerr << \"no camera\" << std::endl;"
+          },
+          "read": {
+            "signature": "bool read(OutputArray image)",
+            "description": "Grabs and decodes the next frame into image. Returns false when there is no frame (end of file, camera unplugged), leaving image empty. The same Mat is reused each call, so clone() a frame you want to keep.",
+            "example": "cv::VideoCapture cap(0);\ncv::Mat frame;\nif (cap.read(frame)) std::cout << frame.cols << \"x\" << frame.rows << std::endl;"
+          },
+          "grab": {
+            "signature": "bool grab()",
+            "description": "Grabs the next frame without decoding it. Use grab() then retrieve() to capture from several cameras as close together in time as possible.",
+            "example": "cv::VideoCapture cap(0);\nbool ok = cap.grab();"
+          },
+          "retrieve": {
+            "signature": "bool retrieve(OutputArray image, int flag = 0)",
+            "description": "Decodes the frame most recently grabbed with grab() into image.",
+            "example": "cv::VideoCapture cap(0);\ncv::Mat frame;\nif (cap.grab()) cap.retrieve(frame);"
+          },
+          "release": {
+            "signature": "void release()",
+            "description": "Closes the camera or file and frees its resources. It is also called when the object is destroyed.",
+            "example": "cv::VideoCapture cap(0);\ncap.release();"
+          },
+          "get": {
+            "signature": "double get(int propId) const",
+            "description": "Reads a property such as CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FPS or CAP_PROP_FRAME_COUNT (files only). Returns 0 when the backend does not report it.",
+            "example": "cv::VideoCapture cap(0);\ndouble w = cap.get(cv::CAP_PROP_FRAME_WIDTH);\ndouble fps = cap.get(cv::CAP_PROP_FPS);"
+          },
+          "set": {
+            "signature": "bool set(int propId, double value)",
+            "description": "Requests a property, such as a resolution: set CAP_PROP_FRAME_WIDTH and CAP_PROP_FRAME_HEIGHT. The driver may ignore or round the request, so read it back with get(). Returns false when unsupported.",
+            "example": "cv::VideoCapture cap(0);\ncap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);\ncap.set(cv::CAP_PROP_FRAME_HEIGHT, 720);"
+          }
+        }
+      },
+      "VideoWriter": {
+        "description": "Writes frames to a video file. The codec is a FourCC code. Every frame written must match the frameSize you opened it with, and be 8-bit 3-channel color unless isColor is false. A writer that failed to open silently ignores write(), so check isOpened().",
+        "docUrl": "https://docs.opencv.org/4.x/dd/d9e/classcv_1_1VideoWriter.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::VideoWriter writer(\"out.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(640, 480));\n  if (!writer.isOpened()) return 1;\n  cv::Mat frame(480, 640, CV_8UC3, cv::Scalar(0, 0, 0));\n  for (int i = 0; i < 90; ++i) writer.write(frame);  // three seconds at 30 fps\n  writer.release();\n  return 0;\n}",
+        "members": {
+          "open": {
+            "signature": "bool open(const String& filename, int fourcc, double fps, Size frameSize, bool isColor = true)",
+            "description": "Opens the output file. Returns false if the codec or path is not usable.",
+            "example": "cv::VideoWriter w;\nbool ok = w.open(\"out.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(640, 480));"
+          },
+          "isOpened": {
+            "signature": "bool isOpened() const",
+            "description": "True when the writer is ready to accept frames.",
+            "example": "cv::VideoWriter w(\"out.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(640, 480));\nif (!w.isOpened()) std::cerr << \"cannot write\" << std::endl;"
+          },
+          "write": {
+            "signature": "void write(InputArray image)",
+            "description": "Appends one frame. Its size and type must match what the writer was opened with.",
+            "example": "cv::VideoWriter w(\"out.avi\", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(640, 480));\ncv::Mat frame(480, 640, CV_8UC3, cv::Scalar(0));\nw.write(frame);"
+          },
+          "release": {
+            "signature": "void release()",
+            "description": "Finishes the file. Call it (or let the writer go out of scope) or the video may be unplayable.",
+            "example": "cv::VideoWriter w;\nw.release();"
+          },
+          "fourcc": {
+            "signature": "static int fourcc(char c1, char c2, char c3, char c4)",
+            "description": "Builds a codec code from four characters, for example fourcc('M', 'J', 'P', 'G') for Motion JPEG in .avi, or 'm', 'p', '4', 'v' for MPEG-4 in .mp4. Which codecs work depends on what is installed.",
+            "example": "int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');"
+          }
+        }
+      },
+      "CascadeClassifier": {
+        "description": "Detects objects such as faces with a trained Haar or LBP cascade file. Load a model, then call detectMultiScale on a grayscale image. Ready-made models are in OpenCV's data/haarcascades folder (for example haarcascade_frontalface_default.xml). load() returns false when the file cannot be found.",
+        "docUrl": "https://docs.opencv.org/4.x/d1/de5/classcv_1_1CascadeClassifier.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::CascadeClassifier faces;\n  if (!faces.load(\"haarcascade_frontalface_default.xml\")) return 1;\n  cv::Mat gray(240, 320, CV_8UC1, cv::Scalar(128));\n  std::vector<cv::Rect> found;\n  faces.detectMultiScale(gray, found, 1.1, 3, 0, cv::Size(30, 30));\n  std::cout << found.size() << \" face(s)\" << std::endl;\n  return 0;\n}",
+        "members": {
+          "load": {
+            "signature": "bool load(const String& filename)",
+            "description": "Loads a cascade XML file. Returns false if the file is missing or not a cascade.",
+            "example": "cv::CascadeClassifier c;\nif (!c.load(\"haarcascade_frontalface_default.xml\")) std::cerr << \"model not found\" << std::endl;"
+          },
+          "empty": {
+            "signature": "bool empty() const",
+            "description": "True when no cascade is loaded.",
+            "example": "cv::CascadeClassifier c;\nbool none = c.empty();"
+          },
+          "detectMultiScale": {
+            "signature": "void detectMultiScale(InputArray image, std::vector<Rect>& objects, double scaleFactor = 1.1, int minNeighbors = 3, int flags = 0, Size minSize = Size(), Size maxSize = Size())",
+            "description": "Finds objects of different sizes in a grayscale image and returns their bounding boxes. scaleFactor (greater than 1) is how much the search window grows each pass; minNeighbors is how many overlapping hits confirm a detection (higher means fewer false positives); minSize and maxSize limit the object size.",
+            "example": "cv::CascadeClassifier c;\ncv::Mat gray(240, 320, CV_8UC1, cv::Scalar(128));\nstd::vector<cv::Rect> boxes;\nif (!c.empty()) c.detectMultiScale(gray, boxes, 1.1, 3);"
+          }
+        }
+      },
+      "Rect": {
+        "description": "A rectangle given by its top-left corner and size: x, y, width, height. Returned by boundingRect() and detectMultiScale(). img(rect) gives a view of that region of an image.",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::Mat img(200, 200, CV_8UC3, cv::Scalar::all(0));\n  cv::Rect box(20, 30, 100, 50);\n  cv::Mat roi = img(box);  // view of the region, no copy\n  std::cout << box.area() << std::endl;  // 5000\n  return 0;\n}",
+        "members": {
+          "area": {
+            "signature": "_Tp area() const",
+            "description": "Width times height: the number of pixels the rectangle covers.",
+            "example": "cv::Rect r(0, 0, 10, 20);\nint a = r.area();  // 200"
+          },
+          "tl": {
+            "signature": "Point_<_Tp> tl() const",
+            "description": "The top-left corner as a Point (x, y).",
+            "example": "cv::Rect r(5, 6, 10, 20);\ncv::Point corner = r.tl();"
+          },
+          "br": {
+            "signature": "Point_<_Tp> br() const",
+            "description": "The bottom-right corner (just outside the rectangle: x + width, y + height).",
+            "example": "cv::Rect r(5, 6, 10, 20);\ncv::Point corner = r.br();"
+          },
+          "contains": {
+            "signature": "bool contains(const Point_<_Tp>& pt) const",
+            "description": "True when the point lies inside the rectangle.",
+            "example": "cv::Rect r(0, 0, 10, 10);\nbool inside = r.contains(cv::Point(5, 5));"
+          },
+          "empty": {
+            "signature": "bool empty() const",
+            "description": "True when the width or height is zero or negative.",
+            "example": "cv::Rect r(0, 0, 0, 5);\nbool none = r.empty();"
+          },
+          "x": {
+            "signature": "_Tp x",
+            "description": "Column of the left edge: the distance from the left side of the image.",
+            "example": "cv::Rect r(5, 6, 10, 20);\nint left = r.x;"
+          },
+          "y": {
+            "signature": "_Tp y",
+            "description": "Row of the top edge: the distance from the top of the image.",
+            "example": "cv::Rect r(5, 6, 10, 20);\nint top = r.y;"
+          },
+          "width": {
+            "signature": "_Tp width",
+            "description": "Width in pixels: how many columns the rectangle spans.",
+            "example": "cv::Rect r(5, 6, 10, 20);\nint w = r.width;"
+          },
+          "height": {
+            "signature": "_Tp height",
+            "description": "Height in pixels: how many rows the rectangle spans.",
+            "example": "cv::Rect r(5, 6, 10, 20);\nint h = r.height;"
+          }
+        }
+      },
+      "Size": {
+        "description": "A size given as width then height: Size(cols, rows). This is the opposite order from the Mat constructor, Mat(rows, cols, type), which is a common source of transposed images.",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::Size s(640, 480);  // width 640, height 480\n  cv::Mat img(s, CV_8UC3, cv::Scalar::all(0));  // 480 rows, 640 cols\n  std::cout << s.area() << std::endl;\n  return 0;\n}",
+        "members": {
+          "area": {
+            "signature": "_Tp area() const",
+            "description": "Width times height: the number of pixels in an image of this size.",
+            "example": "cv::Size s(640, 480);\nint a = s.area();"
+          },
+          "width": {
+            "signature": "_Tp width",
+            "description": "The width in pixels, the first value of Size(width, height).",
+            "example": "cv::Size s(640, 480);\nint w = s.width;"
+          },
+          "height": {
+            "signature": "_Tp height",
+            "description": "The height in pixels, the second value of Size(width, height).",
+            "example": "cv::Size s(640, 480);\nint h = s.height;"
+          }
+        }
+      },
+      "Point": {
+        "description": "A 2D point with integer coordinates: x is the column (distance from the left edge) and y is the row (distance from the top). Note that image(row, col) indexing is the other way round: img.at<uchar>(p.y, p.x).",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::Point p(30, 10);  // x = 30 (column), y = 10 (row)\n  cv::Mat img(100, 100, CV_8UC1, cv::Scalar(0));\n  img.at<uchar>(p.y, p.x) = 255;\n  return 0;\n}",
+        "members": {
+          "x": {
+            "signature": "_Tp x",
+            "description": "The horizontal coordinate (column).",
+            "example": "cv::Point p(30, 10);\nint column = p.x;"
+          },
+          "y": {
+            "signature": "_Tp y",
+            "description": "The vertical coordinate (row).",
+            "example": "cv::Point p(30, 10);\nint row = p.y;"
+          },
+          "dot": {
+            "signature": "_Tp dot(const Point_& pt) const",
+            "description": "The dot product with another point.",
+            "example": "cv::Point a(1, 2), b(3, 4);\nint d = a.dot(b);  // 11"
+          }
+        }
+      },
+      "Scalar": {
+        "description": "A short vector of up to four values, used for colors and pixel values. For an image from OpenCV the order is blue, green, red (then alpha), each 0 to 255: Scalar(0, 0, 255) is red. Scalar::all(v) sets every channel to v.",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html",
+        "example": "#include <opencv2/opencv.hpp>\n#include <iostream>\n\nint main() {\n  cv::Scalar red(0, 0, 255);   // B, G, R\n  cv::Scalar gray = cv::Scalar::all(128);\n  cv::Mat img(50, 50, CV_8UC3, red);\n  return 0;\n}",
+        "members": {
+          "all": {
+            "signature": "static Scalar_<_Tp> all(_Tp v0)",
+            "description": "A Scalar with every channel set to the same value, for example Scalar::all(255) for white or Scalar::all(0) for black.",
+            "example": "cv::Scalar white = cv::Scalar::all(255);\ncv::Mat img(50, 50, CV_8UC3, white);"
+          }
+        }
+      }
+    },
+    "functions": {
+      "imread": {
+        "signature": "Mat imread(const String& filename, int flags = IMREAD_COLOR)",
+        "description": "Loads an image from a file and returns it as a Mat in BGR channel order (not RGB). It does not throw when the file is missing, unreadable or in an unsupported format: the returned Mat is empty, so always check empty() before using it. flags picks the decoding: IMREAD_COLOR (default, 3 channels), IMREAD_GRAYSCALE (1 channel) or IMREAD_UNCHANGED (keeps an alpha channel). A relative path is resolved against the program's working directory, not the source file.",
+        "example": "cv::Mat img = cv::imread(\"photo.jpg\", cv::IMREAD_COLOR);\nif (img.empty()) {\n  std::cerr << \"Could not read photo.jpg\" << std::endl;\n  return 1;\n}\nstd::cout << img.cols << \"x\" << img.rows << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html"
+      },
+      "imwrite": {
+        "signature": "bool imwrite(const String& filename, InputArray img, const std::vector<int>& params = std::vector<int>())",
+        "description": "Saves an image to a file. The format comes from the extension (.png is lossless, .jpg is lossy). Returns false instead of throwing when it cannot write (missing folder, unsupported extension). The image should be 8-bit BGR (or 16-bit for PNG/TIFF). params is a list of flag/value pairs such as IMWRITE_JPEG_QUALITY (0-100).",
+        "example": "cv::Mat img(100, 100, CV_8UC3, cv::Scalar(255, 0, 0));  // solid blue (BGR)\nstd::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};\nif (!cv::imwrite(\"blue.jpg\", img, params)) {\n  std::cerr << \"Could not write blue.jpg\" << std::endl;\n}",
+        "docUrl": "https://docs.opencv.org/4.x/d4/da8/group__imgcodecs.html"
+      },
+      "imshow": {
+        "signature": "void imshow(const String& winname, InputArray mat)",
+        "description": "Shows an image in a window, creating the window if needed. The window only repaints while waitKey() runs, so call waitKey() after imshow() or it stays blank. 8-bit images are shown as they are; float images are expected in the range 0 to 1 and are scaled by 255. Needs an OpenCV build with a GUI backend.",
+        "example": "cv::Mat img(200, 300, CV_8UC3, cv::Scalar(0, 128, 255));\ncv::imshow(\"preview\", img);\ncv::waitKey(0);  // keep the window open until a key is pressed",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dfc/group__highgui.html"
+      },
+      "waitKey": {
+        "signature": "int waitKey(int delay = 0)",
+        "description": "Waits for a key press and, importantly, processes window events so imshow() windows update. delay is in milliseconds; 0 waits forever. Returns the key code, or -1 if no key was pressed in time. In a video loop use waitKey(1) and test for 27 (the Esc key) to quit.",
+        "example": "cv::Mat frame(240, 320, CV_8UC3, cv::Scalar(30, 30, 30));\ncv::imshow(\"view\", frame);\nint key = cv::waitKey(30);\nif (key == 27) std::cout << \"Esc pressed\" << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dfc/group__highgui.html"
+      },
+      "namedWindow": {
+        "signature": "void namedWindow(const String& winname, int flags = WINDOW_AUTOSIZE)",
+        "description": "Creates a window before imshow() so you can set its behavior. WINDOW_AUTOSIZE (the default) fits the window to the image and cannot be resized; WINDOW_NORMAL lets the user resize it.",
+        "example": "cv::namedWindow(\"view\", cv::WINDOW_NORMAL);  // resizable\ncv::resizeWindow(\"view\", 800, 600);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dfc/group__highgui.html"
+      },
+      "destroyAllWindows": {
+        "signature": "void destroyAllWindows()",
+        "description": "Closes every window OpenCV opened. Call it when your loop ends; the windows are also closed when the program exits.",
+        "example": "cv::Mat img(100, 100, CV_8UC3, cv::Scalar::all(255));\ncv::imshow(\"one\", img);\ncv::waitKey(1);\ncv::destroyAllWindows();",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dfc/group__highgui.html"
+      },
+      "cvtColor": {
+        "signature": "void cvtColor(InputArray src, OutputArray dst, int code, int dstCn = 0)",
+        "description": "Converts an image between color spaces. OpenCV images are BGR, so use COLOR_BGR2GRAY, COLOR_BGR2HSV or COLOR_BGR2RGB (not the RGB2... forms) for images from imread or a camera. dst is allocated for you. For 8-bit HSV the hue range is 0-179, not 0-359.",
+        "example": "cv::Mat bgr(100, 100, CV_8UC3, cv::Scalar(0, 255, 0));\ncv::Mat gray, hsv;\ncv::cvtColor(bgr, gray, cv::COLOR_BGR2GRAY);\ncv::cvtColor(bgr, hsv, cv::COLOR_BGR2HSV);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "resize": {
+        "signature": "void resize(InputArray src, OutputArray dst, Size dsize, double fx = 0, double fy = 0, int interpolation = INTER_LINEAR)",
+        "description": "Resizes an image. Give either an exact dsize in pixels, or pass Size() and scale factors fx/fy. Size is (width, height), the opposite order from Mat(rows, cols). Use INTER_AREA when shrinking, INTER_LINEAR or INTER_CUBIC when enlarging, INTER_NEAREST for speed.",
+        "example": "cv::Mat img(480, 640, CV_8UC3, cv::Scalar::all(128));\ncv::Mat small, half;\ncv::resize(img, small, cv::Size(320, 240), 0, 0, cv::INTER_AREA);  // exact size\ncv::resize(img, half, cv::Size(), 0.5, 0.5);                        // by factor",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "GaussianBlur": {
+        "signature": "void GaussianBlur(InputArray src, OutputArray dst, Size ksize, double sigmaX, double sigmaY = 0, int borderType = BORDER_DEFAULT)",
+        "description": "Smooths an image with a Gaussian kernel, which reduces noise before edge detection. ksize width and height must be positive and odd (or Size(0, 0) to derive them from sigma). A larger kernel or sigma blurs more.",
+        "example": "cv::Mat img(200, 200, CV_8UC1, cv::Scalar(0));\ncv::circle(img, cv::Point(100, 100), 50, cv::Scalar(255), cv::FILLED);\ncv::Mat blurred;\ncv::GaussianBlur(img, blurred, cv::Size(5, 5), 1.5);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "blur": {
+        "signature": "void blur(InputArray src, OutputArray dst, Size ksize, Point anchor = Point(-1, -1), int borderType = BORDER_DEFAULT)",
+        "description": "Box blur: replaces each pixel with the average of its ksize neighborhood. Fast, but less natural-looking than GaussianBlur.",
+        "example": "cv::Mat img(100, 100, CV_8UC3, cv::Scalar::all(200));\ncv::Mat out;\ncv::blur(img, out, cv::Size(5, 5));",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "medianBlur": {
+        "signature": "void medianBlur(InputArray src, OutputArray dst, int ksize)",
+        "description": "Median filter: replaces each pixel with the median of its neighborhood. Very good at removing salt-and-pepper noise while keeping edges sharp. ksize must be odd and greater than 1.",
+        "example": "cv::Mat noisy(100, 100, CV_8UC1, cv::Scalar(128));\ncv::Mat clean;\ncv::medianBlur(noisy, clean, 5);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "bilateralFilter": {
+        "signature": "void bilateralFilter(InputArray src, OutputArray dst, int d, double sigmaColor, double sigmaSpace, int borderType = BORDER_DEFAULT)",
+        "description": "Smooths flat areas while keeping edges sharp, at the cost of speed. d is the neighborhood diameter in pixels (9 is typical); larger sigmaColor mixes more different colors. src must be 8-bit or float, 1 or 3 channels, and cannot be the same Mat as dst.",
+        "example": "cv::Mat img(200, 200, CV_8UC3, cv::Scalar(90, 120, 150));\ncv::Mat smooth;\ncv::bilateralFilter(img, smooth, 9, 75, 75);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "Canny": {
+        "signature": "void Canny(InputArray image, OutputArray edges, double threshold1, double threshold2, int apertureSize = 3, bool L2gradient = false)",
+        "description": "Canny edge detector. The output is a binary 8-bit image where 255 marks an edge. The input should be 8-bit, usually grayscale and blurred first. Gradients above threshold2 are strong edges; those below threshold1 are discarded; ones in between are kept only if connected to a strong edge. A ratio of 1:2 or 1:3 between the thresholds is typical.",
+        "example": "cv::Mat gray(200, 200, CV_8UC1, cv::Scalar(40));\ncv::rectangle(gray, cv::Point(50, 50), cv::Point(150, 150), cv::Scalar(200), cv::FILLED);\ncv::Mat blurred, edges;\ncv::GaussianBlur(gray, blurred, cv::Size(5, 5), 1.4);\ncv::Canny(blurred, edges, 50, 150);\nstd::cout << cv::countNonZero(edges) << \" edge pixels\" << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "threshold": {
+        "signature": "double threshold(InputArray src, OutputArray dst, double thresh, double maxval, int type)",
+        "description": "Applies a fixed threshold. With THRESH_BINARY, pixels above thresh become maxval and the rest become 0. Add THRESH_OTSU (for 8-bit single-channel images) to let OpenCV choose thresh automatically; the chosen value is returned. Use adaptiveThreshold when lighting is uneven.",
+        "example": "cv::Mat gray(100, 100, CV_8UC1, cv::Scalar(90));\ncv::Mat mask;\ncv::threshold(gray, mask, 128, 255, cv::THRESH_BINARY);\ndouble otsu = cv::threshold(gray, mask, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);\nstd::cout << \"Otsu picked \" << otsu << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "adaptiveThreshold": {
+        "signature": "void adaptiveThreshold(InputArray src, OutputArray dst, double maxValue, int adaptiveMethod, int thresholdType, int blockSize, double C)",
+        "description": "Thresholds each pixel against the average of its own neighborhood, so it copes with uneven lighting where a single global threshold fails. src must be 8-bit single-channel. blockSize is the neighborhood size (odd, greater than 1) and C is subtracted from the local mean.",
+        "example": "cv::Mat gray(200, 200, CV_8UC1, cv::Scalar(100));\ncv::Mat bw;\ncv::adaptiveThreshold(gray, bw, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 11, 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "findContours": {
+        "signature": "void findContours(InputArray image, OutputArrayOfArrays contours, int mode, int method, Point offset = Point())",
+        "description": "Finds the outlines of white regions in a binary image (the output of threshold or Canny). contours is a std::vector<std::vector<cv::Point>>, one list of points per outline. RETR_EXTERNAL returns only outer outlines; CHAIN_APPROX_SIMPLE stores only the corner points of straight runs. The input image is not modified.",
+        "example": "cv::Mat bw(200, 200, CV_8UC1, cv::Scalar(0));\ncv::rectangle(bw, cv::Point(40, 40), cv::Point(120, 100), cv::Scalar(255), cv::FILLED);\nstd::vector<std::vector<cv::Point>> contours;\ncv::findContours(bw, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);\nstd::cout << contours.size() << \" object(s)\" << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "drawContours": {
+        "signature": "void drawContours(InputOutputArray image, InputArrayOfArrays contours, int contourIdx, const Scalar& color, int thickness = 1, int lineType = LINE_8)",
+        "description": "Draws contours onto an image. contourIdx selects one contour, or -1 for all of them. A thickness of FILLED fills the inside instead of outlining it. Draws in place.",
+        "example": "cv::Mat canvas(200, 200, CV_8UC3, cv::Scalar::all(0));\nstd::vector<std::vector<cv::Point>> contours = {\n  {cv::Point(20, 20), cv::Point(120, 20), cv::Point(120, 90), cv::Point(20, 90)}};\ncv::drawContours(canvas, contours, -1, cv::Scalar(0, 255, 0), 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "contourArea": {
+        "signature": "double contourArea(InputArray contour, bool oriented = false)",
+        "description": "Returns the area enclosed by a contour, in square pixels. It is the polygon area computed from the points, which can differ slightly from a count of the pixels inside.",
+        "example": "std::vector<cv::Point> square = {cv::Point(0, 0), cv::Point(10, 0), cv::Point(10, 10), cv::Point(0, 10)};\ndouble area = cv::contourArea(square);  // 100\nstd::cout << area << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "boundingRect": {
+        "signature": "Rect boundingRect(InputArray array)",
+        "description": "Returns the smallest upright (not rotated) rectangle that contains a set of points or a contour. Use minAreaRect for a rotated fit.",
+        "example": "std::vector<cv::Point> pts = {cv::Point(10, 20), cv::Point(60, 25), cv::Point(40, 80)};\ncv::Rect box = cv::boundingRect(pts);\nstd::cout << box.width << \"x\" << box.height << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "rectangle": {
+        "signature": "void rectangle(InputOutputArray img, Point pt1, Point pt2, const Scalar& color, int thickness = 1, int lineType = LINE_8, int shift = 0)",
+        "description": "Draws a rectangle between two opposite corners (there is also an overload taking a Rect). Draws in place on img. A thickness of FILLED (or any negative value) fills it. Colors are BGR, so Scalar(0, 0, 255) is red.",
+        "example": "cv::Mat img(200, 200, CV_8UC3, cv::Scalar::all(255));\ncv::rectangle(img, cv::Point(20, 20), cv::Point(120, 90), cv::Scalar(0, 0, 255), 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "circle": {
+        "signature": "void circle(InputOutputArray img, Point center, int radius, const Scalar& color, int thickness = 1, int lineType = LINE_8, int shift = 0)",
+        "description": "Draws a circle in place. A thickness of FILLED draws a solid disc. Colors are BGR. Use LINE_AA for smooth edges.",
+        "example": "cv::Mat img(200, 200, CV_8UC3, cv::Scalar::all(255));\ncv::circle(img, cv::Point(100, 100), 40, cv::Scalar(255, 0, 0), cv::FILLED);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "line": {
+        "signature": "void line(InputOutputArray img, Point pt1, Point pt2, const Scalar& color, int thickness = 1, int lineType = LINE_8, int shift = 0)",
+        "description": "Draws a straight line segment between two points, in place. Colors are BGR. Use LINE_AA for anti-aliased lines.",
+        "example": "cv::Mat img(200, 200, CV_8UC3, cv::Scalar::all(255));\ncv::line(img, cv::Point(10, 10), cv::Point(190, 150), cv::Scalar(0, 0, 0), 2, cv::LINE_AA);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "putText": {
+        "signature": "void putText(InputOutputArray img, const String& text, Point org, int fontFace, double fontScale, Scalar color, int thickness = 1, int lineType = LINE_8, bool bottomLeftOrigin = false)",
+        "description": "Draws text in place. org is the bottom-left corner of the first character. Only plain ASCII is supported by the built-in Hershey fonts (no accents or other scripts). fontScale multiplies the base font size.",
+        "example": "cv::Mat img(100, 300, CV_8UC3, cv::Scalar::all(255));\ncv::putText(img, \"Defect\", cv::Point(20, 60), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "flip": {
+        "signature": "void flip(InputArray src, OutputArray dst, int flipCode)",
+        "description": "Flips an image. flipCode 0 flips vertically (around the x axis), a positive value flips horizontally (mirror image, handy for a webcam preview), and a negative value flips both ways.",
+        "example": "cv::Mat img(100, 200, CV_8UC3, cv::Scalar::all(10));\ncv::Mat mirrored;\ncv::flip(img, mirrored, 1);  // horizontal mirror",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "rotate": {
+        "signature": "void rotate(InputArray src, OutputArray dst, int rotateCode)",
+        "description": "Rotates an image by a multiple of 90 degrees: ROTATE_90_CLOCKWISE, ROTATE_180 or ROTATE_90_COUNTERCLOCKWISE. It is exact and fast. For any other angle use getRotationMatrix2D with warpAffine.",
+        "example": "cv::Mat img(100, 200, CV_8UC3, cv::Scalar::all(10));\ncv::Mat turned;\ncv::rotate(img, turned, cv::ROTATE_90_CLOCKWISE);  // now 200 rows by 100 cols",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "getRotationMatrix2D": {
+        "signature": "Mat getRotationMatrix2D(Point2f center, double angle, double scale)",
+        "description": "Builds the 2x3 matrix that rotates by angle degrees around center and scales by scale. A positive angle rotates counter-clockwise (the origin is the top-left corner). Pass the result to warpAffine.",
+        "example": "cv::Mat M = cv::getRotationMatrix2D(cv::Point2f(100.0f, 100.0f), 30.0, 1.0);\nstd::cout << M << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "warpAffine": {
+        "signature": "void warpAffine(InputArray src, OutputArray dst, InputArray M, Size dsize, int flags = INTER_LINEAR, int borderMode = BORDER_CONSTANT, const Scalar& borderValue = Scalar())",
+        "description": "Applies a 2x3 affine transform (rotation, shift, scale, shear) to an image. dsize is the output size as (width, height); anything transformed outside it is cut off. Combine with getRotationMatrix2D to rotate by any angle.",
+        "example": "cv::Mat img(200, 300, CV_8UC3, cv::Scalar::all(255));\ncv::Mat M = cv::getRotationMatrix2D(cv::Point2f(img.cols / 2.0f, img.rows / 2.0f), 30.0, 1.0);\ncv::Mat rotated;\ncv::warpAffine(img, rotated, M, img.size());",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "inRange": {
+        "signature": "void inRange(InputArray src, InputArray lowerb, InputArray upperb, OutputArray dst)",
+        "description": "Builds a mask that is 255 where every channel of a pixel lies between lowerb and upperb, and 0 elsewhere. The classic way to pick out a color: convert to HSV first, then give HSV bounds.",
+        "example": "cv::Mat bgr(100, 100, CV_8UC3, cv::Scalar(0, 0, 255));  // red\ncv::Mat hsv, mask;\ncv::cvtColor(bgr, hsv, cv::COLOR_BGR2HSV);\ncv::inRange(hsv, cv::Scalar(0, 120, 70), cv::Scalar(10, 255, 255), mask);\nstd::cout << cv::countNonZero(mask) << \" red pixels\" << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "bitwise_and": {
+        "signature": "void bitwise_and(InputArray src1, InputArray src2, OutputArray dst, InputArray mask = noArray())",
+        "description": "Per-pixel AND of two images. The common use is applying a mask: pass the same image twice and a mask, and only the pixels where the mask is non-zero are kept; everything else becomes 0.",
+        "example": "cv::Mat img(100, 100, CV_8UC3, cv::Scalar(10, 200, 30));\ncv::Mat mask(100, 100, CV_8UC1, cv::Scalar(0));\ncv::circle(mask, cv::Point(50, 50), 30, cv::Scalar(255), cv::FILLED);\ncv::Mat out;\ncv::bitwise_and(img, img, out, mask);  // keeps only the circle",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "absdiff": {
+        "signature": "void absdiff(InputArray src1, InputArray src2, OutputArray dst)",
+        "description": "Per-element absolute difference |src1 - src2|. Unlike plain subtraction on unsigned pixels it never wraps around, so it is the right tool for comparing two frames (motion detection) or an image against a reference (defect detection). Both inputs need the same size and type.",
+        "example": "cv::Mat a(100, 100, CV_8UC1, cv::Scalar(100));\ncv::Mat b(100, 100, CV_8UC1, cv::Scalar(130));\ncv::Mat diff;\ncv::absdiff(a, b, diff);  // every pixel is 30",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "countNonZero": {
+        "signature": "int countNonZero(InputArray src)",
+        "description": "Counts the non-zero elements of a single-channel array. On a binary mask or an edge image this is the number of white pixels.",
+        "example": "cv::Mat mask(100, 100, CV_8UC1, cv::Scalar(0));\ncv::rectangle(mask, cv::Point(10, 10), cv::Point(29, 29), cv::Scalar(255), cv::FILLED);\nstd::cout << cv::countNonZero(mask) << std::endl;  // 400",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "mean": {
+        "signature": "Scalar mean(InputArray src, InputArray mask = noArray())",
+        "description": "Per-channel average of an image, returned as a Scalar. For a grayscale image the value is in [0]; for BGR the channels are in order B, G, R. Pass a mask to average only part of the image.",
+        "example": "cv::Mat gray(100, 100, CV_8UC1, cv::Scalar(50));\ndouble brightness = cv::mean(gray)[0];\nstd::cout << brightness << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "minMaxLoc": {
+        "signature": "void minMaxLoc(InputArray src, double* minVal, double* maxVal = 0, Point* minLoc = 0, Point* maxLoc = 0, InputArray mask = noArray())",
+        "description": "Finds the smallest and largest value of a single-channel array and where they are. Locations are Points with x as the column and y as the row. Pass nullptr for any output you do not need. Use it on the result of matchTemplate to find the best match.",
+        "example": "cv::Mat m(50, 50, CV_32FC1, cv::Scalar(0));\nm.at<float>(10, 20) = 5.0f;\ndouble maxVal;\ncv::Point maxLoc;\ncv::minMaxLoc(m, nullptr, &maxVal, nullptr, &maxLoc);\nstd::cout << maxVal << \" at \" << maxLoc << std::endl;  // 5 at [20, 10]",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "matchTemplate": {
+        "signature": "void matchTemplate(InputArray image, InputArray templ, OutputArray result, int method, InputArray mask = noArray())",
+        "description": "Slides a small template image over a larger one and scores every position. result is a float map of size (W - w + 1) by (H - h + 1). For TM_CCOEFF_NORMED (a good default) the best match is the maximum; for TM_SQDIFF it is the minimum. Use minMaxLoc to find it. It matches by appearance only, so it does not handle rotation or scaling.",
+        "example": "cv::Mat scene(200, 200, CV_8UC1, cv::Scalar(0));\ncv::rectangle(scene, cv::Point(80, 60), cv::Point(120, 100), cv::Scalar(255), cv::FILLED);\ncv::Mat templ = scene(cv::Rect(75, 55, 50, 50)).clone();\ncv::Mat result;\ncv::matchTemplate(scene, templ, result, cv::TM_CCOEFF_NORMED);\ndouble score;\ncv::Point best;\ncv::minMaxLoc(result, nullptr, &score, nullptr, &best);\nstd::cout << \"best match at \" << best << \" score \" << score << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "HoughCircles": {
+        "signature": "void HoughCircles(InputArray image, OutputArray circles, int method, double dp, double minDist, double param1 = 100, double param2 = 100, int minRadius = 0, int maxRadius = 0)",
+        "description": "Finds circles in an 8-bit grayscale image with the Hough gradient method. circles receives one cv::Vec3f (x, y, radius) per circle. Blur the image first. dp is 1 for full resolution; minDist is the minimum distance between centers; param1 is the upper Canny threshold; param2 is the accumulator threshold (lower finds more circles, including false ones).",
+        "example": "cv::Mat gray(200, 200, CV_8UC1, cv::Scalar(0));\ncv::circle(gray, cv::Point(100, 100), 40, cv::Scalar(255), 3);\ncv::GaussianBlur(gray, gray, cv::Size(9, 9), 2);\nstd::vector<cv::Vec3f> circles;\ncv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT, 1, 30, 100, 30, 10, 80);\nfor (const cv::Vec3f& c : circles) {\n  std::cout << \"circle at (\" << c[0] << \", \" << c[1] << \") radius \" << c[2] << std::endl;\n}",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "HoughLinesP": {
+        "signature": "void HoughLinesP(InputArray image, OutputArray lines, double rho, double theta, int threshold, double minLineLength = 0, double maxLineGap = 0)",
+        "description": "Finds line segments in a binary edge image (for example the output of Canny). lines receives one cv::Vec4i (x1, y1, x2, y2) per segment. Typical settings are rho = 1 pixel and theta = CV_PI / 180. threshold is the minimum number of votes; minLineLength and maxLineGap filter short or broken segments.",
+        "example": "cv::Mat edges(200, 200, CV_8UC1, cv::Scalar(0));\ncv::line(edges, cv::Point(20, 100), cv::Point(180, 100), cv::Scalar(255), 1);\nstd::vector<cv::Vec4i> lines;\ncv::HoughLinesP(edges, lines, 1, CV_PI / 180, 50, 50, 10);\nstd::cout << lines.size() << \" line segment(s)\" << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "morphologyEx": {
+        "signature": "void morphologyEx(InputArray src, OutputArray dst, int op, InputArray kernel, Point anchor = Point(-1, -1), int iterations = 1, int borderType = BORDER_CONSTANT)",
+        "description": "Advanced morphological operations on a binary or grayscale image. MORPH_OPEN removes small white specks, MORPH_CLOSE fills small holes, MORPH_GRADIENT outlines shapes. kernel is usually made with getStructuringElement.",
+        "example": "cv::Mat bw(100, 100, CV_8UC1, cv::Scalar(0));\ncv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));\ncv::Mat cleaned;\ncv::morphologyEx(bw, cleaned, cv::MORPH_OPEN, kernel);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "getStructuringElement": {
+        "signature": "Mat getStructuringElement(int shape, Size ksize, Point anchor = Point(-1, -1))",
+        "description": "Creates the kernel for erode, dilate and morphologyEx. shape is MORPH_RECT, MORPH_ELLIPSE or MORPH_CROSS; ksize is (width, height) and is usually odd.",
+        "example": "cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));\nstd::cout << kernel << std::endl;",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "erode": {
+        "signature": "void erode(InputArray src, OutputArray dst, InputArray kernel, Point anchor = Point(-1, -1), int iterations = 1, int borderType = BORDER_CONSTANT)",
+        "description": "Shrinks bright regions (white objects get thinner, small specks disappear). Pass cv::Mat() as the kernel for the default 3x3. More iterations erode further.",
+        "example": "cv::Mat bw(100, 100, CV_8UC1, cv::Scalar(255));\ncv::Mat thinner;\ncv::erode(bw, thinner, cv::Mat(), cv::Point(-1, -1), 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "dilate": {
+        "signature": "void dilate(InputArray src, OutputArray dst, InputArray kernel, Point anchor = Point(-1, -1), int iterations = 1, int borderType = BORDER_CONSTANT)",
+        "description": "Grows bright regions (white objects get thicker, small gaps close). Pass cv::Mat() as the kernel for the default 3x3. The opposite of erode.",
+        "example": "cv::Mat bw(100, 100, CV_8UC1, cv::Scalar(0));\ncv::Mat thicker;\ncv::dilate(bw, thicker, cv::Mat(), cv::Point(-1, -1), 2);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "addWeighted": {
+        "signature": "void addWeighted(InputArray src1, double alpha, InputArray src2, double beta, double gamma, OutputArray dst, int dtype = -1)",
+        "description": "Blends two images: dst = src1 * alpha + src2 * beta + gamma, with values clamped to the valid range. Both images must have the same size and type. Use alpha + beta = 1 for a cross-fade.",
+        "example": "cv::Mat a(100, 100, CV_8UC3, cv::Scalar(255, 0, 0));\ncv::Mat b(100, 100, CV_8UC3, cv::Scalar(0, 0, 255));\ncv::Mat blend;\ncv::addWeighted(a, 0.5, b, 0.5, 0.0, blend);",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "split": {
+        "signature": "void split(const Mat& src, std::vector<Mat>& mvbegin)",
+        "description": "Splits a multi-channel image into single-channel images. For a BGR image the vector holds blue, green and red, in that order. Use merge to put them back together.",
+        "example": "cv::Mat bgr(100, 100, CV_8UC3, cv::Scalar(10, 20, 30));\nstd::vector<cv::Mat> planes;\ncv::split(bgr, planes);  // planes[0] = blue, [1] = green, [2] = red",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "merge": {
+        "signature": "void merge(const std::vector<Mat>& mv, OutputArray dst)",
+        "description": "Combines single-channel images into one multi-channel image. The planes must all have the same size and depth. The inverse of split.",
+        "example": "std::vector<cv::Mat> planes = {cv::Mat(50, 50, CV_8UC1, cv::Scalar(10)),\n                                cv::Mat(50, 50, CV_8UC1, cv::Scalar(20)),\n                                cv::Mat(50, 50, CV_8UC1, cv::Scalar(30))};\ncv::Mat bgr;\ncv::merge(planes, bgr);",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "equalizeHist": {
+        "signature": "void equalizeHist(InputArray src, OutputArray dst)",
+        "description": "Improves the contrast of an 8-bit single-channel image by spreading out its brightness histogram. Convert color images to grayscale first (or equalize just the lightness channel).",
+        "example": "cv::Mat gray(100, 100, CV_8UC1, cv::Scalar(100));\ncv::Mat better;\ncv::equalizeHist(gray, better);",
+        "docUrl": "https://docs.opencv.org/4.x/d7/dbd/group__imgproc.html"
+      },
+      "normalize": {
+        "signature": "void normalize(InputArray src, InputOutputArray dst, double alpha = 1, double beta = 0, int norm_type = NORM_L2, int dtype = -1, InputArray mask = noArray())",
+        "description": "Rescales the values of an array. The common use is NORM_MINMAX with alpha = 0 and beta = 255, which stretches the data to fill the 0-255 range so a float result can be displayed.",
+        "example": "cv::Mat f(50, 50, CV_32FC1, cv::Scalar(0.25));\ncv::Mat shown;\ncv::normalize(f, shown, 0, 255, cv::NORM_MINMAX, CV_8UC1);",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      },
+      "convertScaleAbs": {
+        "signature": "void convertScaleAbs(InputArray src, OutputArray dst, double alpha = 1, double beta = 0)",
+        "description": "Computes |src * alpha + beta| and converts the result to 8-bit with saturation. Use it to turn a signed or float result (such as the output of Sobel or Laplacian) back into a displayable 8-bit image.",
+        "example": "cv::Mat f(50, 50, CV_32FC1, cv::Scalar(-120.0));\ncv::Mat shown;\ncv::convertScaleAbs(f, shown);  // 120",
+        "docUrl": "https://docs.opencv.org/4.x/d0/de1/group__core.html"
+      }
+    }
+  },
+  "raylib.h": {
+    "headers": [
+      "raymath.h",
+      "rlgl.h"
+    ],
+    "url": "https://www.raylib.com/",
+    "classes": {},
+    "functions": {
+      "InitWindow": {
+        "signature": "void InitWindow(int width, int height, const char *title)",
+        "description": "Opens the window and creates the OpenGL context. Call it once, before any drawing or loading of textures, fonts or sounds. width and height are in pixels.",
+        "example": "InitWindow(800, 450, \"My raylib window\");\nSetTargetFPS(60);\nwhile (!WindowShouldClose()) {\n  BeginDrawing();\n  ClearBackground(RAYWHITE);\n  DrawText(\"Hello raylib\", 190, 200, 20, DARKGRAY);\n  EndDrawing();\n}\nCloseWindow();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "CloseWindow": {
+        "signature": "void CloseWindow(void)",
+        "description": "Closes the window and releases the OpenGL context. Call it once when your main loop ends.",
+        "example": "InitWindow(320, 200, \"demo\");\nCloseWindow();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "WindowShouldClose": {
+        "signature": "bool WindowShouldClose(void)",
+        "description": "True once the user presses Esc or clicks the window's close button. It is the usual condition of the main loop: while (!WindowShouldClose()).",
+        "example": "InitWindow(320, 200, \"demo\");\nwhile (!WindowShouldClose()) {\n  BeginDrawing();\n  ClearBackground(RAYWHITE);\n  EndDrawing();\n}\nCloseWindow();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "SetTargetFPS": {
+        "signature": "void SetTargetFPS(int fps)",
+        "description": "Caps the frame rate so the loop does not run flat out. 60 is typical. Use GetFrameTime() to scale movement so it does not depend on the frame rate.",
+        "example": "InitWindow(320, 200, \"demo\");\nSetTargetFPS(60);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "BeginDrawing": {
+        "signature": "void BeginDrawing(void)",
+        "description": "Starts a frame. Every Draw... call must come between BeginDrawing() and EndDrawing().",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nClearBackground(BLACK);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "EndDrawing": {
+        "signature": "void EndDrawing(void)",
+        "description": "Ends the frame: it shows what was drawn, polls keyboard, mouse and window events, and waits to hold the target frame rate.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawText(\"done\", 10, 10, 20, WHITE);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "ClearBackground": {
+        "signature": "void ClearBackground(Color color)",
+        "description": "Fills the whole screen with one color. Call it first each frame, inside BeginDrawing().",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nClearBackground(RAYWHITE);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawText": {
+        "signature": "void DrawText(const char *text, int posX, int posY, int fontSize, Color color)",
+        "description": "Draws text with raylib's default font. posX and posY are the top-left corner in pixels, fontSize is the height in pixels.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawText(\"Score: 10\", 20, 20, 24, DARKGRAY);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawRectangle": {
+        "signature": "void DrawRectangle(int posX, int posY, int width, int height, Color color)",
+        "description": "Draws a filled rectangle. posX and posY are its top-left corner. Use DrawRectangleLines for an outline.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawRectangle(50, 50, 100, 60, RED);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawCircle": {
+        "signature": "void DrawCircle(int centerX, int centerY, float radius, Color color)",
+        "description": "Draws a filled circle. centerX and centerY are the middle of the circle and radius is in pixels, all measured from the top-left corner of the window.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawCircle(160, 100, 40.0f, BLUE);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawLine": {
+        "signature": "void DrawLine(int startPosX, int startPosY, int endPosX, int endPosY, Color color)",
+        "description": "Draws a 1-pixel line between two points. Use DrawLineEx for a thicker line.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawLine(0, 0, 320, 200, GREEN);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "IsKeyDown": {
+        "signature": "bool IsKeyDown(int key)",
+        "description": "True for every frame the key is held down. Use it for continuous movement. Key codes are constants such as KEY_RIGHT, KEY_SPACE and KEY_W.",
+        "example": "InitWindow(320, 200, \"demo\");\nfloat x = 100.0f;\nif (IsKeyDown(KEY_RIGHT)) x += 200.0f * GetFrameTime();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "IsKeyPressed": {
+        "signature": "bool IsKeyPressed(int key)",
+        "description": "True only on the single frame the key goes down. Use it for one-shot actions such as jumping or firing, where holding the key should not repeat.",
+        "example": "InitWindow(320, 200, \"demo\");\nif (IsKeyPressed(KEY_SPACE)) TraceLog(LOG_INFO, \"jump\");",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "GetMousePosition": {
+        "signature": "Vector2 GetMousePosition(void)",
+        "description": "The mouse position in window pixels, as a Vector2 with x and y. The origin is the top-left corner.",
+        "example": "InitWindow(320, 200, \"demo\");\nVector2 m = GetMousePosition();\nDrawCircle((int)m.x, (int)m.y, 10.0f, RED);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "IsMouseButtonPressed": {
+        "signature": "bool IsMouseButtonPressed(int button)",
+        "description": "True on the frame a mouse button goes down. button is MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT or MOUSE_BUTTON_MIDDLE.",
+        "example": "InitWindow(320, 200, \"demo\");\nif (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) TraceLog(LOG_INFO, \"click\");",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "GetFrameTime": {
+        "signature": "float GetFrameTime(void)",
+        "description": "Seconds the last frame took. Multiply speeds by it (position += speed * GetFrameTime()) so movement is the same at any frame rate.",
+        "example": "InitWindow(320, 200, \"demo\");\nfloat x = 0.0f;\nx += 120.0f * GetFrameTime();  // 120 pixels per second",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "LoadTexture": {
+        "signature": "Texture2D LoadTexture(const char *fileName)",
+        "description": "Loads an image file into GPU memory for drawing. It needs the window to exist, so call it after InitWindow(). Check texture.id != 0 to see whether it loaded. Free it with UnloadTexture().",
+        "example": "InitWindow(320, 200, \"demo\");\nTexture2D tex = LoadTexture(\"player.png\");\nif (tex.id == 0) TraceLog(LOG_WARNING, \"player.png not found\");\nUnloadTexture(tex);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawTexture": {
+        "signature": "void DrawTexture(Texture2D texture, int posX, int posY, Color tint)",
+        "description": "Draws a loaded texture with its top-left corner at (posX, posY). tint multiplies the colors; WHITE draws it unchanged.",
+        "example": "InitWindow(320, 200, \"demo\");\nTexture2D tex = LoadTexture(\"player.png\");\nBeginDrawing();\nDrawTexture(tex, 50, 50, WHITE);\nEndDrawing();\nUnloadTexture(tex);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "UnloadTexture": {
+        "signature": "void UnloadTexture(Texture2D texture)",
+        "description": "Frees a texture's GPU memory. Call it for every LoadTexture, before CloseWindow().",
+        "example": "InitWindow(320, 200, \"demo\");\nTexture2D tex = LoadTexture(\"player.png\");\nUnloadTexture(tex);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "DrawFPS": {
+        "signature": "void DrawFPS(int posX, int posY)",
+        "description": "Draws the current frames per second at the given position, which is handy while developing.",
+        "example": "InitWindow(320, 200, \"demo\");\nBeginDrawing();\nDrawFPS(10, 10);\nEndDrawing();",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      },
+      "GetRandomValue": {
+        "signature": "int GetRandomValue(int min, int max)",
+        "description": "A random integer from min to max, both included. Call SetRandomSeed first if you want a repeatable sequence.",
+        "example": "int roll = GetRandomValue(1, 6);\nTraceLog(LOG_INFO, \"rolled %d\", roll);",
+        "docUrl": "https://www.raylib.com/cheatsheet/cheatsheet.html"
+      }
+    }
+  },
+  "sdl.h": {
+    "url": "https://wiki.libsdl.org/SDL2/",
+    "classes": {},
+    "functions": {
+      "SDL_Init": {
+        "signature": "int SDL_Init(Uint32 flags)",
+        "description": "Initializes SDL subsystems. Pass SDL_INIT_VIDEO for a window (SDL_INIT_AUDIO and SDL_INIT_EVENTS are others, combined with |). Returns 0 on success and a negative number on failure; SDL_GetError() says why.",
+        "example": "if (SDL_Init(SDL_INIT_VIDEO) != 0) {\n  SDL_Log(\"SDL_Init failed: %s\", SDL_GetError());\n  return 1;\n}\nSDL_Quit();",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_GetError": {
+        "signature": "const char* SDL_GetError(void)",
+        "description": "A description of the last SDL error, for logging after a call that failed (null pointer or a non-zero status).",
+        "example": "SDL_Window* w = SDL_CreateWindow(\"x\", 0, 0, 0, 0, 0);\nif (!w) SDL_Log(\"window failed: %s\", SDL_GetError());",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_CreateWindow": {
+        "signature": "SDL_Window* SDL_CreateWindow(const char* title, int x, int y, int w, int h, Uint32 flags)",
+        "description": "Creates a window and returns it, or NULL on failure. x and y can be SDL_WINDOWPOS_CENTERED. flags such as SDL_WINDOW_SHOWN or SDL_WINDOW_RESIZABLE are combined with |. Free it with SDL_DestroyWindow().",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_SHOWN);\nif (!win) SDL_Log(\"window failed: %s\", SDL_GetError());\nSDL_DestroyWindow(win);\nSDL_Quit();",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_CreateRenderer": {
+        "signature": "SDL_Renderer* SDL_CreateRenderer(SDL_Window* window, int index, Uint32 flags)",
+        "description": "Creates a 2D drawing context for a window. Use index -1 to pick the first suitable driver and SDL_RENDERER_ACCELERATED (add SDL_RENDERER_PRESENTVSYNC to sync with the display). Returns NULL on failure.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);\nSDL_DestroyRenderer(ren);\nSDL_DestroyWindow(win);\nSDL_Quit();",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_SetRenderDrawColor": {
+        "signature": "int SDL_SetRenderDrawColor(SDL_Renderer* renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a)",
+        "description": "Sets the color used by the next SDL_RenderClear and fill or draw calls. Channels are 0 to 255; alpha 255 is fully opaque.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, 0);\nSDL_SetRenderDrawColor(ren, 30, 30, 30, 255);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_RenderClear": {
+        "signature": "int SDL_RenderClear(SDL_Renderer* renderer)",
+        "description": "Clears the whole target with the current draw color. Call it at the start of each frame.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, 0);\nSDL_SetRenderDrawColor(ren, 0, 0, 0, 255);\nSDL_RenderClear(ren);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_RenderFillRect": {
+        "signature": "int SDL_RenderFillRect(SDL_Renderer* renderer, const SDL_Rect* rect)",
+        "description": "Fills a rectangle with the current draw color. SDL_Rect is {x, y, w, h}; pass NULL to fill the whole target.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, 0);\nSDL_SetRenderDrawColor(ren, 255, 0, 0, 255);\nSDL_Rect box = {100, 100, 200, 80};\nSDL_RenderFillRect(ren, &box);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_RenderPresent": {
+        "signature": "void SDL_RenderPresent(SDL_Renderer* renderer)",
+        "description": "Shows everything drawn since the last present. Call it once at the end of each frame; nothing appears until you do.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, 0);\nSDL_RenderClear(ren);\nSDL_RenderPresent(ren);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_PollEvent": {
+        "signature": "int SDL_PollEvent(SDL_Event* event)",
+        "description": "Takes the next pending event, if any, filling event and returning 1 (or returning 0 when the queue is empty). Loop on it every frame; the window is treated as unresponsive if you never poll. Check event.type, for example SDL_QUIT or SDL_KEYDOWN.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nbool running = true;\nSDL_Event e;\nwhile (running) {\n  while (SDL_PollEvent(&e)) {\n    if (e.type == SDL_QUIT) running = false;\n  }\n}\nSDL_Quit();",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_Delay": {
+        "signature": "void SDL_Delay(Uint32 ms)",
+        "description": "Waits for at least ms milliseconds, which stops a loop from using a whole CPU core. Prefer vsync for frame pacing.",
+        "example": "SDL_Delay(16);  // about 60 frames per second",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_GetTicks": {
+        "signature": "Uint32 SDL_GetTicks(void)",
+        "description": "Milliseconds since SDL was initialized. Subtract two readings to measure elapsed time, for example the time of one frame.",
+        "example": "Uint32 start = SDL_GetTicks();\nUint32 elapsed = SDL_GetTicks() - start;",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_DestroyRenderer": {
+        "signature": "void SDL_DestroyRenderer(SDL_Renderer* renderer)",
+        "description": "Frees a renderer and everything created from it. Destroy the renderer before the window it draws into.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_Renderer* ren = SDL_CreateRenderer(win, -1, 0);\nSDL_DestroyRenderer(ren);\nSDL_DestroyWindow(win);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_DestroyWindow": {
+        "signature": "void SDL_DestroyWindow(SDL_Window* window)",
+        "description": "Closes and frees a window. Destroy any renderer made for it first (SDL_DestroyRenderer), and call SDL_Quit() once at the end of the program.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Window* win = SDL_CreateWindow(\"Demo\", 0, 0, 640, 480, SDL_WINDOW_SHOWN);\nSDL_DestroyWindow(win);",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      },
+      "SDL_Quit": {
+        "signature": "void SDL_Quit(void)",
+        "description": "Shuts down every SDL subsystem. Call it once at the end of the program, after destroying your windows and renderers.",
+        "example": "SDL_Init(SDL_INIT_VIDEO);\nSDL_Quit();",
+        "docUrl": "https://wiki.libsdl.org/SDL2/CategoryAPI"
+      }
+    }
+  },
+  "glfw3.h": {
+    "url": "https://www.glfw.org/docs/latest/",
+    "classes": {},
+    "functions": {
+      "glfwInit": {
+        "signature": "int glfwInit(void)",
+        "description": "Initializes GLFW. Call it first, before any other GLFW function except glfwSetErrorCallback. Returns GLFW_TRUE on success and GLFW_FALSE on failure. Pair it with glfwTerminate().",
+        "example": "if (!glfwInit()) return 1;\nglfwTerminate();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwTerminate": {
+        "signature": "void glfwTerminate(void)",
+        "description": "Destroys any remaining windows and frees GLFW's resources. Call it once at the end.",
+        "example": "glfwInit();\nglfwTerminate();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwWindowHint": {
+        "signature": "void glfwWindowHint(int hint, int value)",
+        "description": "Sets a property of the next window you create. For OpenGL, request the version with GLFW_CONTEXT_VERSION_MAJOR and GLFW_CONTEXT_VERSION_MINOR and a profile with GLFW_OPENGL_PROFILE. Call it before glfwCreateWindow.",
+        "example": "glfwInit();\nglfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);\nglfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);\nglfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwCreateWindow": {
+        "signature": "GLFWwindow* glfwCreateWindow(int width, int height, const char* title, GLFWmonitor* monitor, GLFWwindow* share)",
+        "description": "Creates a window and its OpenGL context. Pass NULL for monitor (windowed) and share. Returns NULL on failure, for instance when the requested OpenGL version is unavailable, so always check it.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nif (!window) {\n  glfwTerminate();\n  return 1;\n}",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwMakeContextCurrent": {
+        "signature": "void glfwMakeContextCurrent(GLFWwindow* window)",
+        "description": "Makes the window's OpenGL context current on this thread. It must be done before calling any OpenGL function or loading an OpenGL loader such as glad.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwMakeContextCurrent(window);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwWindowShouldClose": {
+        "signature": "int glfwWindowShouldClose(GLFWwindow* window)",
+        "description": "Whether the user asked to close the window (clicked close or pressed the key you mapped). The usual main loop condition: while (!glfwWindowShouldClose(window)).",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwMakeContextCurrent(window);\nwhile (!glfwWindowShouldClose(window)) {\n  glfwSwapBuffers(window);\n  glfwPollEvents();\n}\nglfwTerminate();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwSwapBuffers": {
+        "signature": "void glfwSwapBuffers(GLFWwindow* window)",
+        "description": "Shows the frame you just drew by swapping the back buffer to the screen. Call it once at the end of each frame.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwMakeContextCurrent(window);\nglfwSwapBuffers(window);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwPollEvents": {
+        "signature": "void glfwPollEvents(void)",
+        "description": "Processes pending keyboard, mouse and window events and calls your callbacks, then returns immediately. Call it every frame or the window will appear frozen. Use glfwWaitEvents to sleep until something happens.",
+        "example": "glfwInit();\nglfwPollEvents();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwSwapInterval": {
+        "signature": "void glfwSwapInterval(int interval)",
+        "description": "Sets how many display refreshes to wait before swapping buffers. 1 turns vsync on (smooth, limited to the display rate); 0 turns it off. Needs a current context.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwMakeContextCurrent(window);\nglfwSwapInterval(1);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwSetKeyCallback": {
+        "signature": "GLFWkeyfun glfwSetKeyCallback(GLFWwindow* window, GLFWkeyfun callback)",
+        "description": "Registers a function called on every key press, repeat and release. The callback receives the window, the key (GLFW_KEY_ESCAPE, GLFW_KEY_W, ...), the scancode, the action (GLFW_PRESS, GLFW_RELEASE or GLFW_REPEAT) and the modifier bits.",
+        "example": "static void onKey(GLFWwindow* window, int key, int scancode, int action, int mods) {\n  if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);\n}\nglfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwSetKeyCallback(window, onKey);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwGetFramebufferSize": {
+        "signature": "void glfwGetFramebufferSize(GLFWwindow* window, int* width, int* height)",
+        "description": "The size of the window's drawing area in pixels. On high-DPI screens this is larger than the window size in screen coordinates, so use it for glViewport.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nint w = 0, h = 0;\nglfwGetFramebufferSize(window, &w, &h);",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwDestroyWindow": {
+        "signature": "void glfwDestroyWindow(GLFWwindow* window)",
+        "description": "Destroys a window and its OpenGL context. Any callbacks set on it stop being called. glfwTerminate() also destroys windows you forgot.",
+        "example": "glfwInit();\nGLFWwindow* window = glfwCreateWindow(640, 480, \"Demo\", NULL, NULL);\nglfwDestroyWindow(window);\nglfwTerminate();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      },
+      "glfwGetTime": {
+        "signature": "double glfwGetTime(void)",
+        "description": "Seconds since glfwInit, as a double. Subtract two readings to get the time between frames.",
+        "example": "glfwInit();\ndouble t = glfwGetTime();",
+        "docUrl": "https://www.glfw.org/docs/latest/"
+      }
+    }
   }
 }

@@ -131,10 +131,10 @@ describe('libSuggestionDoc', () => {
 })
 
 describe('dictionary integrity', () => {
-  it('uses lowercased .h header keys and every class has members', () => {
+  it('uses lowercased .h or .hpp header keys and every class has members', () => {
     for (const [header, file] of Object.entries(DICT)) {
       expect(header).toBe(header.toLowerCase())
-      expect(header.endsWith('.h')).toBe(true)
+      expect(/\.h(pp)?$/.test(header)).toBe(true)
       for (const def of Object.values(file.classes)) {
         expect(def.description.length).toBeGreaterThan(0)
         expect(def.docUrl).toMatch(/^https:\/\//)

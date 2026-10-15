@@ -85,6 +85,18 @@ rules. The install and link path was also verified against a real MSYS2 install
 (raylib installed, linked into an executable) and a real venv (pip install, then
 import).
 
+## Editor documentation
+
+Installing a library is only half of it: knowing what is in it is the other half. For
+OpenCV, raylib, SDL2 and GLFW the editor shows a curated description, signature and
+example on hover and in completion, attached to clangd's own items. For OpenCV that
+means `cv::` (or `using namespace cv;`) lists the functions and classes with what
+they do, `cv::Mat m; m.` documents each member, and `cv::VideoCapture` shows the
+open-the-camera loop. About 150 examples were each compiled against the installed
+library. The schema and its boundaries (no include, another namespace, comments)
+are in [STDLIB-DICTIONARY-WORKFLOW.md](STDLIB-DICTIONARY-WORKFLOW.md). Python
+documentation for `cv2` is not curated yet; pyright's own hover is used.
+
 ## Known limits
 
 - Only libraries in the catalog are known. An unlisted library needs its flags added
@@ -93,5 +105,7 @@ import).
   list its own flags.
 - macOS and Linux get detection and a copyable command, not an automatic install
   (it needs `sudo`).
-- OpenCV's C++ build via MSYS2 has not been compiled in this repo's tests yet; the
-  pipeline was verified with raylib.
+- The OpenCV C++ build via MSYS2 was verified by compiling and running an edge-detection
+  program against it, but the repo's automated tests do not need OpenCV installed.
+- Curated documentation covers the common OpenCV functions and classes, not the whole
+  API; anything else shows clangd's own text.
