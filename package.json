@@ -23,6 +23,7 @@
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:dir": "npm run build && electron-builder --dir --publish never",
+    "docs:check-examples": "node scripts/check-library-examples.cjs",
     "release": "node scripts/manual-release.cjs"
   },
   "dependencies": {
