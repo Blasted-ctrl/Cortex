@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parseDriverOutput, buildClangdConfig, discoverIncludeDirs, MARKER } from '../src/main/services/clangdConfig'
+import { parseDriverOutput, buildClangdConfig, discoverIncludeDirs, pickPioToolchain, MARKER } from '../src/main/services/clangdConfig'
 
 // A trimmed but representative `g++ -E -xc++ -v -` report (MSYS2 MinGW), with the
 // CRLF line endings the driver emits on Windows.
@@ -166,5 +166,24 @@ describe('discoverIncludeDirs', () => {
     const { project, deps } = await discoverIncludeDirs(root)
     expect(project).toEqual([])
     expect(deps).toEqual([])
+  })
+})
+
+describe('pickPioToolchain', () => {
+  const pkgs = ['framework-arduinoespressif32', 'toolchain-gccarmnoneeabi-teensy', 'toolchain-xtensa-esp32', 'tool-esptoolpy']
+  it('picks the xtensa toolchain for an ESP32 project', () => {
+    expect(pickPioToolchain(pkgs, '[env:esp32dev]\nplatform = espressif32')).toBe('toolchain-xtensa-esp32')
+  })
+  it('infers ESP32 from the libdeps env name when platformio.ini is absent', () => {
+    expect(pickPioToolchain(pkgs, '\nesp32dev')).toBe('toolchain-xtensa-esp32')
+  })
+  it('picks the ARM toolchain for a Teensy project', () => {
+    expect(pickPioToolchain(pkgs, 'platform = teensy')).toBe('toolchain-gccarmnoneeabi-teensy')
+  })
+  it('falls back to the first toolchain when the platform is unknown', () => {
+    expect(pickPioToolchain(pkgs, '')).toBe('toolchain-gccarmnoneeabi-teensy')
+  })
+  it('returns null when no toolchain is installed', () => {
+    expect(pickPioToolchain(['tool-scons'], 'esp32')).toBeNull()
   })
 })

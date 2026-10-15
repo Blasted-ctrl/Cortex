@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import { readFile, writeFile, readdir, stat } from 'fs/promises'
+import { homedir } from 'os'
 import { join } from 'path'
 import { getProjectConfig } from './projectConfigService'
 import { safeCommand, needsShell } from './commandResolver'
@@ -109,6 +110,74 @@ function deriveToolchain(compiler: string): Promise<Toolchain> {
     if (tc.includes.length === 0) toolchainCache.delete(compiler)
   })
   return probe
+}
+
+/**
+ * Choose which installed PlatformIO toolchain package matches a project, from
+ * the package directory names and text that identifies the platform (the
+ * platformio.ini contents plus the .pio/libdeps env names). Pure. Returns the
+ * directory name, or null when nothing is installed.
+ */
+export function pickPioToolchain(packages: readonly string[], platformText: string): string | null {
+  const toolchains = packages.filter((n) => n.startsWith('toolchain-')).sort()
+  if (toolchains.length === 0) return null
+  const text = platformText.toLowerCase()
+  const wants: Array<[RegExp, RegExp]> = [
+    [/esp32|espressif32/, /xtensa-esp32|riscv32-esp/],
+    [/esp8266/, /xtensa-lx106/],
+    [/teensy|rp2040|pico|stm32|nrf52|samd/, /gccarmnoneeabi|arm-none-eabi/]
+  ]
+  for (const [platform, toolchain] of wants) {
+    if (!platform.test(text)) continue
+    const hit = toolchains.find((n) => toolchain.test(n))
+    if (hit) return hit
+  }
+  return toolchains[0]
+}
+
+/**
+ * The PlatformIO-managed C++ compiler for this project, for machines with no
+ * host compiler: its bundled libstdc++ is what a firmware project is written
+ * against anyway, so std:: completion works without installing anything else.
+ * Only consulted for PlatformIO projects, and only under the user's own
+ * ~/.platformio (never a path inside the workspace).
+ */
+async function findPlatformioCompiler(root: string): Promise<string | null> {
+  const hasFile = async (p: string): Promise<boolean> => {
+    try {
+      await stat(p)
+      return true
+    } catch {
+      return false
+    }
+  }
+  const ini = join(root, 'platformio.ini')
+  if (!(await hasFile(ini)) && !(await hasFile(join(root, '.pio')))) return null
+  const core = process.env.PLATFORMIO_CORE_DIR || join(homedir(), '.platformio')
+  const packages = join(core, 'packages')
+  let names: string[]
+  try {
+    names = (await readdir(packages, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name)
+  } catch {
+    return null
+  }
+  const iniText = await readFile(ini, 'utf8').catch(() => '')
+  let envs: string[] = []
+  try {
+    envs = (await readdir(join(root, '.pio', 'libdeps'))).map((n) => n)
+  } catch {
+    /* no libdeps yet */
+  }
+  const dir = pickPioToolchain(names, `${iniText}
+${envs.join(' ')}`)
+  if (!dir) return null
+  try {
+    const bin = join(packages, dir, 'bin')
+    const gxx = (await readdir(bin)).find((n) => /-g\+\+(\.exe)?$/.test(n))
+    return gxx ? join(bin, gxx) : null
+  } catch {
+    return null
+  }
 }
 
 export function buildClangdConfig(
@@ -282,7 +351,15 @@ export async function ensureClangdConfig(root: string): Promise<void> {
   // at the spawn site: only run an allowlisted, bare (PATH-resolved) driver, so
   // an untrusted config can never point the probe at an arbitrary binary.
   if (!isBareCommand(compiler) || !isAllowedCommand(compiler)) return
-  const tc = await deriveToolchain(compiler)
+  let tc = await deriveToolchain(compiler)
+  if (tc.includes.length === 0) {
+    // No host compiler is installed. A PlatformIO project still has its board
+    // toolchain, whose standard library is enough for std:: completion. The
+    // target stays unset: clang cannot target xtensa, and a wrong triple would
+    // break every file rather than help it.
+    const pio = await findPlatformioCompiler(root)
+    if (pio) tc = { ...(await deriveToolchain(pio)), target: null }
+  }
   // Without real include paths the file adds nothing and could pin a wrong
   // target; leave clangd to its defaults instead.
   if (tc.includes.length === 0) return
