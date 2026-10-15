@@ -5,7 +5,7 @@ import { createHost, invoke, type HostNode } from './reactHost'
 
 const storage = new Map<string, string>()
 vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) })
-vi.stubGlobal('window', { api: {} })
+vi.stubGlobal('window', { api: { githubAccounts: async () => [] } })
 vi.stubGlobal('React', React)
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 const { useStore } = await import('../src/renderer/src/store/useStore')

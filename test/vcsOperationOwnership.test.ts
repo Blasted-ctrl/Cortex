@@ -14,7 +14,7 @@ const api = {
   gitPush: vi.fn(), gitInit: vi.fn(), gitCommit: vi.fn(), gitStage: vi.fn(), gitUnstage: vi.fn(),
   readFile: vi.fn(), readDir: vi.fn(), writeFile: vi.fn(), onFsEvent: vi.fn(() => () => undefined)
 }
-vi.stubGlobal('window', { api })
+vi.stubGlobal('window', { api, dispatchEvent: vi.fn() })
 vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => undefined })
 vi.stubGlobal('React', React)
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
