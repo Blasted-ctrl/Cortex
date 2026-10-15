@@ -188,6 +188,45 @@ async function hover(model: ReturnType<typeof modelFixture>, needle: string, occ
 }
 
 describe('actual completion documentation ownership', () => {
+  it('shows Servo documentation on the real class completion, not unrelated header prose', async () => {
+    const model = open('#include <ESP32Servo.h>\nServ')
+    request.mockResolvedValueOnce([{ label: 'Servo', kind: 7, detail: 'class Servo', documentation: 'LEDC channel mapping.' }])
+    const list = await completions.get('cpp')!.provideCompletionItems(model.api, model.after('Serv'), { triggerKind: 0 }, token)
+    const servo = list?.suggestions.filter(item => item.label === 'Servo')
+    expect(servo).toHaveLength(1)
+    expect(servo![0].documentation).toEqual({ value: SERVO_CLASS_DOC })
+    expect(servo![0].detail).toBe('Servo library class')
+    await resolve(servo![0], { label: 'Servo', documentation: 'Arduino Servo Library calls' })
+    expect(servo![0].documentation).toEqual({ value: SERVO_CLASS_DOC })
+  })
+
+  it('documents real Servo methods and keeps their server insertion and edits', async () => {
+    const model = open('#include <ESP32Servo.h>\nServo my_s;\nmy_s.att')
+    const raw = { label: 'attach(int pin)', filterText: 'attach', kind: 2, detail: 'int Servo::attach(int pin)', documentation: 'Arduino Servo Library calls', insertText: 'attach(${1:pin})', insertTextFormat: 2, additionalTextEdits: [includeEdit] }
+    request.mockResolvedValueOnce([raw])
+    const list = await completions.get('cpp')!.provideCompletionItems(model.api, model.after('my_s.att'), { triggerKind: 0 }, token)
+    const attach = list?.suggestions.filter(item => item.label === raw.label)
+    expect(attach).toHaveLength(1)
+    expect(attach![0].documentation?.value).toContain('Attaches the servo to a GPIO pin')
+    expect(attach![0].documentation?.value).not.toContain('Arduino Servo Library calls')
+    expect(attach![0].insertText).toBe(raw.insertText)
+    expect(attach![0].additionalTextEdits).toEqual([initialMonacoEdit])
+    await resolve(attach![0], { label: raw.label, documentation: 'Generic header comment.' })
+    expect(attach![0].documentation?.value).toContain('Attaches the servo to a GPIO pin')
+  })
+
+  it('does not attribute a foreign method or qualified class to ESP32Servo', async () => {
+    const model = open('#include <ESP32Servo.h>\nServo my_s;\nmy_s.write')
+    request.mockResolvedValueOnce([{ label: 'write', kind: 2, detail: 'void Widget::write()', documentation: 'Widget docs.' }])
+    const list = await completions.get('cpp')!.provideCompletionItems(model.api, model.after('my_s.write'), { triggerKind: 0 }, token)
+    expect(list?.suggestions.find(item => item.label === 'write')?.documentation).toEqual({ value: 'Widget docs.' })
+
+    const classModel = open('#include <ESP32Servo.h>\nServ')
+    request.mockResolvedValueOnce([{ label: 'Servo', kind: 7, detail: 'class Widget::Servo', documentation: 'Widget class.' }])
+    const classes = await completions.get('cpp')!.provideCompletionItems(classModel.api, classModel.after('Serv'), { triggerKind: 0 }, token)
+    expect(classes?.suggestions.find(item => item.label === 'Servo')?.documentation).toEqual({ value: 'Widget class.' })
+  })
+
   it.each([
     ['qualified vector label', { label: 'std::vector::clear', kind: 2, detail: 'void clear()' }, VECTOR_CLEAR_DOC],
     ['qualified vector declarator', { label: 'clear', kind: 2, detail: 'void std::vector::clear()' }, VECTOR_CLEAR_DOC],

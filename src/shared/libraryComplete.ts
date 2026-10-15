@@ -121,6 +121,8 @@ export function librarySuggestions(
   const headers = precomputedHeaders ?? includedHeaders(docText)
   const member = linePrefix.match(/([A-Za-z_][A-Za-z0-9_]*)\s*(?:\.|->)\s*[A-Za-z0-9_]*$/)
   if (member) {
+    const beforeReceiver = linePrefix.slice(0, member.index)
+    if (/(?:\.|->|::)$/.test(beforeReceiver.trimEnd()) || /\p{ID_Continue}$/u.test(beforeReceiver)) return []
     const known = new Set(index.keys())
     const className = inferKnownType(docText, member[1], known)
     if (!className) return []
@@ -136,6 +138,9 @@ export function librarySuggestions(
       docUrl: m.docUrl ?? entry.def.docUrl
     }))
   }
+  // A qualified lookup belongs to its qualifier, not to a globally named
+  // class in the dictionary (for example, another namespace's Servo).
+  if (/(?:\.|->|::)\s*[A-Za-z0-9_]*$/.test(linePrefix)) return []
   const out: LibSuggestion[] = []
   for (const [className, entry] of index) {
     if (!headers.has(entry.header)) continue

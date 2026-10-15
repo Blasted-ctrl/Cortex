@@ -15,6 +15,7 @@ import {
   librarySuggestions,
   libSuggestionDoc,
   type LibIndexEntry,
+  type LibSuggestion,
   type LibraryDict
 } from '@shared/libraryComplete'
 
@@ -61,6 +62,7 @@ interface CompletionOrigin {
   label: string
   detail?: string
   documentation: string
+  librarySuggestion?: LibSuggestion
   resolving?: object
 }
 
@@ -229,6 +231,32 @@ function libScan(model: monaco.editor.ITextModel): { clean: string; headers: Set
 function usesAnyCuratedLibrary(idx: Map<string, LibIndexEntry>, headers: Set<string>): boolean {
   for (const entry of idx.values()) if (headers.has(entry.header)) return true
   return false
+}
+
+/** The cursor and included header establish library ownership; the LSP still
+ * decides which symbol exists and how it is inserted. Reject a conflicting
+ * qualified owner instead of attaching Servo help to another class's method. */
+function matchingLibrarySuggestion(
+  m: Mon,
+  item: LspCompletion,
+  suggestions: LibSuggestion[]
+): LibSuggestion | undefined {
+  const K = m.languages.CompletionItemKind
+  const kind = completionKind(m, item.kind)
+  const name = (item.filterText || item.label).replace(/[(<:].*$/s, '').trim()
+  const suggestion = suggestions.find(s => s.name === name)
+  if (!suggestion) return undefined
+  if (suggestion.kind === 'class' ? kind !== K.Class && kind !== K.Constructor : kind !== K.Method && kind !== K.Function) return undefined
+  const qualifiedOwner = item.detail?.match(new RegExp(`\\b([A-Za-z_]\\w*)::(?:~)?${name}\\b`))?.[1]
+  if (qualifiedOwner && qualifiedOwner !== suggestion.className) return undefined
+  return suggestion
+}
+
+function completionDocumentation(owner: StdlibOwner | null | undefined, library: LibSuggestion | undefined, raw: string): string {
+  // Some library headers attach broad Doxygen comments to individual symbols.
+  // Once the header, receiver, kind and name agree, the verified per-symbol
+  // entry is more useful than that unrelated or generic prose.
+  return library ? libSuggestionDoc(library) : stdlibDocumentation(owner, raw)
 }
 
 /**
@@ -402,10 +430,23 @@ function registerProviders(m: Mon): void {
           startColumn: word.startColumn,
           endColumn: word.endColumn
         }
+        let librarySuggestionsAtCursor: LibSuggestion[] = []
+        const libraryIndex = lang === 'cpp' ? cppLibraryIndex() : null
+        if (libraryIndex?.size) {
+          const { clean, headers } = libScan(model)
+          if (usesAnyCuratedLibrary(libraryIndex, headers)) {
+            const linePrefix = clean.slice(
+              model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 }),
+              model.getOffsetAt(position)
+            )
+            librarySuggestionsAtCursor = librarySuggestions(libraryIndex, clean, linePrefix, headers)
+          }
+        }
         const base = items.slice(0, 200).map((it) => {
             const rawDoc = it.documentation ? contentsToMarkdown(it.documentation as LspContents) : ''
             const owner = stdlibCompletionOwner(lang, it.label, it.detail)
-            const enriched = stdlibDocumentation(owner, rawDoc)
+            const library = matchingLibrarySuggestion(m, it, librarySuggestionsAtCursor)
+            const enriched = completionDocumentation(owner, library, rawDoc)
             const kind = completionKind(m, it.kind)
             const baseInsert = it.insertText ?? it.textEdit?.newText ?? it.label
             const wasSnippet = it.insertTextFormat === 2
@@ -415,7 +456,7 @@ function registerProviders(m: Mon): void {
               kind,
               insertText,
               insertTextRules: asSnippet ? m.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
-              detail: friendlyDetail(m, it, owner),
+              detail: library ? (library.signature || `${library.className} library class`) : friendlyDetail(m, it, owner),
               documentation: enriched.trim() ? { value: enriched } : undefined,
               sortText: it.sortText,
               filterText: it.filterText,
@@ -428,7 +469,7 @@ function registerProviders(m: Mon): void {
             // below), not eagerly for every one of 200 items - stash what that
             // follow-up request needs to ask for THIS one.
             completionOrigin.set(suggestion, {
-              doc, raw: it, label: it.label, detail: it.detail, documentation: rawDoc
+              doc, raw: it, label: it.label, detail: it.detail, documentation: rawDoc, librarySuggestion: library
             })
             return suggestion
           })
@@ -463,8 +504,10 @@ function registerProviders(m: Mon): void {
             ? contentsToMarkdown(resolved.documentation as LspContents)
             : origin.documentation
           const owner = stdlibCompletionOwner(lang, label, detail)
-          const enriched = stdlibDocumentation(owner, rawDoc)
-          const displayedDetail = friendlyDetail(m, { ...origin.raw, label, detail }, owner)
+          const resolvedItem = { ...origin.raw, label, detail }
+          const library = origin.librarySuggestion && matchingLibrarySuggestion(m, resolvedItem, [origin.librarySuggestion])
+          const enriched = completionDocumentation(owner, library, rawDoc)
+          const displayedDetail = library ? (library.signature || `${library.className} library class`) : friendlyDetail(m, resolvedItem, owner)
           const edits = resolved?.additionalTextEdits?.map((edit) => ({
             range: toMonacoRange(edit.range), text: edit.newText
           }))

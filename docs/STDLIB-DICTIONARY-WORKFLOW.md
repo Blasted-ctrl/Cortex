@@ -20,6 +20,34 @@ rather than a raw Doxygen/docstring dump (or nothing, for entries with no doc co
 at all). That's what this dictionary is for. It's a supplement to `detail`/
 `documentation`, not a replacement for the completion engine.
 
+## Hardware header documentation contract
+
+Supported hardware-library headers live in `src/shared/stdlib/cpp-libraries.json`.
+Currently the curated hardware entry is `ESP32Servo.h` / `Servo`, including its
+documented methods. This is not a claim that every installed Arduino or PlatformIO
+library is supported. The standard C++ entries remain in `cpp.json` and follow
+the separate qualified-owner rules below.
+
+When adding another supported header, provide a class description, a working
+include-and-use example, a source documentation URL, and an entry for **each
+public method Cortex offers**. Each method needs its actual signature and a
+plain-language explanation of arguments, return value, units, limits and
+failure behavior where relevant. Include a focused example when a signature
+alone is insufficient. Check these facts against the library version Cortex
+supports and its upstream reference; do not copy a broad header comment onto
+every method or promise that an unsupported device/API works.
+
+The editor uses the real language-server symbol and insertion text where
+available. For an unqualified class completion with its header included, or
+a method on a known-typed receiver, it shows the matching curated explanation
+instead of clangd's often generic header prose. When clangd cannot resolve a
+symbol, the same dictionary provides a fallback completion. A missing header,
+unrelated receiver, qualified foreign symbol, comment or string must not gain
+the curated documentation. Add completion, resolution and hover regression
+cases for those boundaries alongside each new header. Verify the correct
+library with a scratch project and the actual installed compiler before
+claiming an API is supported.
+
 ## Data shape
 
 One JSON file per language under `src/shared/stdlib/` (e.g. `cpp.json`,

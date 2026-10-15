@@ -114,6 +114,11 @@ describe('librarySuggestions', () => {
   it('does not suggest the class when its header is not included', () => {
     expect(librarySuggestions(idx, 'int main(){}', 'Serv')).toEqual([])
   })
+
+  it('does not claim qualified classes or chained receivers as global Servo symbols', () => {
+    expect(librarySuggestions(idx, withServo, 'other::Serv')).toEqual([])
+    expect(librarySuggestions(idx, withServo, 'device.myservo.')).toEqual([])
+  })
 })
 
 describe('libSuggestionDoc', () => {
@@ -131,8 +136,14 @@ describe('dictionary integrity', () => {
       expect(header).toBe(header.toLowerCase())
       expect(header.endsWith('.h')).toBe(true)
       for (const def of Object.values(file.classes)) {
+        expect(def.description.length).toBeGreaterThan(0)
+        expect(def.docUrl).toMatch(/^https:\/\//)
+        expect(def.example).toContain('#include <')
         expect(Object.keys(def.members).length).toBeGreaterThan(0)
-        for (const m of Object.values(def.members)) expect(m.description.length).toBeGreaterThan(0)
+        for (const m of Object.values(def.members)) {
+          expect(m.signature?.length).toBeGreaterThan(0)
+          expect(m.description.length).toBeGreaterThan(0)
+        }
       }
     }
   })
