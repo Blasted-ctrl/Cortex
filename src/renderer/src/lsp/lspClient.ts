@@ -2,6 +2,7 @@ import type * as monaco from 'monaco-editor'
 import { LSP_LANGUAGE_ID, langForFile, pathToUri, uriToPath, type LspLang } from '@shared/lsp'
 import { applyTextEdits } from '@shared/textEdit'
 import { maskCppNonCode } from '@shared/cppLexical'
+import { withDiagnosticHint } from '@shared/diagnosticHints'
 import { useStore } from '../store/useStore'
 import { stdlibCompletionOwner, stdlibDocumentation, type StdlibOwner } from './stdlibDocumentation'
 import pythonSnippets from '@shared/stdlib/python-snippets.json'
@@ -652,6 +653,11 @@ function registerProviders(m: Mon): void {
   }
 }
 
+/** Project facts the diagnostic hints depend on, read from the open workspace. */
+function hintContext(): { platformio: boolean } {
+  return { platformio: useStore.getState().tree.some((n) => n.name === 'platformio.ini') }
+}
+
 function severity(m: Mon, s: number | undefined): monaco.MarkerSeverity {
   const S = m.MarkerSeverity
   return s === 1 ? S.Error : s === 2 ? S.Warning : s === 4 ? S.Hint : S.Info
@@ -691,7 +697,7 @@ async function doInitLsp(m: Mon): Promise<void> {
     // is compiler-internals noise on top of an already-plain-English message.
     const markers: monaco.editor.IMarkerData[] = (diagnostics as LspDiagnostic[]).map((d) => ({
       severity: severity(m, d.severity),
-      message: d.message,
+      message: entry.doc.lang === 'cpp' ? withDiagnosticHint(d.message, hintContext()) : d.message,
       startLineNumber: d.range.start.line + 1,
       startColumn: d.range.start.character + 1,
       endLineNumber: d.range.end.line + 1,
