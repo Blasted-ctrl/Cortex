@@ -22,4 +22,5 @@ if not exist node_modules (
   powershell -NoProfile -Command "if ((Get-Item package-lock.json).LastWriteTime -gt (Get-Item node_modules\.package-lock.json).LastWriteTime) { exit 1 }" || call npm ci --no-audit --no-fund
 )
 
-call npm run dev
+rem --watch rebuilds and restarts the main process on edits; without it only the UI hot-reloads.
+call npm run dev -- --watch

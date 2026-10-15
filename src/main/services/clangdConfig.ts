@@ -181,6 +181,9 @@ ${envs.join(' ')}`)
   }
 }
 
+/** `<gcc>/lib/gcc/<target>/<version>/include`, GCC's compiler-private headers (not include-fixed). */
+const GCC_BUILTIN_INCLUDE = /[\\/]lib[\\/]gcc[\\/][^\\/]+[\\/][^\\/]+[\\/]include$/
+
 export function buildClangdConfig(
   tc: Toolchain,
   cppStd: string,
@@ -196,6 +199,12 @@ export function buildClangdConfig(
   const global: string[] = ['-Wall', '-Wextra']
   if (tc.target) global.push(`--target=${tc.target}`)
   for (const dir of tc.includes) {
+    // GCC's own builtin-header directory (lib/gcc/<target>/<ver>/include) holds
+    // GCC's xmmintrin.h and friends, which redefine intrinsics clang already
+    // provides as builtins. Anything that includes them (OpenCV does) then shows
+    // "definition of builtin function '_mm_getcsr'" on the #include line. clangd
+    // brings its own builtin headers, so leave GCC's out.
+    if (GCC_BUILTIN_INCLUDE.test(dir)) continue
     // Two argv tokens: clang takes the path as the argument after -isystem.
     global.push('-isystem', dir)
   }

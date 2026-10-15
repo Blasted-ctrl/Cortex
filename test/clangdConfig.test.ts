@@ -187,3 +187,27 @@ describe('pickPioToolchain', () => {
     expect(pickPioToolchain(['tool-scons'], 'esp32')).toBeNull()
   })
 })
+
+describe('buildClangdConfig and GCC builtin headers', () => {
+  it("leaves out GCC's private intrinsics directory but keeps the C++ library and include-fixed", () => {
+    const tc = {
+      target: 'x86_64-w64-mingw32',
+      includes: [
+        'C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/16.1.0/../../../../include/c++/16.1.0',
+        'C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/16.1.0/include',
+        'C:/msys64/ucrt64/lib/gcc/x86_64-w64-mingw32/16.1.0/include-fixed',
+        'C:/msys64/ucrt64/include'
+      ]
+    }
+    const cfg = buildClangdConfig(tc, 'c++23')
+    expect(cfg).not.toContain('16.1.0/include"')
+    expect(cfg).toContain('include/c++/16.1.0')
+    expect(cfg).toContain('include-fixed')
+    expect(cfg).toContain('C:/msys64/ucrt64/include')
+  })
+  it('also recognises a backslash path from a Windows compiler', () => {
+    const bs = String.fromCharCode(92)
+    const dir = ['c:', 'users', 'x', 'lib', 'gcc', 'xtensa-esp32-elf', '8.4.0', 'include'].join(bs)
+    expect(buildClangdConfig({ target: null, includes: [dir] }, 'c++17')).not.toContain('xtensa-esp32-elf')
+  })
+})
