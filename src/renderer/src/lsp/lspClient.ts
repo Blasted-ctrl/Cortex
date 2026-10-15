@@ -654,8 +654,12 @@ function registerProviders(m: Mon): void {
 }
 
 /** Project facts the diagnostic hints depend on, read from the open workspace. */
-function hintContext(): { platformio: boolean } {
-  return { platformio: useStore.getState().tree.some((n) => n.name === 'platformio.ini') }
+function hintContext(): { platformio: boolean; compilationDatabase: boolean } {
+  const tree = useStore.getState().tree
+  return {
+    platformio: tree.some((n) => n.name === 'platformio.ini'),
+    compilationDatabase: tree.some((n) => n.name === 'compile_commands.json')
+  }
 }
 
 function severity(m: Mon, s: number | undefined): monaco.MarkerSeverity {

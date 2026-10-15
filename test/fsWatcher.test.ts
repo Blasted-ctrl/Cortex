@@ -18,6 +18,31 @@ afterEach(async () => {
 })
 
 describe('project filesystem watcher events', () => {
+  it('watches a workspace inside .cortex and notices a generated compile database', async () => {
+    fixture = await fs.mkdtemp(join(tmpdir(), 'cortex-watch-'))
+    const project = join(fixture, '.cortex', 'EdgeInspect')
+    await fs.mkdir(project, { recursive: true })
+    const events: string[] = []
+    const reloads: string[] = []
+    const win = {
+      isDestroyed: () => false,
+      webContents: { send: (channel: string, event: { path: string }) => {
+        if (channel === IPC.FS_EVENT) events.push(event.path)
+      } }
+    } as unknown as BrowserWindow
+    const watch = vi.spyOn(chokidar, 'watch')
+    files.startWatch(project, win, (root) => reloads.push(root))
+    watcher = watch.mock.results[0].value as FSWatcher
+    await new Promise<void>((resolve, reject) => {
+      watcher!.once('ready', resolve)
+      watcher!.once('error', reject)
+    })
+    const database = join(project, 'compile_commands.json')
+    await fs.writeFile(database, '[]')
+    await vi.waitFor(() => expect(events).toContain(database), { timeout: 3000, interval: 20 })
+    await vi.waitFor(() => expect(reloads).toEqual([project]), { timeout: 3000, interval: 20 })
+  }, 10_000)
+
   it('reports deletion after a rename destination was visible to an earlier directory refresh', async () => {
     fixture = await fs.mkdtemp(join(tmpdir(), 'cortex-watch-'))
     const source = join(fixture, 'source.cpp')

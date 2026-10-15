@@ -246,15 +246,19 @@ export async function remove(targetPath: string): Promise<void> {
 // ---- file watching -------------------------------------------------------
 
 let watcher: FSWatcher | null = null
+let compilationDbTimer: ReturnType<typeof setTimeout> | null = null
 
-export function startWatch(rootPath: string, win: BrowserWindow): void {
+export function startWatch(rootPath: string, win: BrowserWindow, onCompilationDatabaseChange?: (root: string) => void): void {
   stopWatch()
   setWorkspaceRoot(rootPath)
   watcher = chokidar.watch(rootPath, {
     // Match whole path SEGMENTS. A substring test silently unwatched output.cpp,
     // layout.h and distance.cpp, and killed the whole watcher for any workspace
     // whose path merely contained "dist".
-    ignored: (p: string) => p.split(/[\\/]/).some(isIgnoredName),
+    // Only ignore segments INSIDE the workspace. A project itself may live
+    // under a directory named `.cortex` or `dist`; checking the absolute path
+    // silently disabled its entire watcher.
+    ignored: (p: string) => relative(rootPath, p).split(/[\\/]/).some(isIgnoredName),
     ignoreInitial: true,
     depth: 12,
     // Explorer consumes names, not file contents. Delaying add can suppress a
@@ -264,6 +268,15 @@ export function startWatch(rootPath: string, win: BrowserWindow): void {
   const emit = (type: string) => (path: string) => {
     if (!win.isDestroyed()) {
       win.webContents.send(IPC.FS_EVENT, { type, path, name: basename(path) })
+      if (onCompilationDatabaseChange && relative(rootPath, path).toLowerCase() === 'compile_commands.json') {
+        if (compilationDbTimer) clearTimeout(compilationDbTimer)
+        // PlatformIO writes a large database in stages. Restart clangd only
+        // after the file settles, and collapse add/change bursts into one.
+        compilationDbTimer = setTimeout(() => {
+          compilationDbTimer = null
+          onCompilationDatabaseChange(rootPath)
+        }, 600)
+      }
     }
   }
   watcher
@@ -276,6 +289,8 @@ export function startWatch(rootPath: string, win: BrowserWindow): void {
 
 export function stopWatch(): void {
   setWorkspaceRoot(null)
+  if (compilationDbTimer) clearTimeout(compilationDbTimer)
+  compilationDbTimer = null
   if (watcher) {
     void watcher.close()
     watcher = null

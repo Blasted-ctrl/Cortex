@@ -589,7 +589,7 @@ function registerIpc(): void {
   handle(IPC.FS_CREATE_DIR, (_e, p: string) => fsService.createDir(p))
   handle(IPC.FS_RENAME, (_e, a: string, b: string) => fsService.rename(a, b))
   handle(IPC.FS_DELETE, (_e, p: string) => fsService.remove(p))
-  handle(IPC.FS_WATCH_START, (_e, p: string) => fsService.startWatch(p, requireWindow()))
+  handle(IPC.FS_WATCH_START, (_e, p: string) => fsService.startWatch(p, requireWindow(), lsp.reloadCompilationDatabase))
   handle(IPC.FS_WATCH_STOP, () => fsService.stopWatch())
 
   // ---- toolchains ----

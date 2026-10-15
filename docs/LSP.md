@@ -80,6 +80,12 @@ treats it as C++ but cannot find the Arduino core without a compile database, so
 it would flood every sketch with "Arduino.h not found". The 3D Simulator covers
 `.ino`.
 
+For PlatformIO `.cpp` files, run `pio run -t compiledb` in the project root
+when board-core headers are missing from editor analysis. Cortex watches for
+the generated `compile_commands.json`, restarts clangd after it settles, and
+replays open editor buffers (including unsaved edits). Save the file as well:
+the on-disk source and the editor buffer can contain different header names.
+
 ## The toolchain bridge (the hard part)
 
 clangd is built on clang, but Cortex projects build with whatever toolchain the

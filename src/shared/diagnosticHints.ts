@@ -55,6 +55,8 @@ export interface HintContext {
   candidates?: readonly string[]
   /** A platformio.ini sits at the project root. */
   platformio?: boolean
+  /** PlatformIO has already generated a compile_commands.json at the project root. */
+  compilationDatabase?: boolean
 }
 
 /** A fix suggestion for a clangd message, or null when no rule applies. */
@@ -73,7 +75,9 @@ export function diagnosticHint(message: string, ctx: HintContext = {}): string |
   const boardCore = ['arduino.h', 'wire.h', 'spi.h', 'wifi.h', 'eeprom.h'].includes(missing.toLowerCase())
   if (boardCore) {
     return ctx.platformio
-      ? `Fix: ${missing} ships with the board core, which the editor cannot see yet. Run \`pio run -t compiledb\` once so IntelliSense gets the real include paths. This only affects editor squiggles if the project already builds.`
+      ? ctx.compilationDatabase
+        ? `Fix: the compile database already exists. Save this file, then check that its compile command uses the selected board's core headers. Cortex reloads clangd when the database changes.`
+        : `Fix: ${missing} ships with the board core, which the editor cannot see yet. Run \`pio run -t compiledb\` once so IntelliSense gets the real include paths. This only affects editor squiggles if the project already builds.`
       : `Fix: ${missing} ships with the board core. Install the matching core in Boards Manager (or build once) so IntelliSense can find it.`
   }
 

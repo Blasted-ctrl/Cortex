@@ -417,6 +417,17 @@ class LspServer {
     this.givenUp = false
   }
 
+  /** A newly generated compile_commands.json is not picked up by a live clangd. */
+  reloadCompilationDatabase(): void {
+    if (!this.proc && !this.initPromise) return
+    this.reset()
+    if (!this.win.isDestroyed()) {
+      // The renderer owns the open document contents, including unsaved edits.
+      // Its existing server-exit handler replays them into the new process.
+      this.win.webContents.send(IPC.LSP_SERVER_EXIT, { lang: this.lang, root: this.root })
+    }
+  }
+
   dispose(): void {
     this.generation++
     this.clearBusy()
@@ -529,6 +540,10 @@ export async function request(win: BrowserWindow, call: LspCall): Promise<unknow
 export function notify(win: BrowserWindow, call: LspCall): void {
   if (!has(call.lang)) return
   get(call, win).notify(call.method, call.params)
+}
+
+export function reloadCompilationDatabase(root: string): void {
+  servers.get(`cpp:${root}`)?.reloadCompilationDatabase()
 }
 
 export function killAll(): void {

@@ -23,6 +23,11 @@ describe('diagnosticHint', () => {
   it('points a PlatformIO project at compiledb for a board-core header', () => {
     expect(diagnosticHint("'Wire.h' file not found", { platformio: true })).toMatch(/pio run -t compiledb/)
   })
+  it('does not ask for compiledb again when the database already exists', () => {
+    const hint = diagnosticHint("'Arduino.h' file not found", { platformio: true, compilationDatabase: true })
+    expect(hint).toMatch(/compile database already exists/)
+    expect(hint).not.toMatch(/pio run -t compiledb/)
+  })
   it('points a non-PlatformIO project at Boards Manager', () => {
     expect(diagnosticHint("'Wire.h' file not found")).toMatch(/Boards Manager/)
   })
