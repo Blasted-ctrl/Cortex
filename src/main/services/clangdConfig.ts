@@ -1,4 +1,5 @@
 import { spawn } from 'child_process'
+import { existsSync } from 'fs'
 import { readFile, writeFile, readdir, stat } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -331,6 +332,74 @@ async function ignoreClangd(root: string): Promise<void> {
  * authored their own config, or when the compiler cannot be probed (clangd then
  * falls back to its built-in defaults rather than a broken half-config).
  */
+/** GCC-only flags that make clang report "Unknown argument" on every file. */
+const GCC_ONLY_FLAGS = [
+  '-m*',
+  '-fstrict-volatile-bitfields',
+  '-fno-tree-switch-conversion',
+  '-freorder-blocks',
+  '-fno-shrink-wrap',
+  '-fno-ipa-sra',
+  '-fno-fat-lto-objects'
+]
+
+/** The GCC version a toolchain's include dirs name (`.../lib/gcc/<target>/8.4.0/...`), or null. Pure. */
+export function gccVersionOf(includes: readonly string[]): string | null {
+  for (const dir of includes) {
+    const m = /[\\/]lib[\\/]gcc[\\/][^\\/]+[\\/](\d+\.\d+\.\d+)(?:[\\/]|$)/.exec(dir)
+    if (m) return m[1]
+  }
+  return null
+}
+
+/**
+ * Config for a PlatformIO project that already has a compile_commands.json.
+ * clangd reads the real build commands from that file, which are GCC-for-the-board
+ * commands (e.g. xtensa-esp32-elf-g++). clang cannot run them as written, which
+ * shows up as errors on the first #include line:
+ *   - GCC-only flags (-mlongcalls, -fstrict-volatile-bitfields, ...) are removed;
+ *   - the board toolchain's own headers are added so <stdio.h> resolves;
+ *   - -fgnuc-version makes clang claim the toolchain's GCC version, because the
+ *     C library (newlib) picks attribute macros by it and misparses under clang's
+ *     default claim of GCC 4.2.
+ * No --target and no -std: the database already carries the project's standard.
+ */
+export function buildPlatformioConfig(tc: Toolchain): string {
+  const version = gccVersionOf(tc.includes)
+  const add: string[] = version ? [`-fgnuc-version=${version}`] : []
+  for (const dir of tc.includes) add.push('-isystem', dir)
+  const list = (items: readonly string[]): string => items.map((f) => `    - ${JSON.stringify(f)}`).join('\n')
+  return [
+    MARKER,
+    '# This project has a PlatformIO compile_commands.json, so clangd uses the real',
+    "# build commands and this file only adapts them for clang (the board's GCC",
+    '# flags and headers). Machine-specific: do not commit.',
+    'CompileFlags:',
+    '  Remove:',
+    list(GCC_ONLY_FLAGS),
+    '  Add:',
+    list(add),
+    'Diagnostics:',
+    '  Suppress:',
+    '    - "drv_unknown_argument"',
+    '    - "drv_unknown_argument_with_suggestion"',
+    ''
+  ].join('\n')
+}
+
+/** Write `content` to `.clangd` when it differs. Resolves true when it changed. */
+async function writeConfig(root: string, cfgPath: string, existing: string | null, content: string): Promise<boolean> {
+  if (existing === content) return false
+  try {
+    await writeFile(cfgPath, content, 'utf8')
+    await ignoreClangd(root)
+    return true
+  } catch {
+    /* read-only workspace: skip silently, clangd still runs (degraded) */
+    return false
+  }
+}
+
 /** Resolves true when a changed `.clangd` was written, so a running server can be restarted to read it. */
 export async function ensureClangdConfig(root: string): Promise<boolean> {
   const cfgPath = join(root, '.clangd')
@@ -347,6 +416,16 @@ export async function ensureClangdConfig(root: string): Promise<boolean> {
   }
   // Respect a hand-written config; only manage our own.
   if (existing !== null && !existing.startsWith(MARKER)) return false
+
+  // A PlatformIO compile database means the real build is the board toolchain's,
+  // not the host compiler's: analyse against that toolchain.
+  if (existsSync(join(root, 'compile_commands.json'))) {
+    const pio = await findPlatformioCompiler(root)
+    if (pio) {
+      const boardTc = await deriveToolchain(pio)
+      if (boardTc.includes.length > 0) return writeConfig(root, cfgPath, existing, buildPlatformioConfig({ ...boardTc, target: null }))
+    }
+  }
 
   const pc = await getProjectConfig(root).catch(() => ({}) as { compiler?: string; std?: string; cStd?: string })
   // The same normalization the build path applies. Reading the raw field here
@@ -379,14 +458,5 @@ export async function ensureClangdConfig(root: string): Promise<boolean> {
   // Headers of every installed native library (OpenCV, raylib, ...) so their
   // #includes resolve in the editor the moment they are installed.
   const native = await editorIncludeDirs(compiler).catch(() => [] as string[])
-  const content = buildClangdConfig(tc, cppStd, cStd, project, [...deps, ...native])
-  if (existing === content) return false
-  try {
-    await writeFile(cfgPath, content, 'utf8')
-    await ignoreClangd(root)
-    return true
-  } catch {
-    /* read-only workspace: skip silently, clangd still runs (degraded) */
-    return false
-  }
+  return writeConfig(root, cfgPath, existing, buildClangdConfig(tc, cppStd, cStd, project, [...deps, ...native]))
 }

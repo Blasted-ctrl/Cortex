@@ -211,3 +211,36 @@ describe('buildClangdConfig and GCC builtin headers', () => {
     expect(buildClangdConfig({ target: null, includes: [dir] }, 'c++17')).not.toContain('xtensa-esp32-elf')
   })
 })
+
+import { buildPlatformioConfig, gccVersionOf } from '../src/main/services/clangdConfig'
+
+describe('PlatformIO compile-database config', () => {
+  const bs = String.fromCharCode(92)
+  const xt = 'c:/users/x/.platformio/packages/toolchain-xtensa-esp32/bin/../lib/gcc/xtensa-esp32-elf/8.4.0'
+  const tc = {
+    target: null,
+    includes: [`${xt}/../../../../xtensa-esp32-elf/include/c++/8.4.0`, `${xt}/include`, `${xt}/../../../../xtensa-esp32-elf/sys-include`]
+  }
+
+  it('reads the GCC version out of the toolchain include dirs, with either slash', () => {
+    expect(gccVersionOf(tc.includes)).toBe('8.4.0')
+    expect(gccVersionOf([['c:', 'x', 'lib', 'gcc', 'xtensa-esp32-elf', '15.2.1', 'include'].join(bs)])).toBe('15.2.1')
+    expect(gccVersionOf(['/usr/include'])).toBeNull()
+  })
+
+  it('removes GCC-only flags, adds the board headers and the GCC version, and sets no target or -std', () => {
+    const cfg = buildPlatformioConfig(tc)
+    expect(cfg.startsWith(MARKER)).toBe(true)
+    expect(cfg).toContain('"-mlongcalls"'.replace('-mlongcalls', '-m*'))
+    expect(cfg).toContain('-fstrict-volatile-bitfields')
+    expect(cfg).toContain('-fgnuc-version=8.4.0')
+    expect(cfg).toContain('sys-include')
+    expect(cfg).toContain('drv_unknown_argument')
+    expect(cfg).not.toContain('--target')
+    expect(cfg).not.toContain('-std=')
+  })
+
+  it('omits the GCC version flag when it cannot be determined', () => {
+    expect(buildPlatformioConfig({ target: null, includes: ['/opt/x/include'] })).not.toContain('fgnuc')
+  })
+})
