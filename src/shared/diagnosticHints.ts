@@ -61,12 +61,35 @@ export interface HintContext {
   compilationDatabase?: boolean
 }
 
+const STREAM_NAMES = 'cout|cerr|clog|cin|endl'
+const UNDECLARED_STREAM = new RegExp(`^Use of undeclared identifier '(${STREAM_NAMES})'`)
+const NO_STD_STREAM = new RegExp(`^No member named '(${STREAM_NAMES})' in namespace 'std'`)
+// clangd prints the left operand as 'ostream' (aka 'basic_ostream<char>'), sometimes with std::.
+const BAD_STREAM_OPERAND = /^Invalid operands to binary expression \('(?:std::)?w?ostream'(?: \(aka '[^']*'\))? and '([^']+)'\)/
+
+/** Hints for the most common stream (cout, cerr) errors. */
+function streamHint(message: string): string | null {
+  const bare = UNDECLARED_STREAM.exec(message)?.[1]
+  if (bare) {
+    return `Fix: ${bare} is declared in <iostream> and lives in namespace std. Add #include <iostream> and write std::${bare} (or put "using namespace std;" after the includes).`
+  }
+  const std = NO_STD_STREAM.exec(message)?.[1]
+  if (std) return `Fix: std::${std} is declared in <iostream>. Add #include <iostream> at the top of the file.`
+  const printed = BAD_STREAM_OPERAND.exec(message)?.[1]
+  if (printed) {
+    return `Fix: cout and cerr can only print types that define operator<<. Numbers, characters, C strings and std::string work; '${printed}' does not. For an enum class print static_cast<int>(value); for your own struct or class define "std::ostream& operator<<(std::ostream& os, const T& v)"; for an Arduino String use .c_str().`
+  }
+  return null
+}
+
 /** A fix suggestion for a clangd message, or null when no rule applies. */
 export function diagnosticHint(message: string, ctx: HintContext = {}): string | null {
   const native = libForDiagnostic(message)
   if (native) {
     return `Fix: ${native.lib.name} is not installed for ${native.target === 'cpp' ? 'C/C++' : 'Python'}. Press Ctrl+. and choose "Install ${native.lib.name}", or open Settings > Libraries. Cortex then sets up the include and link paths for you.`
   }
+  const stream = streamHint(message)
+  if (stream) return stream
   const missing = NOT_FOUND.exec(message)?.[1]
   if (!missing) return null
 
