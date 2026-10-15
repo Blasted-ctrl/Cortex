@@ -112,3 +112,22 @@ describe('safeCommand', () => {
     expect(safeCommand('', repoDir)).toBeNull()
   })
 })
+
+import { existsSync as existsForMsys } from 'node:fs'
+import { addKnownToolDirs as addDirs, resolveOnPath as resolveOn } from '../src/main/services/commandResolver'
+
+// Machine-dependent by nature (needs a real MSYS2 install), so it only asserts
+// where one exists.
+describe.skipIf(!existsForMsys('C:/msys64/ucrt64/bin/g++.exe'))('known toolchain directories', () => {
+  it('finds an MSYS2 g++ that is not on PATH, and puts its bin on PATH for children', () => {
+    const saved = process.env['PATH']
+    try {
+      process.env['PATH'] = 'C:/WINDOWS/system32'
+      expect(resolveOn('g++')?.toLowerCase()).toContain('msys64')
+      expect((process.env['PATH'] || '').toLowerCase().split(String.fromCharCode(92)).join('/')).toContain('c:/msys64/ucrt64/bin')
+      expect(addDirs()).toBe(false) // idempotent: nothing left to add
+    } finally {
+      process.env['PATH'] = saved
+    }
+  })
+})

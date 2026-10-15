@@ -321,7 +321,8 @@ async function ignoreClangd(root: string): Promise<void> {
  * authored their own config, or when the compiler cannot be probed (clangd then
  * falls back to its built-in defaults rather than a broken half-config).
  */
-export async function ensureClangdConfig(root: string): Promise<void> {
+/** Resolves true when a changed `.clangd` was written, so a running server can be restarted to read it. */
+export async function ensureClangdConfig(root: string): Promise<boolean> {
   const cfgPath = join(root, '.clangd')
   let existing: string | null = null
   try {
@@ -335,7 +336,7 @@ export async function ensureClangdConfig(root: string): Promise<void> {
     existing = null
   }
   // Respect a hand-written config; only manage our own.
-  if (existing !== null && !existing.startsWith(MARKER)) return
+  if (existing !== null && !existing.startsWith(MARKER)) return false
 
   const pc = await getProjectConfig(root).catch(() => ({}) as { compiler?: string; std?: string; cStd?: string })
   // The same normalization the build path applies. Reading the raw field here
@@ -350,7 +351,7 @@ export async function ensureClangdConfig(root: string): Promise<void> {
   // getProjectConfig already drops a non-bare workspace compiler, but re-check
   // at the spawn site: only run an allowlisted, bare (PATH-resolved) driver, so
   // an untrusted config can never point the probe at an arbitrary binary.
-  if (!isBareCommand(compiler) || !isAllowedCommand(compiler)) return
+  if (!isBareCommand(compiler) || !isAllowedCommand(compiler)) return false
   let tc = await deriveToolchain(compiler)
   if (tc.includes.length === 0) {
     // No host compiler is installed. A PlatformIO project still has its board
@@ -362,15 +363,17 @@ export async function ensureClangdConfig(root: string): Promise<void> {
   }
   // Without real include paths the file adds nothing and could pin a wrong
   // target; leave clangd to its defaults instead.
-  if (tc.includes.length === 0) return
+  if (tc.includes.length === 0) return false
 
   const { project, deps } = await discoverIncludeDirs(root)
   const content = buildClangdConfig(tc, cppStd, cStd, project, deps)
-  if (existing === content) return
+  if (existing === content) return false
   try {
     await writeFile(cfgPath, content, 'utf8')
     await ignoreClangd(root)
+    return true
   } catch {
     /* read-only workspace: skip silently, clangd still runs (degraded) */
+    return false
   }
 }

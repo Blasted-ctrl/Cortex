@@ -1,5 +1,5 @@
 import { existsSync, statSync } from 'fs'
-import { delimiter, isAbsolute, join, resolve } from 'path'
+import { delimiter, isAbsolute, join, normalize, resolve } from 'path'
 import { isBareCommand } from '../../shared/security'
 
 /**
@@ -61,14 +61,45 @@ function isExecutableFile(p: string): boolean {
  * PATH (an attacker-influenced relative entry would reintroduce the same hole).
  */
 export function resolveOnPath(cmd: string): string | null {
-  const dirs = (process.env['PATH'] || '').split(delimiter).filter((d) => d && isAbsolute(d))
-  for (const dir of dirs) {
-    for (const ext of extensions(cmd)) {
-      const candidate = join(dir, cmd + ext)
-      if (isExecutableFile(candidate)) return candidate
+  const search = (): string | null => {
+    const dirs = (process.env['PATH'] || '').split(delimiter).filter((d) => d && isAbsolute(d))
+    for (const dir of dirs) {
+      for (const ext of extensions(cmd)) {
+        const candidate = join(dir, cmd + ext)
+        if (isExecutableFile(candidate)) return candidate
+      }
     }
+    return null
   }
-  return null
+  const found = search()
+  if (found) return found
+  // A toolchain installed after Cortex started (or installed without touching
+  // PATH, as MSYS2's pacman does) is invisible to this process's frozen PATH.
+  return addKnownToolDirs() ? search() : null
+}
+
+/**
+ * Where Windows toolchain installers put compilers without adding them to PATH.
+ * Fixed, absolute, system-level locations only: never anything under the
+ * workspace, so this cannot reintroduce the planted-binary hole above.
+ */
+const KNOWN_WIN_TOOL_DIRS = ['C:/msys64/ucrt64/bin', 'C:/msys64/mingw64/bin', 'C:/msys64/clang64/bin']
+
+/**
+ * Append any existing known toolchain directory missing from this process's PATH.
+ * Appended (never prepended) so anything the user already put on PATH still wins,
+ * and set on process.env so every child inherits it: a MinGW g++ cannot start its
+ * own cc1plus, and a program it built cannot start, without its bin directory on
+ * PATH. Returns true when PATH changed.
+ */
+export function addKnownToolDirs(): boolean {
+  if (!IS_WIN) return false
+  const key = (d: string): string => normalize(d).replace(/[\\/]+$/, '').toLowerCase()
+  const have = new Set((process.env['PATH'] || '').split(delimiter).filter(Boolean).map(key))
+  const add = KNOWN_WIN_TOOL_DIRS.map((d) => normalize(d)).filter((d) => !have.has(key(d)) && existsSync(d))
+  if (add.length === 0) return false
+  process.env['PATH'] = [process.env['PATH'] || '', ...add].filter(Boolean).join(delimiter)
+  return true
 }
 
 /**

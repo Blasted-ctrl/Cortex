@@ -299,7 +299,32 @@ class LspServer {
     return this.initialized ? run() : this.start().then(run)
   }
 
+  private lastToolchainCheck = 0
+
+  /**
+   * clangd reads `.clangd` only at startup, so a compiler installed (or removed)
+   * while Cortex is open leaves it analysing against the old headers. On a file
+   * open, re-derive the config (throttled; it is cheap once the probe is cached)
+   * and, only when it actually changed, restart the server and have the renderer
+   * replay its open documents into the new one.
+   */
+  private refreshToolchain(): void {
+    if (this.lang !== 'cpp' || !this.initialized) return
+    const now = performance.now()
+    if (now - this.lastToolchainCheck < 15_000) return
+    this.lastToolchainCheck = now
+    const gen = this.generation
+    void ensureClangdConfig(this.root)
+      .then((changed) => {
+        if (!changed || gen !== this.generation || this.win.isDestroyed()) return
+        this.reset()
+        this.win.webContents.send(IPC.LSP_SERVER_EXIT, { lang: this.lang, root: this.root })
+      })
+      .catch(() => {})
+  }
+
   notify(method: string, params: unknown): void {
+    if (method === 'textDocument/didOpen') this.refreshToolchain()
     const doIt = (): void => this.send({ jsonrpc: '2.0', method, params })
     if (this.initialized) doIt()
     else void this.start().then(doIt).catch(() => {})
