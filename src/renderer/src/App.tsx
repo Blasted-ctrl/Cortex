@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { useStore, LAST_WORKSPACE_KEY } from './store/useStore'
+import { useStore } from './store/useStore'
 import CommandPalette, { type PaletteMode } from './components/CommandPalette'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toasts from './components/Toasts'
@@ -62,7 +62,6 @@ export default function App(): JSX.Element {
     setAiWidth,
     setBottomHeight,
     openWorkspace,
-    removeRecent,
     setSidebar,
     setMainView,
     setBottom,
@@ -82,6 +81,7 @@ export default function App(): JSX.Element {
   const [splashMounted, setSplashMounted] = useState(true)
   const panelLayout = useBottomPanelLayout(bottomHeight, setBottomHeight, workspaceRoot, mainView === 'editor')
   const horizontalLayout = useHorizontalPanelLayout(sidebarWidth, aiWidth, sidebarVisible, !!rightView, setSidebarWidth, setAiWidth)
+  const onWelcome = !workspaceRoot && mainView === 'editor'
 
   // Subscribe to streamed events from the main process.
   useEffect(() => {
@@ -135,24 +135,10 @@ export default function App(): JSX.Element {
     void detectToolchains()
     void refreshBoardStatus()
 
-    // Settings (theme, compiler) and the last workspace DO gate a clean first
-    // paint, so the splash waits for them. The minimum duration is so the
-    // breathing is seen rather than flashing past on a fast machine.
+    // Settings gate the first paint. Projects stay in Recent instead of
+    // reopening automatically, so the start screen is available at launch.
     const minSplash = new Promise((r) => setTimeout(r, 1200))
-    const boot = (async () => {
-      await loadSettings()
-      // Reopen the last workspace: an IDE that forgets your project every launch
-      // makes you re-pick it forever. If it has since moved, forget it quietly.
-      const last = localStorage.getItem(LAST_WORKSPACE_KEY)
-      if (last) {
-        try {
-          await openWorkspace(last)
-        } catch {
-          localStorage.removeItem(LAST_WORKSPACE_KEY)
-          removeRecent(last)
-        }
-      }
-    })()
+    const boot = loadSettings()
     void Promise.all([minSplash, boot]).then(() => setBooting(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -286,8 +272,8 @@ export default function App(): JSX.Element {
             live in those gutters, so a resize handle reads as the seam between
             two islands rather than a third panel. */}
         <div ref={horizontalLayout.workbenchRef} className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          <SideBar id={`${paneId}-sidebar`} width={horizontalLayout.sidebarWidth} panelRef={horizontalLayout.sidebarRef} />
-          {sidebarVisible && (
+          {!onWelcome && <SideBar id={`${paneId}-sidebar`} width={horizontalLayout.sidebarWidth} panelRef={horizontalLayout.sidebarRef} />}
+          {!onWelcome && sidebarVisible && (
             <Splitter dir="x" label="Sidebar" controls={`${paneId}-sidebar`} title="Resize sidebar"
               value={horizontalLayout.sidebarWidth} min={horizontalLayout.sidebarMin} max={horizontalLayout.sidebarMax} unit="pixels"
               onDelta={horizontalLayout.onSidebarDelta} onBoundary={horizontalLayout.onSidebarBoundary} />
@@ -323,7 +309,7 @@ export default function App(): JSX.Element {
           </div>
           {/* Right dock: the Agent or the Datasheets, whichever the right rail
               selected. One splitter/width serves both. */}
-          {rightView && (
+          {!onWelcome && rightView && (
             <>
               <Splitter dir="x" label={rightView === 'agent' ? 'Agent' : 'Datasheets'} controls={`${paneId}-right`} title="Resize panel"
                 value={horizontalLayout.rightWidth} min={horizontalLayout.rightMin} max={horizontalLayout.rightMax} unit="pixels"
@@ -335,7 +321,7 @@ export default function App(): JSX.Element {
           )}
         </div>
         {/* The right-edge tool rail, flush to the window like the ActivityBar. */}
-        <RightRail />
+        {!onWelcome && <RightRail />}
       </div>
       <StatusBar />
     </div>

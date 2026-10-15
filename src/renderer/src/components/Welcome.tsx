@@ -1,4 +1,6 @@
-import { FolderOpen, Cpu, FilePlus2, BookOpen, Clock, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FolderOpen, Cpu, FilePlus2, Clock, X, GitBranch, Github, ArrowRight, Loader2 } from 'lucide-react'
+import type { GitHubRepo } from '@shared/ipc'
 import { useStore } from '../store/useStore'
 
 const BLINK_SKETCH = `// blink.ino - your first Cortex sketch.
@@ -34,6 +36,48 @@ function relTime(ts: number): string {
 
 export default function Welcome(): JSX.Element {
   const { openWorkspace, openFile, setMainView, refreshTree, startSim, recents, removeRecent, notify } = useStore()
+  const [cloneOpen, setCloneOpen] = useState(false)
+  const [cloneUrl, setCloneUrl] = useState('')
+  const [accounts, setAccounts] = useState<string[]>([])
+  const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [repoFilter, setRepoFilter] = useState('')
+  const [page, setPage] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [repoError, setRepoError] = useState('')
+
+  useEffect(() => { void window.api.githubAccounts().then(setAccounts).catch(() => {}) }, [])
+
+  const signIn = async (): Promise<void> => {
+    setBusy(true)
+    setRepoError('')
+    try { setAccounts(await window.api.githubSignIn()) }
+    catch (error) { setRepoError(String(error)) }
+    finally { setBusy(false) }
+  }
+
+  const loadRepos = async (nextPage: number): Promise<void> => {
+    setBusy(true)
+    setRepoError('')
+    try {
+      const list = await window.api.githubRepositories(nextPage)
+      setRepos(current => nextPage === 1 ? list : [...current, ...list])
+      setPage(nextPage)
+    } catch (error) { setRepoError(String(error)) }
+    finally { setBusy(false) }
+  }
+
+  const cloneRepo = async (url: string): Promise<void> => {
+    if (busy) return
+    setRepoError('')
+    try {
+      const destination = await window.api.openFolder()
+      if (!destination) return
+      setBusy(true)
+      const path = await window.api.githubClone(url.trim(), destination)
+      await openWorkspace(path)
+    } catch (error) { setRepoError(String(error)) }
+    finally { setBusy(false) }
+  }
 
   const handleOpen = async (): Promise<void> => {
     try {
@@ -87,44 +131,34 @@ export default function Welcome(): JSX.Element {
   return (
     // No items-center: centering a taller-than-container child splits the
     // overflow both ways and makes the top unscrollable/unreachable.
-    <div className="flex-1 overflow-auto rounded-lg border border-ide-border bg-ide-bg p-8">
-      <div className="mx-auto w-full max-w-2xl">
-        <div className="mb-1 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-cortex-gradient shadow-lg shadow-ide-navy/30">
-            <Cpu size={26} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight text-ide-text">Cortex</h1>
+    <div className="min-w-0 flex-1 overflow-auto rounded-lg border border-ide-border bg-ide-bg px-6 py-10 sm:px-12">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mb-12 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-cortex-gradient"><Cpu size={23} className="text-white" /></div>
+          <div><h1 className="text-2xl font-semibold tracking-tight text-ide-text">Cortex</h1><p className="text-xs text-ide-muted">Embedded development starts here</p></div>
         </div>
-        <p className="mb-8 text-ide-muted">An AI-native IDE for embedded and low-level development.</p>
-
-        <div className="row mb-3 gap-2">
-          <button className="btn btn-accent px-4 py-2 text-sm" onClick={() => void handleNewSketch().catch((error) => notify('error', 'Could not create sketch', String(error)))}>
-            <FilePlus2 size={16} /> New sketch
-          </button>
-          <button className="btn border border-ide-border px-4 py-2 text-sm" onClick={handleOpen}>
-            <FolderOpen size={16} /> Open folder
-          </button>
-        </div>
-        <p className="row mb-8 gap-1.5 text-[12px] text-ide-muted">
-          <BookOpen size={14} className="text-ide-moss" />
-          New sketch drops a ready-to-run blink.ino in a folder you pick and opens the Simulator. No hardware needed.
-        </p>
-
-        {/* Recents, not marketing. Card-shaped divs that do nothing were the
-            loudest unfinished tell on this screen. */}
-        <div className="row mb-2 gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ide-muted">
-          <Clock size={12} /> Recent projects
-        </div>
-        {recents.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ide-border px-4 py-6 text-center text-[12px] text-ide-faint">
-            Projects you open will appear here, and Cortex will reopen the last one on launch.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-ide-border">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-20">
+          <div className="min-w-0">
+            <h2 className="mb-4 text-lg font-semibold">Start</h2>
+            <div className="space-y-1">
+              <button className="flex w-full items-center gap-3 rounded px-2 py-2 text-left text-sm text-ide-accent hover:bg-ide-hover focus-visible:ring-2 focus-visible:ring-ide-accent" onClick={() => void handleNewSketch().catch((error) => notify('error', 'Could not create sketch', String(error)))}><FilePlus2 size={18} /> New sketch</button>
+              <button className="flex w-full items-center gap-3 rounded px-2 py-2 text-left text-sm text-ide-accent hover:bg-ide-hover focus-visible:ring-2 focus-visible:ring-ide-accent" onClick={() => void handleOpen()}><FolderOpen size={18} /> Open folder</button>
+              <button className="flex w-full items-center gap-3 rounded px-2 py-2 text-left text-sm text-ide-accent hover:bg-ide-hover focus-visible:ring-2 focus-visible:ring-ide-accent" onClick={() => setCloneOpen(value => !value)} aria-expanded={cloneOpen}><GitBranch size={18} /> Clone Git repository</button>
+            </div>
+            {cloneOpen && (
+              <form className="ml-8 mt-3 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void cloneRepo(cloneUrl) }}>
+                <label className="sr-only" htmlFor="clone-url">GitHub repository URL</label>
+                <input id="clone-url" autoFocus value={cloneUrl} onChange={event => setCloneUrl(event.target.value)} placeholder="https://github.com/owner/repository" className="min-w-48 flex-1 rounded border border-ide-border bg-ide-panel px-3 py-2 text-sm text-ide-text outline-none focus:border-ide-accent" />
+                <button className="btn btn-accent px-3" disabled={busy || !cloneUrl.trim()}>{busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />} Clone</button>
+                <p className="w-full text-xs text-ide-muted">Choose a parent folder. Cortex creates a new folder for the repository.</p>
+              </form>
+            )}
+            <h2 className="mb-3 mt-10 flex items-center gap-2 text-lg font-semibold"><Clock size={17} /> Recent</h2>
+            {recents.length === 0 ? <p className="text-sm text-ide-muted">Projects you open will appear here.</p> : <div className="space-y-0.5">
             {recents.map((r) => (
               <div
                 key={r.path}
-                className="group row justify-between gap-3 border-b border-ide-border px-3 py-2 last:border-b-0 hover:bg-ide-hover"
+                className="group row justify-between gap-3 rounded px-2 py-2 hover:bg-ide-hover"
               >
                 <button
                   type="button"
@@ -133,14 +167,14 @@ export default function Welcome(): JSX.Element {
                   title={r.path}
                   onClick={() => void openRecent(r.path)}
                 >
-                  <FolderOpen size={14} className="shrink-0 text-ide-amber" />
+                  <FolderOpen size={15} className="shrink-0 text-ide-accent" />
                   <span className="min-w-0">
-                    <span className="block truncate text-[13px] text-ide-text">{r.name}</span>
-                    <span className="mono block truncate text-[10px] text-ide-faint">{r.path}</span>
+                    <span className="block truncate text-sm text-ide-accent">{r.name}</span>
+                    <span className="mono block truncate text-xs text-ide-muted">{r.path}</span>
                   </span>
                 </button>
                 <span className="row shrink-0 gap-2">
-                  <span className="text-[10px] text-ide-faint">{relTime(r.ts)}</span>
+                  <span className="text-xs text-ide-faint">{relTime(r.ts)}</span>
                   <button
                     type="button"
                     className="rounded p-1 text-ide-faint opacity-0 hover:bg-ide-bar hover:text-ide-text group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ide-accent"
@@ -153,8 +187,27 @@ export default function Welcome(): JSX.Element {
                 </span>
               </div>
             ))}
+            </div>}
           </div>
-        )}
+          <div className="min-w-0">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Github size={20} /> GitHub</h2>
+            {accounts.length ? <p className="mb-4 text-sm text-ide-muted">Connected as <span className="font-medium text-ide-text">{accounts.join(', ')}</span></p> : <p className="mb-4 text-sm text-ide-muted">Sign in to browse your repositories and organizations.</p>}
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button className="btn border border-ide-border px-3 py-2 text-sm hover:bg-ide-hover" disabled={busy} onClick={() => void signIn()}>{accounts.length ? 'Add account' : 'Sign in with GitHub'}</button>
+              {accounts.length > 0 && <button className="btn border border-ide-border px-3 py-2 text-sm hover:bg-ide-hover" disabled={busy} onClick={() => void loadRepos(1)}>Browse repositories</button>}
+            </div>
+            {repoError && <p className="mb-3 rounded border border-ide-red/40 px-3 py-2 text-sm text-ide-red" role="alert">{repoError}</p>}
+            {page > 0 && repos.length === 0 && <p className="text-sm text-ide-muted">No repositories found for this account. You can still clone any public GitHub URL.</p>}
+            {repos.length > 0 && <>
+              <label className="sr-only" htmlFor="repo-filter">Filter GitHub repositories</label>
+              <input id="repo-filter" value={repoFilter} onChange={event => setRepoFilter(event.target.value)} placeholder="Filter repositories" className="mb-2 w-full rounded border border-ide-border bg-ide-panel px-3 py-2 text-sm outline-none focus:border-ide-accent" />
+              <div className="max-h-96 overflow-auto rounded border border-ide-border">
+                {repos.filter(repo => repo.fullName.toLowerCase().includes(repoFilter.toLowerCase())).map(repo => <button key={repo.fullName} className="flex w-full items-center justify-between gap-3 border-b border-ide-border px-3 py-2 text-left last:border-0 hover:bg-ide-hover focus-visible:ring-2 focus-visible:ring-ide-accent" disabled={busy} onClick={() => void cloneRepo(repo.cloneUrl)}><span className="min-w-0"><span className="block truncate text-sm text-ide-accent">{repo.fullName}</span>{repo.description && <span className="block truncate text-xs text-ide-muted">{repo.description}</span>}</span><span className="shrink-0 text-xs text-ide-faint">{repo.private ? 'Private' : 'Public'}</span></button>)}
+              </div>
+              {repos.length >= page * 100 && <button className="mt-2 text-sm text-ide-accent hover:underline" disabled={busy} onClick={() => void loadRepos(page + 1)}>Load more</button>}
+            </>}
+          </div>
+        </div>
       </div>
     </div>
   )

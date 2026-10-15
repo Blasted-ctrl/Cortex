@@ -31,6 +31,7 @@ import type {
   GitDiffKind,
   GitOpResult,
   GitBranches,
+  GitHubRepo,
   SimStartRequest,
   SimEvent,
   SimExit,
@@ -171,6 +172,10 @@ const api = {
   gitCreateBranch: (name: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_CREATE_BRANCH, name),
   gitFetch: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_FETCH),
   gitPull: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.GIT_PULL),
+  githubAccounts: (): Promise<string[]> => ipcRenderer.invoke(IPC.GITHUB_ACCOUNTS),
+  githubSignIn: (): Promise<string[]> => ipcRenderer.invoke(IPC.GITHUB_SIGN_IN),
+  githubRepositories: (page: number): Promise<GitHubRepo[]> => ipcRenderer.invoke(IPC.GITHUB_REPOSITORIES, page),
+  githubClone: (url: string, parent: string): Promise<string> => ipcRenderer.invoke(IPC.GITHUB_CLONE, url, parent),
   onDebugState: (cb: (s: DebugState) => void): Unsub => on(IPC.DEBUG_STATE, cb),
   onDebugOutput: (cb: (o: DebugOutput) => void): Unsub => on(IPC.DEBUG_OUTPUT, cb),
 

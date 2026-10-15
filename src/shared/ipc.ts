@@ -107,6 +107,10 @@ export const IPC = {
   GIT_CREATE_BRANCH: 'git:createBranch',
   GIT_FETCH: 'git:fetch',
   GIT_PULL: 'git:pull',
+  GITHUB_ACCOUNTS: 'github:accounts',
+  GITHUB_SIGN_IN: 'github:signIn',
+  GITHUB_REPOSITORIES: 'github:repositories',
+  GITHUB_CLONE: 'github:clone',
 
   // Simulator (Wokwi/Tinkercad-style native simulation)
   SIM_START: 'sim:start',
@@ -549,6 +553,12 @@ export interface GitOpResult {
 export interface GitBranches {
   current: string | null
   branches: string[]
+}
+export interface GitHubRepo {
+  fullName: string
+  cloneUrl: string
+  private: boolean
+  description: string | null
 }
 /** One file's diff as two contents for the shared DiffView. The pair depends on
  *  the kind: staged = HEAD (or the rename origin) vs the index; unstaged = the

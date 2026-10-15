@@ -34,6 +34,7 @@ import * as arduinoCli from './services/arduinoCliService'
 import * as pkg from './services/packageService'
 import * as debug from './services/debugService'
 import * as git from './services/gitService'
+import * as github from './services/githubService'
 import * as sim from './services/simService'
 import * as firmwareTests from './services/firmwareTests'
 import type { FirmwareTestSelection } from '../shared/firmwareTest'
@@ -784,6 +785,10 @@ function registerIpc(): void {
   handle(IPC.GIT_CREATE_BRANCH, (_e, name: string) => git.createBranch(name))
   handle(IPC.GIT_FETCH, () => git.fetch())
   handle(IPC.GIT_PULL, () => git.pull())
+  handle(IPC.GITHUB_ACCOUNTS, () => github.accounts())
+  handle(IPC.GITHUB_SIGN_IN, () => github.signIn())
+  handle(IPC.GITHUB_REPOSITORIES, (_e, page: number) => github.repositories(page))
+  handle(IPC.GITHUB_CLONE, (_e, url: string, parent: string) => github.clone(url, parent))
 
   // ---- settings / app ----
   // Return redacted settings only: the raw API key never crosses to the renderer.

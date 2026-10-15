@@ -1,6 +1,14 @@
 # Source Control
 
-Cortex uses your installed Git executable. Your project files and local commits stay on your laptop. It never initializes a repository, contacts a remote, pushes, or changes branches automatically.
+Cortex uses your installed Git executable. Your project files and local commits stay on your laptop. It does not initialize a repository, contact a remote, push, or change branches without a user action.
+
+## Open or clone a project
+
+Cortex opens on the Start screen. Choose **Open folder** for a local project, or **Clone Git repository** and enter a GitHub HTTPS or SSH URL. Choose a parent folder; Cortex creates a new folder named after the repository and opens it when cloning succeeds. An existing destination is never overwritten. Public repositories can be cloned without signing in.
+
+**Sign in with GitHub** uses Git Credential Manager from your Git installation and opens GitHub's browser sign-in. Cortex does not ask for or save your password. After signing in, **Browse repositories** lists repositories accessible to that account, including organization repositories that granted it access. Select one to clone it. Private repository access depends on the account and organization authorization. Credentials remain with Git's credential helper; Cortex uses them in the main process to list repositories, not in the editor UI.
+
+A clone checks out the repository's default branch and configures its upstream through Git. When reopening an existing project, Cortex respects the branch already checked out in that folder; it does not switch you back to `main`. The Start screen's **Recent** list lets you reopen projects without reselecting their paths.
 
 ## Start tracking a project
 
@@ -52,7 +60,7 @@ Pull requires a clean working tree, including no untracked files, and no unsaved
 
 **Push** asks for confirmation and publishes only the current branch to its configured upstream. Cortex specifies that destination explicitly, even if your Git defaults would otherwise push multiple matching branches. It never force-pushes.
 
-Configure a remote and upstream through the terminal before synchronizing a new repository. Remote creation, cloning, commit history, stash management, merge/rebase tools, and a conflict editor are not yet provided in the Source Control panel.
+Configure a remote and upstream through the terminal before synchronizing a newly initialized local repository. Cloned repositories already have `origin` and an upstream for their checked-out branch. Remote creation, commit history, stash management, merge/rebase tools, a conflict editor, and GitHub issue/PR commenting are not yet provided in the Source Control panel.
 
 ## Project boundaries and failures
 
@@ -60,7 +68,7 @@ If you open a subfolder of a larger repository, file lists and staging are limit
 
 Cortex passes file names literally to Git, without a shell or wildcard/pathspec expansion. It rejects paths outside the project, Git metadata, directory staging requests, and paths through directory links that leave the project. Inherited repository or index environment overrides cannot redirect operations to another repository.
 
-Read operations stop after 15 seconds; mutations stop after 60 seconds. Errors are shown in the panel or a notification, rather than appearing as a clean repository or a successful operation. Credentials are not collected by Cortex; Git uses your configured credential helper. If authentication fails, authenticate with your Git tool and retry. After a timed-out push, verify the remote before trying again, since network interruption does not prove that the remote received no update.
+Read operations stop after 15 seconds; Source Control mutations stop after 60 seconds. Clone and browser sign-in each have a three-minute limit. Errors are shown in the panel or a notification, rather than appearing as a clean repository or a successful operation. Credentials are managed by Git Credential Manager, not saved by Cortex. If authentication fails, sign in again or check your Git credential setup. After a timed-out push, verify the remote before trying again, since network interruption does not prove that the remote received no update.
 
 ## Verification
 
