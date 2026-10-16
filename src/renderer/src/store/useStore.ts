@@ -226,7 +226,7 @@ export interface RevealLocation {
   column: number
 }
 
-export type RunAction = 'run' | 'verify' | 'upload'
+export type RunAction = 'run' | 'build' | 'verify' | 'upload'
 
 export interface Tab {
   path: string
@@ -706,6 +706,7 @@ interface State {
   debugRunId: string | null
 
   runActive: () => Promise<void>
+  buildActive: () => Promise<void>
   stopRun: () => Promise<void>
   clearOutput: () => void
   appendOutput: (c: RunOutputChunk) => void
@@ -2094,6 +2095,70 @@ export const useStore = create<State>((set, get) => ({
       preparation.finish()
     }
   },
+  async buildActive() {
+    const { tabs, activePath, workspaceRoot, running } = get()
+    if (running || runStartToken || !activePath) return
+    const tab = tabs.find((t) => t.path === activePath)
+    if (!tab || (tab.language.id !== 'cpp' && tab.language.id !== 'c' && tab.language.id !== 'rust')) return
+    const say = (text: string): void => set({ bottomVisible: true, bottomView: 'output', output: [{ stream: 'system', text }] })
+    if (isHeaderPath(tab.path)) {
+      say('A header is not a build target. Open the .cpp/.c file that includes it.\n')
+      return
+    }
+    const dbg = get().debug.status
+    if (dbg !== 'idle' && dbg !== 'exited') {
+      say('A debug session is running. Stop it before building.\n')
+      return
+    }
+    const preparation = beginRunPreparation(get, tab.path)
+    try {
+      await get().saveActive()
+      const state = get()
+      if (!preparation.isSaved() || state.running || (state.debug.status !== 'idle' && state.debug.status !== 'exited')) return
+      runTargetFile = state.projectModel?.boards.some(board => board.source === 'platformio.ini')
+        ? 'PlatformIO project'
+        : baseName(tab.path)
+      const id = nextRunId()
+      set({
+        runId: id,
+        running: true,
+        runAction: 'build',
+        runPhase: 'compile',
+        lastExitCode: null,
+        output: [],
+        diagnostics: [],
+        diagnosticCapture: null,
+        bottomView: 'output',
+        bottomVisible: true
+      })
+      try {
+        await window.api.runStart({
+          id,
+          filePath: tab.path,
+          language: tab.language.id,
+          cwd: workspaceRoot || tab.path.replace(/[\\/][^\\/]+$/, ''),
+          compiler: tab.language.id === 'c' ? cDriver(state.compiler) : state.compiler,
+          std: tab.language.id === 'c' ? state.cStd : state.std,
+          optimization: state.optimization,
+          rustEdition: state.rustEdition,
+          extraArgs: state.extraArgs,
+          buildOnly: true,
+          ...(state.projectModel?.boards.some(board => board.source === 'platformio.ini') ? { buildSystem: 'platformio' as const } : {})
+        })
+        if (!preparation.ownsRun(id)) await window.api.runStop(id)
+      } catch (err) {
+        if (preparation.ownsRun(id)) set({
+          running: false,
+          runPhase: 'idle',
+          runAction: null,
+          runId: null,
+          output: [{ stream: 'stderr', text: `Failed to start build: ${String(err)}\n` }]
+        })
+      }
+    } finally {
+      preparation.finish()
+    }
+  },
   async runFirmwareTests(options = {}) {
     if (get().firmwareTestRunning) return
     get().setBottom('tests')
@@ -2181,10 +2246,14 @@ export const useStore = create<State>((set, get) => ({
       // with runAction null; only a real program Run should notify. Their own
       // results are reported by their callers.
       const wasRun = runAction === 'run'
+      const wasBuild = runAction === 'build'
       set({ running: false, runPhase: 'idle', runAction: null, lastExitCode: e.code })
       if (wasRun) {
         if (e.code === 0) get().notify('success', 'Program finished', file)
         else get().notify('error', 'Program exited', `${file}: ${cause}`)
+      } else if (wasBuild) {
+        if (e.code === 0) get().notify('success', 'Build complete', file)
+        else get().notify('error', 'Build failed', `${file}: ${cause}`)
       }
     } else if (e.phase === 'compile') {
       // compile succeeded → the run phase begins

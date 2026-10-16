@@ -245,6 +245,10 @@ export interface RunRequest {
    * stricter rule to it and falls back to `pythonPath` if it fails.
    */
   projectPython?: string
+  /** Compile without launching the generated program. */
+  buildOnly?: boolean
+  /** Use the project build system instead of compiling the active translation unit. */
+  buildSystem?: 'platformio'
 }
 
 export interface RunOutputChunk {

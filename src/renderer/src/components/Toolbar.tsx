@@ -1,4 +1,4 @@
-import { Play, Square, CheckCircle2, UploadCloud, AlertTriangle, Radio, LineChart, Bug, CircleX, Loader2, FlaskConical } from 'lucide-react'
+import { Play, Square, CheckCircle2, UploadCloud, AlertTriangle, Radio, LineChart, Bug, CircleX, Loader2, FlaskConical, Hammer } from 'lucide-react'
 import { useStore, isSketch } from '../store/useStore'
 import { isHeaderPath } from '@shared/languages'
 import BoardPortSelect from './BoardPortSelect'
@@ -16,10 +16,12 @@ export default function Toolbar(): JSX.Element {
   const {
     tabs,
     activePath,
+    projectModel,
     running,
     runPhase,
     runAction,
     runActive,
+    buildActive,
     stopRun,
     diagnostics,
     boardStatus,
@@ -75,13 +77,15 @@ export default function Toolbar(): JSX.Element {
   const phaseLabel =
     runAction === 'verify'
       ? 'Compiling'
-      : runAction === 'upload'
-        ? runPhase === 'compile'
-          ? 'Compiling'
-          : 'Uploading'
-        : runPhase === 'compile'
-          ? 'Compiling'
-          : 'Running'
+      : runAction === 'build'
+        ? 'Building'
+        : runAction === 'upload'
+          ? runPhase === 'compile'
+            ? 'Compiling'
+            : 'Uploading'
+          : runPhase === 'compile'
+            ? 'Compiling'
+            : 'Running'
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-ide-border bg-ide-bar px-2 text-[12px]">
@@ -210,6 +214,19 @@ export default function Toolbar(): JSX.Element {
           </>
         ) : (
           <>
+            {(isNative || isRust) && (
+              <button
+                className="btn h-7 w-7 justify-center px-0 disabled:opacity-40"
+                onClick={() => void buildActive()}
+                disabled={running || debug.status === 'running' || debug.status === 'starting'}
+                title={projectModel?.boards.some(board => board.source === 'platformio.ini')
+                  ? 'Build the PlatformIO project (pio run)'
+                  : 'Build this file without running it'}
+                aria-label="Build"
+              >
+                <Hammer size={14} />
+              </button>
+            )}
             <button className="btn btn-accent disabled:opacity-40" onClick={() => void runActive()} disabled={!canRun} title={runTitle}>
               <Play size={14} /> Run
             </button>

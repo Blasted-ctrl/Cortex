@@ -117,7 +117,8 @@ const INSTALL_HINT: Record<string, string> = {
   rustc: 'Install Rust (winget install Rustlang.Rustup, or https://rustup.rs), then rescan in Settings.',
   node: 'Install Node.js (winget install OpenJS.NodeJS), then rescan in Settings.',
   python: 'Install Python (winget install Python.Python.3.12), or set an interpreter in Settings.',
-  python3: 'Install Python (winget install Python.Python.3.12), or set an interpreter in Settings.'
+  python3: 'Install Python (winget install Python.Python.3.12), or set an interpreter in Settings.',
+  pio: 'Install PlatformIO Core and make sure its CLI is available on PATH.'
 }
 
 /**
@@ -249,13 +250,71 @@ async function compileNative(win: BrowserWindow, req: RunRequest, cancellation: 
         // The renderer advances runPhase compile -> run on this event. Without it
         // the phase stays 'compile' for the whole run, so anything gated on the
         // run phase (the stdin box) never appears.
-        exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: 'compile' })
+        exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: req.buildOnly ? 'run' : 'compile' })
         resolve(exePath)
       } else {
         exit(win, { id: req.id, code, signal, durationMs, phase: 'compile' })
         resolve(null)
       }
     })
+  })
+}
+
+/** Build a PlatformIO project with fixed arguments, confined to the open root. */
+async function compilePlatformIO(win: BrowserWindow, req: RunRequest, cancellation: AbortSignal): Promise<void> {
+  const workspace = getWorkspaceRoot()
+  if (!workspace || resolve(req.cwd) !== resolve(workspace) || !withinWorkspace(req.cwd)) {
+    return reject(win, req.id, 'PlatformIO builds must target the currently open project folder.')
+  }
+  try {
+    await fs.access(join(workspace, 'platformio.ini'))
+  } catch {
+    return reject(win, req.id, 'This project does not contain a platformio.ini file.')
+  }
+  if (runStartCancelled(win, req.id, cancellation, 'compile')) return
+  const pio = safeCommand('pio', workspace)
+  if (!pio) {
+    out(win, req.id, 'stderr', missingOrRefused('pio'))
+    exit(win, { id: req.id, code: 127, signal: null, durationMs: 0, phase: 'compile' })
+    return
+  }
+  out(win, req.id, 'system', '$ pio run\n')
+  const start = performance.now()
+  let proc: ChildProcess
+  try {
+    proc = spawn(pio, ['run'], { cwd: workspace, windowsHide: true, shell: needsShell(pio) })
+  } catch (err) {
+    out(win, req.id, 'stderr', `Failed to launch PlatformIO: ${String(err)}\n`)
+    exit(win, { id: req.id, code: 127, signal: null, durationMs: elapsed(start), phase: 'compile' })
+    return
+  }
+  active.set(req.id, { child: proc, startedAt: start, window: win })
+  proc.stdout?.setEncoding('utf8')
+  proc.stderr?.setEncoding('utf8')
+  proc.stdin?.on('error', () => {})
+  const capture = createCompilerDiagnostics({ cwd: workspace, format: 'text', ...COMPILER_DIAGNOSTIC_LIMITS })
+  const forward = (stream: 'stdout' | 'stderr') => (chunk: unknown): void => {
+    const text = String(chunk)
+    capture.write(text)
+    out(win, req.id, stream, text)
+  }
+  proc.stdout?.on('data', forward('stdout'))
+  proc.stderr?.on('data', forward('stderr'))
+  proc.on('error', err => out(win, req.id, 'stderr', spawnErrorText('pio', err)))
+  proc.on('close', (code, signal) => {
+    const current = active.get(req.id)?.child === proc
+    if (current) active.delete(req.id)
+    const durationMs = elapsed(start)
+    emitCapturedDiagnostics(win, req.id, capture.finish())
+    if (!current) return
+    if (cancellation.aborted || win.isDestroyed()) {
+      exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
+    } else if (code === 0) {
+      out(win, req.id, 'system', `PlatformIO build completed in ${durationMs}ms\n`)
+      exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: 'run' })
+    } else {
+      exit(win, { id: req.id, code, signal, durationMs, phase: 'compile' })
+    }
   })
 }
 
@@ -350,7 +409,7 @@ async function compileRust(win: BrowserWindow, req: RunRequest, cancellation: Ab
         resolve(null)
       } else if (code === 0) {
         out(win, req.id, 'system', `Compiled in ${durationMs}ms\n`)
-        exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: 'compile' })
+        exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: req.buildOnly ? 'run' : 'compile' })
         resolve(exePath)
       } else {
         exit(win, { id: req.id, code, signal, durationMs, phase: 'compile' })
@@ -496,13 +555,27 @@ export async function startRun(win: BrowserWindow, req: RunRequest): Promise<voi
 async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellation: AbortSignal): Promise<void> {
   if (runStartCancelled(win, req.id, cancellation, 'compile')) return
 
+  let hasPlatformIOConfig = req.buildSystem === 'platformio'
+  if (req.buildOnly && !hasPlatformIOConfig) {
+    try {
+      await fs.access(join(req.cwd, 'platformio.ini'))
+      hasPlatformIOConfig = true
+    } catch {
+      // Loose C/C++ projects continue through the configured compiler path.
+    }
+  }
+  if (req.buildOnly && hasPlatformIOConfig) {
+    await compilePlatformIO(win, req, cancellation)
+    return
+  }
+
   switch (req.language) {
     case 'c':
     case 'cpp': {
       const compiler = req.compiler || (req.language === 'c' ? 'gcc' : 'g++')
       if (!isAllowedCommand(compiler)) return reject(win, req.id, `Compiler not allowed: ${compiler}`)
       const exe = await compileNative(win, req, cancellation)
-      if (exe && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
+      if (exe && !req.buildOnly && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
       break
     }
     case 'rust': {
@@ -515,7 +588,7 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
         // diagnostics to stderr as text and emits NO compiler-message records,
         // so the Problems panel would stay empty. With `json` we get the exact
         // spans AND each record's own `rendered` text to show the user.
-        const cargoArgs = ['run', '--message-format=json']
+        const cargoArgs = [req.buildOnly ? 'build' : 'run', '--message-format=json']
         if (req.optimization && req.optimization !== '-O0') cargoArgs.push('--release')
         const capture = createCompilerDiagnostics({ cwd: cargoRoot, format: 'cargo', ...COMPILER_DIAGNOSTIC_LIMITS })
         const compileStart = performance.now()
@@ -587,7 +660,7 @@ async function startReservedRun(win: BrowserWindow, req: RunRequest, cancellatio
         break
       }
       const exe = await compileRust(win, req, cancellation)
-      if (exe && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
+      if (exe && !req.buildOnly && !runStartCancelled(win, req.id, cancellation, 'run')) runProcess(win, req, exe, [], req.cwd)
       break
     }
     case 'python': {
