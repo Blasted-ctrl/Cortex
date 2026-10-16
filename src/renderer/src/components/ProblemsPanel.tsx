@@ -1,7 +1,9 @@
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react'
-import { useStore } from '../store/useStore'
+import { useStore, isPlatformioProject, normPath } from '../store/useStore'
 import EmptyState from './EmptyState'
 import type { Diagnostic } from '@shared/ipc'
+import { diagnosticHint } from '@shared/diagnosticHints'
+import { includedHeaders } from '@shared/libraryComplete'
 
 const baseName = (p: string): string => p.split(/[\\/]/).pop() || p
 
@@ -12,7 +14,8 @@ function SeverityIcon({ severity }: { severity: Diagnostic['severity'] }): JSX.E
 }
 
 export default function ProblemsPanel(): JSX.Element {
-  const { diagnostics, diagnosticCapture, revealLocation } = useStore()
+  const { diagnostics, diagnosticCapture, revealLocation, tree, projectModel, tabs } = useStore()
+  const platformio = isPlatformioProject(tree, projectModel)
 
   // Group by file, preserving first-seen order.
   const groups = new Map<string, Diagnostic[]>()
@@ -39,27 +42,37 @@ export default function ProblemsPanel(): JSX.Element {
           <EmptyState icon={<Info size={22} />}>
             No located compiler diagnostics.
           </EmptyState>
-        ) : [...groups.entries()].map(([file, items]) => (
+        ) : [...groups.entries()].map(([file, items]) => {
+          const source = tabs.find(tab => normPath(tab.path) === normPath(file))?.content ?? ''
+          const embedded = includedHeaders(source).has('arduino.h')
+          return (
           <div key={file}>
             <div className="row gap-1.5 px-3 py-1 text-[11px] font-medium text-ide-muted">
               {baseName(file)} <span className="text-ide-faint">· {items.length}</span>
             </div>
-            {items.map((d, i) => (
-              <button
-                key={`${file}:${d.line}:${d.column}:${i}`}
-                onClick={() => void revealLocation(d.file, d.line, d.column)}
-                className="row w-full gap-2 px-3 py-1 pl-6 text-left hover:bg-ide-hover"
-              >
-                <SeverityIcon severity={d.severity} />
-                <span className="min-w-0 flex-1 truncate text-ide-text">{d.message}</span>
-                {d.code && <span className="mono shrink-0 text-[10px] text-ide-faint">{d.code}</span>}
-                <span className="mono shrink-0 text-[10px] text-ide-faint">
-                  {d.line}:{d.column}
-                </span>
-              </button>
-            ))}
+            {items.map((d, i) => {
+              const hint = diagnosticHint(d.message, { platformio, embedded })
+              return (
+                <button
+                  key={`${file}:${d.line}:${d.column}:${i}`}
+                  onClick={() => void revealLocation(d.file, d.line, d.column)}
+                  className="flex w-full items-start gap-2 px-3 py-1 pl-6 text-left hover:bg-ide-hover"
+                >
+                  <SeverityIcon severity={d.severity} />
+                  <span className="min-w-0 flex-1 break-words text-ide-text">
+                    {d.message}
+                    {hint && <span className="mt-1 block text-[11px] leading-relaxed text-ide-muted">{hint}</span>}
+                  </span>
+                  {d.code && <span className="mono shrink-0 text-[10px] text-ide-faint">{d.code}</span>}
+                  <span className="mono shrink-0 text-[10px] text-ide-faint">
+                    {d.line}:{d.column}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

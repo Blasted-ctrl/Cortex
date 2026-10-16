@@ -79,6 +79,12 @@ Open Settings → Toolchains inside the app and it will scan your machine and sh
 
 You do not need to download Arduino CLI separately. First-time board setup and core installation need an internet connection; progress and retry are available inside Cortex. See the [real-board quickstart](docs/BOARD-TOOLS.md) for core selection, uploading, offline use and USB requirements.
 
+The hammer beside Run builds without launching or uploading. In a PlatformIO
+project it saves edited project files and runs `pio run`, including when a
+configuration file or header is active. Build errors open Problems with their
+source locations; the complete log stays in Output. See
+[building projects and fixing build errors](docs/BUILDING-PROJECTS.md).
+
 ## Documentation
 
 More detail lives in `docs/`, including the architecture, the per-language support matrix, the debugger, the 3D simulator, and a roadmap of what's planned next.

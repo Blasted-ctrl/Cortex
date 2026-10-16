@@ -85,6 +85,9 @@ describe('libForDiagnostic', () => {
   it('maps a clangd missing include to the C++ install', () => {
     expect(libForDiagnostic("'opencv2/opencv.hpp' file not found")).toMatchObject({ target: 'cpp', lib: { id: 'opencv' } })
   })
+  it('recognizes GCC missing-header diagnostics from a build', () => {
+    expect(libForDiagnostic('opencv2/core.hpp: No such file or directory')).toMatchObject({ target: 'cpp', lib: { id: 'opencv' } })
+  })
   it('maps a pyright unresolved import to the Python install', () => {
     expect(libForDiagnostic('Import "cv2" could not be resolved')).toMatchObject({ target: 'python', lib: { id: 'opencv' } })
     expect(libForDiagnostic('Import "cv2.aruco" could not be resolved')).toMatchObject({ target: 'python' })

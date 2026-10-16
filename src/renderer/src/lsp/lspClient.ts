@@ -721,11 +721,12 @@ function registerProviders(m: Mon): void {
 }
 
 /** Project facts the diagnostic hints depend on, read from the open workspace. */
-function hintContext(): { platformio: boolean; compilationDatabase: boolean } {
+function hintContext(source: string): { platformio: boolean; compilationDatabase: boolean; embedded: boolean } {
   const tree = useStore.getState().tree
   return {
     platformio: tree.some((n) => n.name === 'platformio.ini'),
-    compilationDatabase: tree.some((n) => n.name === 'compile_commands.json')
+    compilationDatabase: tree.some((n) => n.name === 'compile_commands.json'),
+    embedded: includedHeaders(source).has('arduino.h')
   }
 }
 
@@ -769,7 +770,7 @@ async function doInitLsp(m: Mon): Promise<void> {
     // is compiler-internals noise on top of an already-plain-English message.
     const markers: monaco.editor.IMarkerData[] = (diagnostics as LspDiagnostic[]).map((d) => ({
       severity: severity(m, d.severity),
-      message: entry.doc.lang === 'cpp' ? withDiagnosticHint(d.message, hintContext()) : d.message,
+      message: entry.doc.lang === 'cpp' ? withDiagnosticHint(d.message, hintContext(entry.model.getValue())) : d.message,
       startLineNumber: d.range.start.line + 1,
       startColumn: d.range.start.character + 1,
       endLineNumber: d.range.end.line + 1,

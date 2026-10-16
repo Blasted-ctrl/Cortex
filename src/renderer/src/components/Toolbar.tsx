@@ -1,5 +1,5 @@
 import { Play, Square, CheckCircle2, UploadCloud, AlertTriangle, Radio, LineChart, Bug, CircleX, Loader2, FlaskConical, Hammer } from 'lucide-react'
-import { useStore, isSketch } from '../store/useStore'
+import { useStore, isSketch, isPlatformioProject } from '../store/useStore'
 import { isHeaderPath } from '@shared/languages'
 import BoardPortSelect from './BoardPortSelect'
 import TargetSelect from './TargetSelect'
@@ -17,6 +17,7 @@ export default function Toolbar(): JSX.Element {
     tabs,
     activePath,
     projectModel,
+    tree,
     running,
     runPhase,
     runAction,
@@ -56,6 +57,7 @@ export default function Toolbar(): JSX.Element {
 
   const activeTab = tabs.find((t) => t.path === activePath)
   const sketch = isSketch(activePath)
+  const platformio = isPlatformioProject(tree, projectModel)
   // A header shares the C++ language entry but is not a translation unit: `g++
   // util.hpp` writes a precompiled header that then fails to execute.
   const header = isHeaderPath(activePath ?? '')
@@ -128,6 +130,17 @@ export default function Toolbar(): JSX.Element {
         <button className="btn" disabled={!workspaceRoot || firmwareTestStopping} title="Run deterministic firmware scenarios in the Uno host model" onClick={() => void (firmwareTestRunning ? stopFirmwareTests().catch(error => useStore.getState().notify('error', 'Could not stop tests', String(error))) : runFirmwareTests())}>
           <FlaskConical size={14} /> {firmwareTestRunning ? 'Stop Tests' : 'Run Tests'}
         </button>
+        {!running && (platformio || isNative || isRust) && (
+          <button
+            className="btn h-7 w-7 justify-center px-0 disabled:opacity-40"
+            onClick={() => void buildActive()}
+            disabled={debug.status !== 'idle' && debug.status !== 'exited'}
+            title={platformio ? 'Build the PlatformIO project (pio run)' : 'Build this file without running it'}
+            aria-label="Build"
+          >
+            <Hammer size={14} />
+          </button>
+        )}
         {running ? (
           <>
             {/* Narrate the in-progress build so the row is not just a bare Stop. */}
@@ -214,19 +227,6 @@ export default function Toolbar(): JSX.Element {
           </>
         ) : (
           <>
-            {(isNative || isRust) && (
-              <button
-                className="btn h-7 w-7 justify-center px-0 disabled:opacity-40"
-                onClick={() => void buildActive()}
-                disabled={running || debug.status === 'running' || debug.status === 'starting'}
-                title={projectModel?.boards.some(board => board.source === 'platformio.ini')
-                  ? 'Build the PlatformIO project (pio run)'
-                  : 'Build this file without running it'}
-                aria-label="Build"
-              >
-                <Hammer size={14} />
-              </button>
-            )}
             <button className="btn btn-accent disabled:opacity-40" onClick={() => void runActive()} disabled={!canRun} title={runTitle}>
               <Play size={14} /> Run
             </button>

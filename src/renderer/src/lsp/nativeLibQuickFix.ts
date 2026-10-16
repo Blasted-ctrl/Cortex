@@ -1,6 +1,7 @@
 import type * as monaco from 'monaco-editor'
 import { libForDiagnostic } from '@shared/nativeLibs'
 import { useStore } from '../store/useStore'
+import { includedHeaders } from '@shared/libraryComplete'
 
 const COMMAND = 'cortex.installNativeLib'
 
@@ -16,12 +17,13 @@ export function registerNativeLibQuickFixes(m: typeof monaco): void {
   })
   for (const lang of ['c', 'cpp', 'python']) {
     m.languages.registerCodeActionProvider(lang, {
-      provideCodeActions(_model, _range, context) {
+      provideCodeActions(model, _range, context) {
         const seen = new Set<string>()
         const actions: monaco.languages.CodeAction[] = []
         for (const marker of context.markers) {
           const hit = libForDiagnostic(marker.message)
           if (!hit || seen.has(`${hit.lib.id}:${hit.target}`)) continue
+          if (hit.lib.id === 'opencv' && hit.target === 'cpp' && includedHeaders(model.getValue()).has('arduino.h')) continue
           seen.add(`${hit.lib.id}:${hit.target}`)
           const title = `Install ${hit.lib.name} for ${hit.target === 'cpp' ? 'C/C++' : 'Python'}`
           actions.push({

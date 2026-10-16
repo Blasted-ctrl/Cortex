@@ -59,6 +59,8 @@ export interface HintContext {
   platformio?: boolean
   /** PlatformIO has already generated a compile_commands.json at the project root. */
   compilationDatabase?: boolean
+  /** This source includes the Arduino framework or is an Arduino sketch. */
+  embedded?: boolean
 }
 
 const STREAM_NAMES = 'cout|cerr|clog|cin|endl'
@@ -86,12 +88,19 @@ function streamHint(message: string): string | null {
 export function diagnosticHint(message: string, ctx: HintContext = {}): string | null {
   const native = libForDiagnostic(message)
   if (native) {
+    if (ctx.embedded && native.lib.id === 'opencv' && native.target === 'cpp') {
+      return 'Fix: keep PC camera and window code in a separate desktop program. VideoCapture, imshow and waitKey use desktop camera/display services and cannot run as written in ESP32 Arduino firmware. Installing a PC OpenCV library does not add those services to the board.'
+    }
     return `Fix: ${native.lib.name} is not installed for ${native.target === 'cpp' ? 'C/C++' : 'Python'}. Press Ctrl+. and choose "Install ${native.lib.name}", or open Settings > Libraries. Cortex then sets up the include and link paths for you.`
   }
   const stream = streamHint(message)
   if (stream) return stream
-  const missing = NOT_FOUND.exec(message)?.[1]
+  const missing = NOT_FOUND.exec(message)?.[1] ?? /^([^:\r\n]+): No such file or directory/.exec(message)?.[1]
   if (!missing) return null
+
+  if (ctx.platformio && missing === 'ESP32Servo.h') {
+    return 'Fix: declare madhephaestus/ESP32Servo under lib_deps in platformio.ini (not libs_deps), select a library version compatible with your Arduino-ESP32 core, and build again. PlatformIO installs declared dependencies during the build.'
+  }
 
   const pool = [...(ctx.candidates ?? []), ...COMMON_HEADERS]
   const near = closestHeader(missing, pool)

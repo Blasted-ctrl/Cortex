@@ -121,7 +121,7 @@ export function libsForCppSource(source: string): NativeLib[] {
  * 'Import "cv2" could not be resolved' (Python). Null for anything else. Pure.
  */
 export function libForDiagnostic(message: string): { lib: NativeLib; target: 'cpp' | 'python' } | null {
-  const header = /^'([^']+)' file not found/.exec(message)?.[1]
+  const header = /^'([^']+)' file not found/.exec(message)?.[1] ?? /^([^:\r\n]+): No such file or directory/.exec(message)?.[1]
   if (header) {
     const lib = libForHeader(header)
     return lib ? { lib, target: 'cpp' } : null

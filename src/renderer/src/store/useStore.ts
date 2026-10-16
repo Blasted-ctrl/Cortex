@@ -66,6 +66,10 @@ const COMPILED_LANGS = new Set(['cpp', 'c', 'rust'])
 
 export const isSketch = (path: string | null): boolean => !!path && path.toLowerCase().endsWith('.ino')
 
+export const isPlatformioProject = (tree: FileNode[], model: ProjectModel | null): boolean =>
+  tree.some(file => !file.isDir && file.name === 'platformio.ini') ||
+  !!model?.boards.some(board => board.source === 'platformio.ini')
+
 export type MainView = 'editor' | 'simulator' | 'settings'
 
 /** Which board the 3D simulator view renders. A view preference, not project
@@ -936,7 +940,7 @@ let tabReconciliationToken: object | null = null
 
 /** A save can outlive Stop or a project/target change. Reserve one preparation
  *  and revalidate its target before issuing any launch request. */
-function beginRunPreparation(get: () => State, path: string): {
+function beginRunPreparation(get: () => State, path: string | null, project = false): {
   isSaved: () => boolean
   ownsRun: (id: string) => boolean
   finish: () => void
@@ -948,8 +952,9 @@ function beginRunPreparation(get: () => State, path: string): {
     isSaved: () => {
       const state = get()
       const tab = state.tabs.find((candidate) => candidate.path === path)
-      return runStartToken === token && state.workspaceRoot === workspaceRoot && state.activePath === path &&
-        !!tab && !tab.readOnlyReason && tab.content === tab.savedContent
+      return runStartToken === token && state.workspaceRoot === workspaceRoot && (project
+        ? state.tabs.every(file => file.readOnlyReason || file.content === file.savedContent)
+        : state.activePath === path && !!tab && !tab.readOnlyReason && tab.content === tab.savedContent)
     },
     ownsRun: (id) => runStartToken === token && get().workspaceRoot === workspaceRoot && get().runId === id,
     finish: () => { if (runStartToken === token) runStartToken = null }
@@ -2097,11 +2102,12 @@ export const useStore = create<State>((set, get) => ({
   },
   async buildActive() {
     const { tabs, activePath, workspaceRoot, running } = get()
-    if (running || runStartToken || !activePath) return
+    if (running || runStartToken) return
+    const project = !!workspaceRoot && isPlatformioProject(get().tree, get().projectModel)
     const tab = tabs.find((t) => t.path === activePath)
-    if (!tab || (tab.language.id !== 'cpp' && tab.language.id !== 'c' && tab.language.id !== 'rust')) return
+    if (!project && (!tab || !COMPILED_LANGS.has(tab.language.id))) return
     const say = (text: string): void => set({ bottomVisible: true, bottomView: 'output', output: [{ stream: 'system', text }] })
-    if (isHeaderPath(tab.path)) {
+    if (!project && tab && isHeaderPath(tab.path)) {
       say('A header is not a build target. Open the .cpp/.c file that includes it.\n')
       return
     }
@@ -2110,14 +2116,15 @@ export const useStore = create<State>((set, get) => ({
       say('A debug session is running. Stop it before building.\n')
       return
     }
-    const preparation = beginRunPreparation(get, tab.path)
+    const preparation = beginRunPreparation(get, activePath, project)
     try {
-      await get().saveActive()
+      if (project) await get().saveAll()
+      else await get().saveActive()
       const state = get()
       if (!preparation.isSaved() || state.running || (state.debug.status !== 'idle' && state.debug.status !== 'exited')) return
-      runTargetFile = state.projectModel?.boards.some(board => board.source === 'platformio.ini')
-        ? 'PlatformIO project'
-        : baseName(tab.path)
+      const filePath = tab?.path ?? `${workspaceRoot}/platformio.ini`
+      const language = project ? 'cpp' : tab!.language.id
+      runTargetFile = project ? 'PlatformIO project' : baseName(filePath)
       const id = nextRunId()
       set({
         runId: id,
@@ -2134,16 +2141,16 @@ export const useStore = create<State>((set, get) => ({
       try {
         await window.api.runStart({
           id,
-          filePath: tab.path,
-          language: tab.language.id,
-          cwd: workspaceRoot || tab.path.replace(/[\\/][^\\/]+$/, ''),
-          compiler: tab.language.id === 'c' ? cDriver(state.compiler) : state.compiler,
-          std: tab.language.id === 'c' ? state.cStd : state.std,
+          filePath,
+          language,
+          cwd: workspaceRoot || filePath.replace(/[\\/][^\\/]+$/, ''),
+          compiler: language === 'c' ? cDriver(state.compiler) : state.compiler,
+          std: language === 'c' ? state.cStd : state.std,
           optimization: state.optimization,
           rustEdition: state.rustEdition,
           extraArgs: state.extraArgs,
           buildOnly: true,
-          ...(state.projectModel?.boards.some(board => board.source === 'platformio.ini') ? { buildSystem: 'platformio' as const } : {})
+          ...(project ? { buildSystem: 'platformio' as const } : {})
         })
         if (!preparation.ownsRun(id)) await window.api.runStop(id)
       } catch (err) {
@@ -2239,8 +2246,12 @@ export const useStore = create<State>((set, get) => ({
       return
     }
     if (e.phase === 'compile' && e.code !== 0) {
-      set({ running: false, runPhase: 'idle', runAction: null, lastExitCode: e.code })
-      get().notify('error', 'Build failed', `${file}: ${cause}`)
+      const error = get().diagnostics.find(diagnostic => diagnostic.severity === 'error')
+      set({ running: false, runPhase: 'idle', runAction: null, lastExitCode: e.code,
+        ...(error ? { bottomView: 'problems' as const, bottomVisible: true } : {}) })
+      get().notify('error', 'Build failed', error
+        ? `${baseName(error.file)}:${error.line}: ${error.message.split(/\r?\n/)[0].slice(0, 300)}`
+        : `${file}: ${cause}`)
     } else if (e.phase === 'run') {
       // Package ops (installLib/installCore/restoreFromLock) share this branch
       // with runAction null; only a real program Run should notify. Their own

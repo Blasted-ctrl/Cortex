@@ -34,6 +34,14 @@ describe('diagnosticHint', () => {
   it('gives a generic fix for an unknown header', () => {
     expect(diagnosticHint("'my_driver.h' file not found")).toMatch(/spelling.*include\//)
   })
+  it.each(["'ESP32Servo.h' file not found", 'ESP32Servo.h: No such file or directory'])('explains PlatformIO servo dependencies for %s', message => {
+    expect(diagnosticHint(message, { platformio: true })).toMatch(/lib_deps.*libs_deps/)
+  })
+  it.each(["'opencv2/highgui.hpp' file not found", 'opencv2/highgui.hpp: No such file or directory'])('explains the desktop/firmware mismatch for %s in Arduino source', message => {
+    const hint = diagnosticHint(message, { embedded: true })
+    expect(hint).toMatch(/PC.*VideoCapture.*imshow.*waitKey/)
+    expect(hint).not.toContain('Install OpenCV')
+  })
   it('suggests from caller-supplied project headers', () => {
     expect(diagnosticHint("'motor_ctl.h' file not found", { candidates: ['motor_ctrl.h'] })).toMatch(/<motor_ctrl\.h>/)
   })

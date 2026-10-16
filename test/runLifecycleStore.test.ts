@@ -46,8 +46,53 @@ beforeEach(() => {
   }, true)
 })
 
-const actions = ['runActive', 'verifyBoard', 'uploadBoard'] as const
-const launch = (action: typeof actions[number]) => action === 'runActive' ? api.runStart : action === 'verifyBoard' ? api.boardCompile : api.boardUpload
+const actions = ['runActive', 'buildActive', 'verifyBoard', 'uploadBoard'] as const
+const launch = (action: typeof actions[number]) => action === 'runActive' || action === 'buildActive' ? api.runStart : action === 'verifyBoard' ? api.boardCompile : api.boardUpload
+
+describe('PlatformIO project builds', () => {
+  beforeEach(() => {
+    useStore.setState({ tree: [{ name: 'platformio.ini', path: 'C:/project/platformio.ini', isDir: false }] })
+  })
+
+  it.each(['platformio.ini', 'include/driver.h', null])('builds the project with %s active', async file => {
+    const active = file ? tab(`C:/project/${file}`) : null
+    useStore.setState({ tabs: active ? [active] : [], activePath: active?.path ?? null })
+    await useStore.getState().buildActive()
+    expect(api.runStart).toHaveBeenCalledWith(expect.objectContaining({ cwd: 'C:/project', buildSystem: 'platformio', buildOnly: true }))
+  })
+
+  it('saves edited configuration and source files before starting the project build', async () => {
+    const config = tab('C:/project/platformio.ini')
+    useStore.setState({ tabs: [tab(), config] })
+    await useStore.getState().buildActive()
+    expect(api.writeFile).toHaveBeenCalledWith(config.path, config.content, config.savedContent)
+    expect(useStore.getState().tabs.every(file => file.content === file.savedContent)).toBe(true)
+    expect(api.runStart).toHaveBeenCalledOnce()
+  })
+
+  it('does not build while another source file changes during Save All', async () => {
+    const write = deferred<void>()
+    const other = tab('C:/project/other.cpp')
+    useStore.setState({ tabs: [tab(), other] })
+    api.writeFile.mockReturnValue(write.promise)
+    const building = useStore.getState().buildActive()
+    await vi.waitFor(() => expect(api.writeFile).toHaveBeenCalled())
+    useStore.getState().updateContent(other.path, 'newer edit')
+    write.resolve(undefined)
+    await building
+    expect(api.runStart).not.toHaveBeenCalled()
+    expect(useStore.getState().tabs.find(file => file.path === other.path)?.content).toBe('newer edit')
+  })
+
+  it('shows the compiler error and its location when a build fails', async () => {
+    await useStore.getState().buildActive()
+    const id = api.runStart.mock.calls[0][0].id
+    useStore.getState().handleDiagnostics({ id, diagnostics: [{ file: 'C:/project/main.cpp', line: 2, column: 10, severity: 'error', message: 'ESP32Servo.h: No such file or directory' }] })
+    useStore.getState().handleRunExit({ id, phase: 'compile', code: 1 })
+    expect(useStore.getState().notifications.at(-1)?.detail).toContain('main.cpp:2: ESP32Servo.h: No such file or directory')
+    expect(useStore.getState().bottomView).toBe('problems')
+  })
+})
 
 describe('run and board preparation boundaries', () => {
   it.each(actions)('%s launches its saved target on the happy path', async (action) => {
