@@ -368,7 +368,7 @@ describe('manual publication safety', () => {
 })
 
 describe('packaged application file selection', () => {
-  it('excludes tooling config formats while keeping the built application', () => {
+  it('excludes tooling configs, internal notes and previous packages while keeping the built application', () => {
     const root = resolve(__dirname, '..')
     const packaging = load(readFileSync(resolve(root, 'electron-builder.yml'), 'utf8'))
     const matcher = new FileMatcher(root, resolve(root, 'release'), (pattern: string) => pattern, ['**/*', ...packaging.files])
@@ -380,6 +380,9 @@ describe('packaged application file selection', () => {
         const file = `${name}.config.${extension}`
         expect(includes(resolve(root, file), fileStat), file).toBe(false)
       }
+    }
+    for (const file of ['.turbo/handoff/session.md', 'release/0.1.0/win-unpacked/resources/app.asar', 'dist/cortex-setup.exe']) {
+      expect(includes(resolve(root, file), fileStat), file).toBe(false)
     }
     for (const file of ['package.json', 'out/main/index.js', 'out/preload/index.js', 'out/renderer/index.html']) {
       expect(includes(resolve(root, file), fileStat), file).toBe(true)

@@ -233,6 +233,8 @@ Measured controls and verification boundaries are in [release validation](RELEAS
   ESM (bundled by Vite).
 - `electron-builder` (`electron-builder.yml`) packages installers (NSIS on Windows, DMG on macOS,
   AppImage/deb on Linux).
+  File filters exclude `release/`, `dist/` and `.turbo/` even when packaging to a
+  different output folder, so previous installers and internal task notes are not bundled.
 
 > Environment note: if `ELECTRON_RUN_AS_NODE=1` is set in your shell, Electron launches as plain
 > Node and `require('electron')` returns a path string (`app` is undefined). Unset it before

@@ -5,6 +5,9 @@ directories:
   output: release/${version}
 files:
   - '!.cortex/**'
+  - '!.turbo/**'
+  - '!release/**'
+  - '!dist/**'
   - '!**/.vscode/*'
   - '!src/*'
   - '!{electron.vite,vitest}.config.{js,ts,mjs,cjs,mts,cts}'
