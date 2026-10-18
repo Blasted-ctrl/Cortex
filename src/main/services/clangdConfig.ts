@@ -2,12 +2,13 @@ import { spawn } from 'child_process'
 import { existsSync } from 'fs'
 import { readFile, writeFile, readdir, stat } from 'fs/promises'
 import { homedir } from 'os'
-import { join } from 'path'
+import { basename, dirname, join } from 'path'
 import { getProjectConfig } from './projectConfigService'
 import { editorIncludeDirs } from './nativeLibFlags'
 import { safeCommand, needsShell } from './commandResolver'
 import { getWorkspaceRoot } from './fsService'
 import { isAllowedCommand, isBareCommand, hostCppOrNull } from '../../shared/security'
+import { cDriver } from '../../shared/languages'
 
 /**
  * clangd is built on clang, but the projects Cortex compiles use whatever
@@ -182,6 +183,32 @@ ${envs.join(' ')}`)
   }
 }
 
+/** GCC's managed package layout avoids launching cc1plus on every cold open. */
+async function installedPlatformioToolchain(compiler: string): Promise<Toolchain | null> {
+  const target = basename(compiler).replace(/-g\+\+(\.exe)?$/i, '')
+  const directory = dirname(dirname(compiler))
+  const gcc = join(directory, 'lib', 'gcc', target)
+  try {
+    const versions = (await readdir(gcc, { withFileTypes: true }))
+      .filter(entry => entry.isDirectory() && /^\d+(\.\d+)+$/.test(entry.name))
+    // Multiple versions need the driver's search report; do not guess which is active.
+    if (versions.length !== 1) return null
+    const version = versions[0].name
+    const cpp = join(directory, target, 'include', 'c++', version)
+    const system = join(directory, target, 'include')
+    if (!(await stat(cpp)).isDirectory() || !(await stat(system)).isDirectory()) return null
+    const candidates = [
+      cpp, join(cpp, target), join(cpp, 'backward'),
+      join(gcc, version, 'include'), join(gcc, version, 'include-fixed'),
+      join(directory, target, 'sys-include'), system
+    ]
+    const present = await Promise.all(candidates.map(path => stat(path).then(entry => entry.isDirectory()).catch(() => false)))
+    return { target, includes: candidates.filter((_path, index) => present[index]) }
+  } catch {
+    return null
+  }
+}
+
 /** `<gcc>/lib/gcc/<target>/<version>/include`, GCC's compiler-private headers (not include-fixed). */
 const GCC_BUILTIN_INCLUDE = /[\\/]lib[\\/]gcc[\\/][^\\/]+[\\/][^\\/]+[\\/]include$/
 
@@ -190,7 +217,8 @@ export function buildClangdConfig(
   cppStd: string,
   cStd = 'c17',
   projectIncludes: string[] = [],
-  depIncludes: string[] = []
+  depIncludes: string[] = [],
+  hostTools?: { compiler: string }
 ): string {
   // -Wunused-variable/-Wunused-function (an unused local, a defined-but-never-
   // called function, an unused enum member) are gated behind -Wall in
@@ -233,19 +261,22 @@ export function buildClangdConfig(
     '# matches your compiler. Machine-specific (absolute paths): do not commit.',
     '# Safe to edit or delete; Cortex refreshes this file only while it owns it',
     '# (this header present) and the toolchain changes.',
+    ...(hostTools ? ['If:', '  PathMatch: "tools/.*"'] : []),
     'CompileFlags:',
+    ...(hostTools ? ['  CompilationDatabase: None', `  Compiler: ${JSON.stringify(hostTools.compiler)}`] : []),
     '  Add:',
     list(global),
     '---',
     'If:',
-    '  PathMatch: [".*\\\\.(cpp|cxx|cc|c[+][+]|hpp|hxx|hh|h)"]',
+    `  PathMatch: ["${hostTools ? 'tools/' : ''}.*\\\\.(cpp|cxx|cc|c[+][+]|hpp|hxx|hh|h)"]`,
     'CompileFlags:',
     '  Add:',
     list([`-std=${cppStd}`]),
     '---',
     'If:',
-    '  PathMatch: [".*\\\\.c"]',
+    `  PathMatch: ["${hostTools ? 'tools/' : ''}.*\\\\.c"]`,
     'CompileFlags:',
+    ...(hostTools ? [`  Compiler: ${JSON.stringify(cDriver(hostTools.compiler))}`] : []),
     '  Add:',
     list([`-std=${cStd}`]),
     ''
@@ -364,7 +395,7 @@ export function gccVersionOf(includes: readonly string[]): string | null {
  *     default claim of GCC 4.2.
  * No --target and no -std: the database already carries the project's standard.
  */
-export function buildPlatformioConfig(tc: Toolchain): string {
+export function buildPlatformioConfig(tc: Toolchain, hostTools = false): string {
   const version = gccVersionOf(tc.includes)
   const add: string[] = version ? [`-fgnuc-version=${version}`] : []
   for (const dir of tc.includes) add.push('-isystem', dir)
@@ -374,6 +405,7 @@ export function buildPlatformioConfig(tc: Toolchain): string {
     '# This project has a PlatformIO compile_commands.json, so clangd uses the real',
     "# build commands and this file only adapts them for clang (the board's GCC",
     '# flags and headers). Machine-specific: do not commit.',
+    ...(hostTools ? ['If:', '  PathExclude: "tools/.*"'] : []),
     'CompileFlags:',
     '  Remove:',
     list(GCC_ONLY_FLAGS),
@@ -422,11 +454,24 @@ export async function ensureClangdConfig(root: string): Promise<boolean> {
   if (existsSync(join(root, 'compile_commands.json'))) {
     const pio = await findPlatformioCompiler(root)
     if (pio) {
-      const boardTc = await deriveToolchain(pio)
-      if (boardTc.includes.length > 0) return writeConfig(root, cfgPath, existing, buildPlatformioConfig({ ...boardTc, target: null }))
+      const boardTc = await installedPlatformioToolchain(pio) ?? await deriveToolchain(pio)
+      if (boardTc.includes.length > 0) {
+        const host = await hostClangdConfig(root, true)
+        const { deps } = await discoverIncludeDirs(root)
+        const board = buildPlatformioConfig({ target: null, includes: [...boardTc.includes, ...deps] }, host !== null)
+        return writeConfig(root, cfgPath, existing, host ? `${board}---\n${host}` : board)
+      }
+      // A failed board probe must not turn firmware into a Windows/desktop TU.
+      return false
     }
+    if (existsSync(join(root, 'platformio.ini')) || existsSync(join(root, '.pio'))) return false
   }
 
+  const host = await hostClangdConfig(root)
+  return host === null ? false : writeConfig(root, cfgPath, existing, host)
+}
+
+async function hostClangdConfig(root: string, hostTools = false): Promise<string | null> {
   const pc = await getProjectConfig(root).catch(() => ({}) as { compiler?: string; std?: string; cStd?: string })
   // The same normalization the build path applies. Reading the raw field here
   // meant a project pinning a CROSS compiler made clangd analyse with
@@ -440,23 +485,23 @@ export async function ensureClangdConfig(root: string): Promise<boolean> {
   // getProjectConfig already drops a non-bare workspace compiler, but re-check
   // at the spawn site: only run an allowlisted, bare (PATH-resolved) driver, so
   // an untrusted config can never point the probe at an arbitrary binary.
-  if (!isBareCommand(compiler) || !isAllowedCommand(compiler)) return false
+  if (!isBareCommand(compiler) || !isAllowedCommand(compiler)) return null
   let tc = await deriveToolchain(compiler)
-  if (tc.includes.length === 0) {
+  if (tc.includes.length === 0 && !hostTools) {
     // No host compiler is installed. A PlatformIO project still has its board
     // toolchain, whose standard library is enough for std:: completion. The
     // target stays unset: clang cannot target xtensa, and a wrong triple would
     // break every file rather than help it.
     const pio = await findPlatformioCompiler(root)
-    if (pio) tc = { ...(await deriveToolchain(pio)), target: null }
+    if (pio) tc = { ...(await installedPlatformioToolchain(pio) ?? await deriveToolchain(pio)), target: null }
   }
   // Without real include paths the file adds nothing and could pin a wrong
   // target; leave clangd to its defaults instead.
-  if (tc.includes.length === 0) return false
+  if (tc.includes.length === 0) return null
 
   const { project, deps } = await discoverIncludeDirs(root)
   // Headers of every installed native library (OpenCV, raylib, ...) so their
   // #includes resolve in the editor the moment they are installed.
   const native = await editorIncludeDirs(compiler).catch(() => [] as string[])
-  return writeConfig(root, cfgPath, existing, buildClangdConfig(tc, cppStd, cStd, project, [...deps, ...native]))
+  return buildClangdConfig(tc, cppStd, cStd, project, [...(hostTools ? [] : deps), ...native], hostTools ? { compiler } : undefined)
 }

@@ -86,6 +86,34 @@ the generated `compile_commands.json`, restarts clangd after it settles, and
 replays open editor buffers (including unsaved edits). Save the file as well:
 the on-disk source and the editor buffer can contain different header names.
 
+### Firmware and laptop tools in one project
+
+In a PlatformIO project with a compile database, keep laptop C/C++ programs in
+`tools/`, outside the firmware sources. Cortex scopes those files to the selected
+host compiler, project C/C++ standards and installed native-library headers
+(OpenCV, raylib and the other Libraries entries). They do not borrow an ESP32
+command from `src/main.cpp`: their clangd fragment uses
+`CompilationDatabase: None`. Firmware elsewhere retains PlatformIO's database,
+board headers and build standard, including custom firmware source directories.
+This host override requires a successfully probed host compiler; a missing host
+compiler does not silently turn laptop tools into board builds.
+
+This fixes the case where **Run** succeeded but the editor reported missing
+OpenCV headers and cascading type errors. Genuine errors and warnings remain
+enabled. User-authored `.clangd` files are preserved; their owner controls mixed
+toolchain scopes. The supported layout reserves `tools/` for host programs;
+firmware deliberately placed there needs user-defined clangd scopes instead.
+
+The scoped database setting follows [clangd's configuration reference](https://clangd.llvm.org/config#compilationdatabase).
+
+For managed PlatformIO GCC packages with one installed compiler version, Cortex
+reads the existing GCC, C++ and newlib header directories directly. A cold
+`cc1plus` launch can exceed the driver-probe deadline on Windows; that failure
+must never replace firmware settings with host settings. Nonstandard or
+ambiguous layouts still use the bounded driver probe and retain the previous
+configuration if discovery fails. Installed board-library directories are
+included even when the compile database predates a library installation.
+
 ## The toolchain bridge (the hard part)
 
 clangd is built on clang, but Cortex projects build with whatever toolchain the

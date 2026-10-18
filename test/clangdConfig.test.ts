@@ -1,8 +1,33 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parseDriverOutput, buildClangdConfig, discoverIncludeDirs, pickPioToolchain, MARKER } from '../src/main/services/clangdConfig'
+import { parseDriverOutput, buildClangdConfig, discoverIncludeDirs, pickPioToolchain, ensureClangdConfig, MARKER } from '../src/main/services/clangdConfig'
+
+const mocks = vi.hoisted(() => ({ spawn: vi.fn(), editorIncludeDirs: vi.fn() }))
+vi.mock('child_process', () => ({ spawn: mocks.spawn }))
+vi.mock('../src/main/services/nativeLibFlags', () => ({ editorIncludeDirs: mocks.editorIncludeDirs }))
+vi.mock('../src/main/services/commandResolver', () => ({
+  safeCommand: (command: string) => command,
+  needsShell: () => false
+}))
+vi.mock('../src/main/services/fsService', () => ({ getWorkspaceRoot: () => null }))
+
+const { loadAll } = require('js-yaml') as { loadAll: (text: string) => ConfigFragment[] }
+interface ConfigFragment {
+  If?: { PathMatch?: string | string[]; PathExclude?: string | string[] }
+  CompileFlags?: { Add?: string[]; Remove?: string[]; Compiler?: string; CompilationDatabase?: string }
+}
+
+function fragmentsFor(config: string, path: string): ConfigFragment[] {
+  const matches = (patterns: string | string[], candidate: string): boolean =>
+    (Array.isArray(patterns) ? patterns : [patterns]).some(pattern => new RegExp(`^(?:${pattern})$`).test(candidate))
+  return loadAll(config).filter(fragment =>
+    (!fragment.If?.PathMatch || matches(fragment.If.PathMatch, path)) &&
+    (!fragment.If?.PathExclude || !matches(fragment.If.PathExclude, path)))
+}
 
 // A trimmed but representative `g++ -E -xc++ -v -` report (MSYS2 MinGW), with the
 // CRLF line endings the driver emits on Windows.
@@ -242,5 +267,144 @@ describe('PlatformIO compile-database config', () => {
 
   it('omits the GCC version flag when it cannot be determined', () => {
     expect(buildPlatformioConfig({ target: null, includes: ['/opt/x/include'] })).not.toContain('fgnuc')
+  })
+})
+
+describe('ensureClangdConfig for firmware and desktop tools in one workspace', () => {
+  let root: string
+  let boardInclude: string
+  let servoInclude: string
+  const nativeInclude = 'C:/owned-native/include/opencv4'
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'cortex-mixed-clangd-'))
+    const core = join(root, 'owned-pio-core')
+    const bin = join(core, 'packages', 'toolchain-xtensa-esp32', 'bin')
+    boardInclude = join(core, 'packages', 'toolchain-xtensa-esp32', 'lib', 'gcc', 'xtensa-esp32-elf', '8.4.0', 'include')
+    servoInclude = join(root, '.pio', 'libdeps', 'esp32dev', 'ESP32Servo', 'src')
+    mkdirSync(bin, { recursive: true })
+    mkdirSync(servoInclude, { recursive: true })
+    mkdirSync(join(root, '.cortex'))
+    mkdirSync(join(root, 'src'))
+    mkdirSync(join(root, 'tools'))
+    writeFileSync(join(bin, 'xtensa-esp32-elf-g++.exe'), '')
+    writeFileSync(join(root, 'platformio.ini'), '[env:esp32dev]\nplatform = espressif32\n')
+    writeFileSync(join(root, '.cortex', 'config.json'), JSON.stringify({ compiler: 'g++', std: 'c++17', cStd: 'c99' }))
+    writeFileSync(join(root, 'compile_commands.json'), JSON.stringify([{
+      directory: root,
+      file: join(root, 'src', 'main.cpp'),
+      arguments: [join(bin, 'xtensa-esp32-elf-g++.exe'), '-std=gnu++11', '-mlongcalls', '-c', join(root, 'src', 'main.cpp')]
+    }]))
+    vi.stubEnv('PLATFORMIO_CORE_DIR', core)
+    mocks.editorIncludeDirs.mockResolvedValue([nativeInclude])
+    mocks.spawn.mockImplementation((compiler: string) => {
+      const child = Object.assign(new EventEmitter(), {
+        stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn()
+      })
+      child.stdin.on('finish', () => queueMicrotask(() => {
+        child.stderr.write(compiler.includes('xtensa')
+          ? `Target: xtensa-esp32-elf\n#include <...> search starts here:\n ${boardInclude}\nEnd of search list.\n`
+          : GXX_V)
+        child.stdout.end()
+        child.stderr.end()
+        child.emit('close', 0)
+      }))
+      return child
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.clearAllMocks()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('keeps the board database for firmware but analyzes tools with the host build settings', async () => {
+    expect(await ensureClangdConfig(root)).toBe(true)
+    const config = readFileSync(join(root, '.clangd'), 'utf8')
+    const firmware = fragmentsFor(config, 'src/main.cpp')
+    const desktop = fragmentsFor(config, 'tools/camera_preview.cpp')
+    const desktopC = fragmentsFor(config, 'tools/native.c')
+    const firmwareFlags = firmware.flatMap(fragment => fragment.CompileFlags?.Add ?? [])
+    const desktopFlags = desktop.flatMap(fragment => fragment.CompileFlags?.Add ?? [])
+    const desktopCFlags = desktopC.flatMap(fragment => fragment.CompileFlags?.Add ?? [])
+
+    expect(desktop.some(fragment => fragment.CompileFlags?.CompilationDatabase === 'None')).toBe(true)
+    expect(desktop.some(fragment => fragment.CompileFlags?.Compiler === 'g++')).toBe(true)
+    expect(desktopFlags).toContain('--target=x86_64-w64-mingw32')
+    expect(desktopFlags).toContain('-std=c++17')
+    expect(desktopFlags).not.toContain('-std=c99')
+    expect(desktopFlags).toContain(nativeInclude)
+    expect(desktopFlags).toContain('C:/msys64/mingw64/include/c++/14.2.0')
+    expect(desktopFlags).not.toContain(boardInclude)
+    expect(desktopFlags).not.toContain(servoInclude)
+    expect(desktopFlags.some(flag => flag.startsWith('-fgnuc-version='))).toBe(false)
+    expect(desktop.flatMap(fragment => fragment.CompileFlags?.Remove ?? [])).not.toContain('-m*')
+    expect(desktopCFlags).toContain('-std=c99')
+    expect(desktopCFlags).not.toContain('-std=c++17')
+    expect(desktopC.filter(fragment => fragment.CompileFlags?.Compiler).at(-1)?.CompileFlags?.Compiler).toBe('gcc')
+
+    expect(firmwareFlags).toContain(boardInclude)
+    expect(firmwareFlags).toContain(servoInclude)
+    expect(firmwareFlags).toContain('-fgnuc-version=8.4.0')
+    expect(firmwareFlags).not.toContain(nativeInclude)
+    expect(firmwareFlags.some(flag => flag.startsWith('--target=') || flag.startsWith('-std='))).toBe(false)
+    expect(firmware.some(fragment => fragment.CompileFlags?.CompilationDatabase === 'None')).toBe(false)
+    expect(firmware.flatMap(fragment => fragment.CompileFlags?.Remove ?? [])).toContain('-m*')
+    expect(fragmentsFor(config, 'firmware/custom.cpp').flatMap(fragment => fragment.CompileFlags?.Add ?? [])).toEqual(firmwareFlags)
+    expect(await ensureClangdConfig(root)).toBe(false)
+  })
+
+  it('discovers installed board headers without starting a slow compiler process', async () => {
+    const packageRoot = join(root, 'owned-pio-core', 'packages', 'toolchain-xtensa-esp32')
+    const cppInclude = join(packageRoot, 'xtensa-esp32-elf', 'include', 'c++', '8.4.0')
+    const boardHeaders = [
+      cppInclude,
+      join(cppInclude, 'xtensa-esp32-elf'),
+      join(cppInclude, 'backward'),
+      boardInclude,
+      join(packageRoot, 'lib', 'gcc', 'xtensa-esp32-elf', '8.4.0', 'include-fixed'),
+      join(packageRoot, 'xtensa-esp32-elf', 'include')
+    ]
+    for (const directory of boardHeaders) mkdirSync(directory, { recursive: true })
+
+    expect(await ensureClangdConfig(root)).toBe(true)
+    const config = readFileSync(join(root, '.clangd'), 'utf8')
+    const firmware = fragmentsFor(config, 'src/main.cpp')
+    const desktop = fragmentsFor(config, 'tools/camera_preview.cpp')
+    const firmwareFlags = firmware.flatMap(fragment => fragment.CompileFlags?.Add ?? [])
+    const desktopFlags = desktop.flatMap(fragment => fragment.CompileFlags?.Add ?? [])
+
+    expect(mocks.spawn.mock.calls.some(([compiler]) => compiler.includes('xtensa'))).toBe(false)
+    expect(firmwareFlags).toEqual(expect.arrayContaining(boardHeaders))
+    expect(firmwareFlags).not.toContain(join(packageRoot, 'xtensa-esp32-elf', 'sys-include'))
+    expect(firmwareFlags).toContain('-fgnuc-version=8.4.0')
+    expect(firmware.flatMap(fragment => fragment.CompileFlags?.Remove ?? [])).toContain('-m*')
+    expect(firmwareFlags.some(flag => flag.startsWith('--target=') || flag.startsWith('-std='))).toBe(false)
+    expect(desktopFlags).toContain(nativeInclude)
+    expect(desktopFlags).toContain('--target=x86_64-w64-mingw32')
+    expect(desktopFlags).toContain('-std=c++17')
+    expect(desktop.some(fragment => fragment.CompileFlags?.CompilationDatabase === 'None')).toBe(true)
+    expect(desktopFlags).not.toContain(cppInclude)
+    expect(desktopFlags).not.toContain('-fgnuc-version=8.4.0')
+  })
+
+  it('preserves the last working board configuration when a cold compiler probe fails', async () => {
+    mkdirSync(boardInclude, { recursive: true })
+    const previous = buildPlatformioConfig({ target: null, includes: [boardInclude] }, true) + '---\n' +
+      buildClangdConfig(parseDriverOutput(GXX_V), 'c++17', 'c99', [join(root, 'src')], [nativeInclude], { compiler: 'g++' })
+    writeFileSync(join(root, '.clangd'), previous)
+    mocks.spawn.mockImplementationOnce(() => { throw new Error('Owned cold compiler probe failed') })
+
+    expect(await ensureClangdConfig(root)).toBe(false)
+    expect(readFileSync(join(root, '.clangd'), 'utf8')).toBe(previous)
+  })
+
+  it('does not replace a user-authored configuration in a mixed workspace', async () => {
+    const userConfig = '# My configuration\nCompileFlags:\n  Add: [-DMY_CONFIG]\n'
+    writeFileSync(join(root, '.clangd'), userConfig)
+    expect(await ensureClangdConfig(root)).toBe(false)
+    expect(readFileSync(join(root, '.clangd'), 'utf8')).toBe(userConfig)
+    expect(mocks.spawn).not.toHaveBeenCalled()
   })
 })
