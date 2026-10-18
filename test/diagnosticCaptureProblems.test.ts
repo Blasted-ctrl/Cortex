@@ -69,6 +69,18 @@ describe('actual collector, store and mounted Problems view', () => {
     expect(host.nodes().filter(node => node.type === 'button')).toHaveLength(1)
   })
 
+  it('shows build guidance rather than editor-only advice for a missing Arduino core', async () => {
+    const capture = createCompilerDiagnostics({ ...options, maxRecordBytes: 256 })
+    capture.write('main.cpp:1:10: fatal error: Arduino.h: No such file or directory\n')
+    await act(async () => {
+      useStore.setState({ tree: [{ name: 'platformio.ini', path: `${root}/platformio.ini`, isDir: false }] })
+      useStore.getState().handleDiagnostics({ id: 'current-build', ...capture.finish() })
+    })
+    expect(text()).toContain('Arduino.h: No such file or directory')
+    expect(text()).toContain('PlatformIO Build')
+    expect(text()).not.toMatch(/editor squiggles|IntelliSense|compiledb/)
+  })
+
   it.each([1, 2])('shows %s known omitted diagnostics even when none fit', async (count) => {
     const capture = createCompilerDiagnostics({ ...options, maxDiagnosticsBytes: 2 })
     capture.write((record + '\n').repeat(count))

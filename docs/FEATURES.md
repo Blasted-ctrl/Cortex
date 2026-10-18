@@ -74,7 +74,11 @@ the shell usable. See [terminal controls and limits](PROJECTS.md#integrated-term
   up to 500 retained problems, and a conditional persistent incompleteness notice.
   Later errors survive oversized input; warnings and actual failure codes remain.
   See [diagnostic limits](LANGUAGES.md#compiler-diagnostics).
-- ⬜ CMake / PlatformIO project builds (multi-file)
+- ✅ **PlatformIO project Build** (hammer): saves project files and runs `pio run`.
+  Run on C/C++ firmware outside `tools/` uses this same board build, never the
+  laptop compiler or an automatic board upload. Laptop programs in `tools/`
+  still compile and run locally; Python and JavaScript keep their own runners.
+- ⬜ CMake project builds (multi-file)
 
 ## Boards & embedded (ESP32 / RP2040 / Arduino)
 - ✅ **Managed board tools**: release installers bundle Arduino CLI; development

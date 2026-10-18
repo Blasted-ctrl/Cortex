@@ -1,11 +1,11 @@
 /**
- * Plain-English "what's going on and what to do" lines appended to editor
- * diagnostics. Pure and dependency-free so the rules are unit-tested; the
- * renderer appends the result to the clangd message before it becomes a marker.
+ * Plain-English guidance for editor and compiler diagnostics. Pure and
+ * dependency-free so the rules are unit-tested. The renderer appends guidance
+ * to clangd markers and shows it beside compiler problems.
  *
  * Add a rule by returning a string from `diagnosticHint` for a message shape.
- * A rule must only claim what Cortex can back up: these are hints about the
- * editor's analysis, not a statement that the build itself fails.
+ * A rule must only claim what its context establishes: a failed compiler run
+ * must not be described as an editor-only configuration issue.
  */
 
 import { libForDiagnostic } from './nativeLibs'
@@ -59,6 +59,8 @@ export interface HintContext {
   platformio?: boolean
   /** PlatformIO has already generated a compile_commands.json at the project root. */
   compilationDatabase?: boolean
+  /** This diagnostic came from a compiler run rather than the language server. */
+  build?: boolean
   /** This source includes the Arduino framework or is an Arduino sketch. */
   embedded?: boolean
 }
@@ -112,6 +114,9 @@ export function diagnosticHint(message: string, ctx: HintContext = {}): string |
 
   const boardCore = ['arduino.h', 'wire.h', 'spi.h', 'wifi.h', 'eeprom.h'].includes(missing.toLowerCase())
   if (boardCore) {
+    if (ctx.platformio && ctx.build) {
+      return `Fix: use this project's PlatformIO Build so the board core and framework provide ${missing}. If that build still cannot find it, check framework=arduino and the selected board in platformio.ini.`
+    }
     return ctx.platformio
       ? ctx.compilationDatabase
         ? `Fix: the compile database already exists. Save this file, then check that its compile command uses the selected board's core headers. Cortex reloads clangd when the database changes.`

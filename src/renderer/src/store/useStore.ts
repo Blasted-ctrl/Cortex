@@ -2040,6 +2040,12 @@ export const useStore = create<State>((set, get) => ({
       say('A header is not a program. Open the .cpp/.c that includes it and run that.\n')
       return
     }
+    if (workspaceRoot && (tab.language.id === 'cpp' || tab.language.id === 'c') &&
+      isPlatformioProject(get().tree, get().projectModel) &&
+      !normPath(tab.path).startsWith(`${normPath(workspaceRoot)}/tools/`)) {
+      get().notify('info', 'Firmware targets the board', 'Building with PlatformIO. Upload explicitly to run on hardware; the laptop compiler cannot run Arduino firmware.')
+      return get().buildActive()
+    }
     // An Arduino sketch must never be handed to the host compiler: `g++ blink.ino`
     // fails with "file format not recognized". F5 / the command palette reach this
     // path even though the toolbar hides Run for sketches, so route them properly.

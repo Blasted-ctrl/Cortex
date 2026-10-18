@@ -51,7 +51,7 @@ export default function ProblemsPanel(): JSX.Element {
               {baseName(file)} <span className="text-ide-faint">· {items.length}</span>
             </div>
             {items.map((d, i) => {
-              const hint = diagnosticHint(d.message, { platformio, embedded })
+              const hint = diagnosticHint(d.message, { platformio, embedded, build: true })
               return (
                 <button
                   key={`${file}:${d.line}:${d.column}:${i}`}

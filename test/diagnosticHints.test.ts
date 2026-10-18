@@ -23,6 +23,12 @@ describe('diagnosticHint', () => {
   it('points a PlatformIO project at compiledb for a board-core header', () => {
     expect(diagnosticHint("'Wire.h' file not found", { platformio: true })).toMatch(/pio run -t compiledb/)
   })
+  it('does not describe a failed firmware build as an editor-only issue', () => {
+    const hint = diagnosticHint('Arduino.h: No such file or directory', { platformio: true, build: true })
+    expect(hint).toMatch(/PlatformIO.*Build/)
+    expect(hint).toContain('framework=arduino')
+    expect(hint).not.toMatch(/editor|IntelliSense|compiledb/)
+  })
   it('does not ask for compiledb again when the database already exists', () => {
     const hint = diagnosticHint("'Arduino.h' file not found", { platformio: true, compilationDatabase: true })
     expect(hint).toMatch(/compile database already exists/)

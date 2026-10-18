@@ -70,6 +70,26 @@ describe('PlatformIO project builds', () => {
     expect(api.runStart).toHaveBeenCalledOnce()
   })
 
+  it.each(['src/main.cpp', 'src/main.c', 'firmware/controller.cpp'])('routes Run for %s to the board build without flashing hardware', async file => {
+    const active = tab(`C:/project/${file}`)
+    useStore.setState({ tabs: [active, tab('C:/project/platformio.ini')], activePath: active.path })
+    await useStore.getState().runActive()
+    expect(api.runStart).toHaveBeenCalledWith(expect.objectContaining({ cwd: 'C:/project', buildSystem: 'platformio', buildOnly: true }))
+    expect(api.writeFile).toHaveBeenCalledWith('C:/project/platformio.ini', 'unsaved', 'original')
+    expect(api.boardUpload).not.toHaveBeenCalled()
+    expect(api.boardCompile).not.toHaveBeenCalled()
+  })
+
+  it.each(['tools/camera_preview.cpp', 'tools/native.c', 'src/main.py'])('keeps Run for %s on the laptop', async file => {
+    const active = tab(`C:/project/${file}`)
+    useStore.setState({ tabs: [active], activePath: active.path })
+    await useStore.getState().runActive()
+    expect(api.runStart).toHaveBeenCalledWith(expect.objectContaining({ filePath: active.path, language: active.language.id }))
+    expect(api.runStart.mock.calls[0][0].buildOnly).not.toBe(true)
+    expect(api.runStart.mock.calls[0][0].buildSystem).toBeUndefined()
+    expect(api.boardUpload).not.toHaveBeenCalled()
+  })
+
   it('does not build while another source file changes during Save All', async () => {
     const write = deferred<void>()
     const other = tab('C:/project/other.cpp')
