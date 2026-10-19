@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { flushCppAutoIncludes } from '../monaco/cppAutoInclude'
+import { choosePlatformioUploadPort, pickDefaultPort } from '@shared/serial'
 import type {
   FileNode,
   ToolchainInfo,
@@ -711,6 +712,8 @@ interface State {
 
   runActive: () => Promise<void>
   buildActive: () => Promise<void>
+  /** Build the PlatformIO project and flash it to the chosen (or only USB) serial port. */
+  uploadPlatformio: () => Promise<void>
   stopRun: () => Promise<void>
   clearOutput: () => void
   appendOutput: (c: RunOutputChunk) => void
@@ -2172,6 +2175,94 @@ export const useStore = create<State>((set, get) => ({
       preparation.finish()
     }
   },
+  async uploadPlatformio() {
+    const { activePath, workspaceRoot, running } = get()
+    if (running || runStartToken || !workspaceRoot || !isPlatformioProject(get().tree, get().projectModel)) return
+    const say = (text: string): void => set({ bottomVisible: true, bottomView: 'output', output: [{ stream: 'system', text }] })
+    const dbg = get().debug.status
+    if (dbg !== 'idle' && dbg !== 'exited') {
+      say('A debug session is running. Stop it before uploading.\n')
+      return
+    }
+    // Re-list so a board plugged in a moment ago counts, then require an explicit or
+    // unambiguous port: with two boards connected, guessing could flash the wrong one.
+    const listed = await window.api.serialList().catch(() => get().ports)
+    set({ ports: listed })
+    const selected = get().serialPath
+    const port = choosePlatformioUploadPort(selected, listed)
+    if (!port) {
+      say(
+        listed.some((p) => p.vendorId)
+          ? 'More than one serial device is connected. Pick the board in Serial & Devices, then upload again.\n'
+          : 'No USB serial device found. Connect the board with a data cable (not a charge-only one) and try again.\n'
+      )
+      return
+    }
+    const preparation = beginRunPreparation(get, activePath, true)
+    let closedMonitor = false
+    let launched = false
+    let uploadId: string | null = null
+    let monitorOperation: number | null = null
+    try {
+      // Save everything first; a failed save must not interrupt a working monitor.
+      await get().saveAll()
+      if (!preparation.isSaved() || get().running) return
+      // The flasher needs the port exclusively, so release our monitor if it holds it.
+      if (get().serialOpen && get().serialPath === port) {
+        monitorOperation = ++serialMonitorSeq
+        await window.api.serialClose()
+        if (monitorOperation !== serialMonitorSeq || get().workspaceRoot !== workspaceRoot) return
+        set({ serialOpen: false, serialCarry: '' })
+        closedMonitor = true
+      }
+      if (!preparation.isSaved() || get().running) return
+      runTargetFile = 'PlatformIO project'
+      const id = nextRunId()
+      uploadId = id
+      if (closedMonitor && monitorOperation !== null) reopenSerialAfterUpload = { runId: id, workspaceRoot, port, operation: monitorOperation }
+      set({
+        runId: id,
+        running: true,
+        runAction: 'upload',
+        runPhase: 'compile',
+        lastExitCode: null,
+        output: [],
+        diagnostics: [],
+        diagnosticCapture: null,
+        bottomView: 'output',
+        bottomVisible: true
+      })
+      try {
+        const state = get()
+        await window.api.runStart({
+          id,
+          filePath: `${workspaceRoot}/platformio.ini`,
+          language: 'cpp',
+          cwd: workspaceRoot,
+          compiler: state.compiler,
+          std: state.std,
+          optimization: state.optimization,
+          rustEdition: state.rustEdition,
+          extraArgs: state.extraArgs,
+          buildOnly: true,
+          buildSystem: 'platformio',
+          uploadPort: port
+        })
+        if (!preparation.ownsRun(id)) await window.api.runStop(id)
+        else launched = true
+      } catch (err) {
+        if (preparation.ownsRun(id)) set({ running: false, runPhase: 'idle', runAction: null, runId: null, output: [{ stream: 'stderr', text: `Upload failed: ${String(err)}\n` }] })
+      }
+    } finally {
+      preparation.finish()
+      if (closedMonitor && !launched) {
+        if (reopenSerialAfterUpload?.runId === uploadId) reopenSerialAfterUpload = null
+        if (monitorOperation === serialMonitorSeq && get().workspaceRoot === workspaceRoot && get().serialPath === port && !get().serialOpen && !get().running) {
+          void get().toggleSerial().catch((error) => get().notify('error', 'Could not reopen serial monitor', String(error)))
+        }
+      }
+    }
+  },
   async runFirmwareTests(options = {}) {
     if (get().firmwareTestRunning) return
     get().setBottom('tests')
@@ -2310,7 +2401,9 @@ export const useStore = create<State>((set, get) => ({
   async refreshPorts() {
     const ports = await window.api.serialList()
     set({ ports })
-    if (!get().serialPath && ports.length) set({ serialPath: ports[0].path })
+    // A USB adapter beats a Bluetooth link that happens to be listed first.
+    const preferred = pickDefaultPort(ports)
+    if (!get().serialPath && preferred) set({ serialPath: preferred })
   },
   async toggleSerial() {
     const { workspaceRoot, serialOpen, serialPath, serialBaud } = get()

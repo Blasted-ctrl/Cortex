@@ -14,6 +14,7 @@ import {
   cargoRenderedMessage
 } from '../../shared/diagnostics'
 import { isAllowedCommand, isBareCommand, commandBaseName, sanitizeExtraArgs, OPT_LEVELS } from '../../shared/security'
+import { isSerialPortName } from '../../shared/serial'
 import { withinWorkspace, getWorkspaceRoot } from './fsService'
 import { libsForCppSource } from '../../shared/nativeLibs'
 import { resolveBuildFlags } from './nativeLibFlags'
@@ -278,11 +279,21 @@ async function compilePlatformIO(win: BrowserWindow, req: RunRequest, cancellati
     exit(win, { id: req.id, code: 127, signal: null, durationMs: 0, phase: 'compile' })
     return
   }
-  out(win, req.id, 'system', '$ pio run\n')
+  // Flashing hardware is only ever an explicit request, with a plain port name that
+  // cannot be read as an option (the value is an argv element, never a shell string).
+  let args = ['run']
+  if (req.uploadPort !== undefined) {
+    if (typeof req.uploadPort !== 'string' || !isSerialPortName(req.uploadPort)) {
+      return reject(win, req.id, `Refusing to upload: "${String(req.uploadPort).slice(0, 40)}" is not a serial port name such as COM5 or /dev/ttyUSB0.`)
+    }
+    args = ['run', '-t', 'upload', '--upload-port', req.uploadPort]
+  }
+  const uploading = args.length > 1
+  out(win, req.id, 'system', `$ pio ${args.join(' ')}\n`)
   const start = performance.now()
   let proc: ChildProcess
   try {
-    proc = spawn(pio, ['run'], { cwd: workspace, windowsHide: true, shell: needsShell(pio) })
+    proc = spawn(pio, args, { cwd: workspace, windowsHide: true, shell: needsShell(pio) })
   } catch (err) {
     out(win, req.id, 'stderr', `Failed to launch PlatformIO: ${String(err)}\n`)
     exit(win, { id: req.id, code: 127, signal: null, durationMs: elapsed(start), phase: 'compile' })
@@ -310,7 +321,7 @@ async function compilePlatformIO(win: BrowserWindow, req: RunRequest, cancellati
     if (cancellation.aborted || win.isDestroyed()) {
       exit(win, { id: req.id, code: null, signal, durationMs, phase: 'compile' })
     } else if (code === 0) {
-      out(win, req.id, 'system', `PlatformIO build completed in ${durationMs}ms\n`)
+      out(win, req.id, 'system', `PlatformIO ${uploading ? 'upload' : 'build'} completed in ${durationMs}ms\n`)
       exit(win, { id: req.id, code: 0, signal: null, durationMs, phase: 'run' })
     } else {
       exit(win, { id: req.id, code, signal, durationMs, phase: 'compile' })

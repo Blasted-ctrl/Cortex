@@ -23,6 +23,7 @@ export default function Toolbar(): JSX.Element {
     runAction,
     runActive,
     buildActive,
+    uploadPlatformio,
     stopRun,
     diagnostics,
     boardStatus,
@@ -139,6 +140,17 @@ export default function Toolbar(): JSX.Element {
             aria-label="Build"
           >
             <Hammer size={14} />
+          </button>
+        )}
+        {!running && platformio && (
+          <button
+            className="btn h-7 w-7 justify-center px-0 disabled:opacity-40"
+            onClick={() => void uploadPlatformio()}
+            disabled={debug.status !== 'idle' && debug.status !== 'exited'}
+            title="Build and upload the firmware to the connected board (pio run -t upload). Closes the serial monitor while flashing."
+            aria-label="Upload to board"
+          >
+            <UploadCloud size={14} />
           </button>
         )}
         {running ? (

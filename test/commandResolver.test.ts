@@ -142,3 +142,20 @@ describe.skipIf(!existsForMsys('C:/msys64/ucrt64/bin/g++.exe'))('known toolchain
     }
   })
 })
+
+import { homedir as homeDir } from 'node:os'
+import { join as joinPath } from 'node:path'
+
+// Needs a real PlatformIO install, so it only asserts where one exists.
+const PIO_BIN = joinPath(homeDir(), '.platformio', 'penv', process.platform === 'win32' ? 'Scripts' : 'bin')
+describe.skipIf(!existsForMsys(joinPath(PIO_BIN, process.platform === 'win32' ? 'pio.exe' : 'pio')))('PlatformIO outside PATH', () => {
+  it('finds pio in its private virtualenv when PATH does not list it', () => {
+    const saved = process.env['PATH']
+    try {
+      process.env['PATH'] = process.platform === 'win32' ? 'C:/WINDOWS/system32' : '/usr/bin'
+      expect(resolveOn('pio')?.toLowerCase()).toContain('penv')
+    } finally {
+      process.env['PATH'] = saved
+    }
+  })
+})

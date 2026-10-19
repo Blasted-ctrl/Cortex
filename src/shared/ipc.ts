@@ -249,6 +249,11 @@ export interface RunRequest {
   buildOnly?: boolean
   /** Use the project build system instead of compiling the active translation unit. */
   buildSystem?: 'platformio'
+  /**
+   * With buildSystem 'platformio': also flash the board on this serial port
+   * (`pio run -t upload`). Absent means build only: Cortex never flashes unless asked.
+   */
+  uploadPort?: string
 }
 
 export interface RunOutputChunk {

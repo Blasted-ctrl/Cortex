@@ -1,4 +1,5 @@
 import { existsSync, statSync } from 'fs'
+import { homedir } from 'os'
 import { delimiter, isAbsolute, join, normalize, resolve } from 'path'
 import { isBareCommand } from '../../shared/security'
 
@@ -81,7 +82,7 @@ export function resolveOnPath(cmd: string): string | null {
   return addKnownToolDirs() ? search() : null
 }
 
-/** Commands found in the known toolchain directories when they are not on PATH. */
+/** Commands found in the known tool directories (compilers, PlatformIO) when they are not on PATH. */
 const TOOLCHAIN_COMMANDS = new Set([
   'g++',
   'gcc',
@@ -93,7 +94,9 @@ const TOOLCHAIN_COMMANDS = new Set([
   'make',
   'mingw32-make',
   'pkg-config',
-  'pkgconf'
+  'pkgconf',
+  'pio',
+  'platformio'
 ])
 
 /**
@@ -111,10 +114,13 @@ const KNOWN_WIN_TOOL_DIRS = ['C:/msys64/ucrt64/bin', 'C:/msys64/mingw64/bin', 'C
  * PATH. Returns true when PATH changed.
  */
 export function addKnownToolDirs(): boolean {
-  if (!IS_WIN) return false
   const key = (d: string): string => normalize(d).replace(/[\\/]+$/, '').toLowerCase()
   const have = new Set((process.env['PATH'] || '').split(delimiter).filter(Boolean).map(key))
-  const add = KNOWN_WIN_TOOL_DIRS.map((d) => normalize(d)).filter((d) => !have.has(key(d)) && existsSync(d))
+  // PlatformIO's own installer and the VS Code extension keep `pio` in its private
+  // virtualenv under the user's home without putting it on PATH. Every platform.
+  const pioBin = join(homedir(), '.platformio', 'penv', IS_WIN ? 'Scripts' : 'bin')
+  const candidates = [...(IS_WIN ? KNOWN_WIN_TOOL_DIRS : []), pioBin]
+  const add = candidates.map((d) => normalize(d)).filter((d) => !have.has(key(d)) && existsSync(d))
   if (add.length === 0) return false
   process.env['PATH'] = [process.env['PATH'] || '', ...add].filter(Boolean).join(delimiter)
   return true
