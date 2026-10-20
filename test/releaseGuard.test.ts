@@ -381,7 +381,8 @@ describe('packaged application file selection', () => {
         expect(includes(resolve(root, file), fileStat), file).toBe(false)
       }
     }
-    for (const file of ['.turbo/handoff/session.md', 'release/0.1.0/win-unpacked/resources/app.asar', 'dist/cortex-setup.exe']) {
+    for (const file of ['.turbo/handoff/session.md', '.claude/settings.json', 'docs/media/cortex-demo.mp4', 'scripts/demo/record-demo.ts',
+      'release/0.1.0/win-unpacked/resources/app.asar', 'dist/cortex-setup.exe']) {
       expect(includes(resolve(root, file), fileStat), file).toBe(false)
     }
     for (const file of ['package.json', 'out/main/index.js', 'out/preload/index.js', 'out/renderer/index.html']) {

@@ -6,6 +6,9 @@ directories:
 files:
   - '!.cortex/**'
   - '!.turbo/**'
+  - '!.claude/**'
+  - '!docs/**'
+  - '!scripts/demo/**'
   - '!release/**'
   - '!dist/**'
   - '!**/.vscode/*'

@@ -2,29 +2,29 @@
 
 ## Current production-readiness slice
 
-The [reviewed workbench plan](../.turbo/plans/cortex-production-workbench.md)
+The reviewed workbench plan
 is verified after a complete audit of the 50 tracked Markdown files at
 `da1aee3`. It protects global settings persistence and exact AI-approved disk
 snapshots, fits horizontal docks, and adds keyboard-accessible recent projects.
 The completed follow-up uses the
-[reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md):
+reviewed file-ownership plan:
 main-derived proposal existence and lifetime-safe Git/editor reconciliation.
 Its final 111-suite regression, types/build, repeated firmware, negative self-test,
 advisory benchmark and isolated native approval/Git controls pass. These are
 separate from the completed workbench checks, not inherited evidence.
 The completed library follow-up uses the
-[reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md):
+reviewed library-documentation plan:
 conservative stdlib provenance, accepted raw resolution state and cursor-specific
 hardware help. Final 112-suite regression (2138 passes and five unchanged skips),
 types/build, serial firmware/self-test/benchmark and genuine clangd desktop
 hover/completion/save controls pass. The completed compiler follow-up uses the
-[reviewed diagnostic plan](../.turbo/plans/cortex-bounded-compiler-diagnostics.md):
+reviewed diagnostic plan:
 measured record/array limits, genuine Cargo terminal authority and explicit
 omission evidence. Final 116-suite regression (2311 passes/five unchanged skips),
 types/build, serial CLI checks, guard mutations and actual GCC desktop controls
 pass. More tools focus/navigation is complete at `354dd1d`, with focused tests and
 37-control native acceptance. Keyboard panel resizing is completed locally
-under the [reviewed resizing plan](../.turbo/plans/cortex-keyboard-panel-resizing.md).
+under the reviewed resizing plan.
 Implementation commits are `6f868d5`, `e007e8d` and `72e63dd`. It retains compact
 controls and pointer behavior, layout-owned endpoints and original-runtime
 desktop verification; see [its own evidence](../docs/RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint).

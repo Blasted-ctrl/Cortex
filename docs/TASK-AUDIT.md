@@ -12,7 +12,7 @@ slice and [CONSTRAINTS.md](../CONSTRAINTS.md) for the unchanged quality floor.
 All 50 tracked Markdown files at `da1aee318de35b4ce321074ed18b37d56ec7ac87`
 were read in full, including the hidden project guidance, example READMEs and
 application prompt. Vendor dependencies, generated output and unrelated untracked
-files are not product-task sources. The new [written plan](../.turbo/plans/cortex-production-workbench.md)
+files are not product-task sources. The new written plan
 was independently reviewed before implementation.
 
 The completed workbench checkpoint covers global settings save integrity,
@@ -49,7 +49,7 @@ A-to-B-to-A edits and stable field identity have actual component regressions.
 These drafts are not durable: leaving a category/view can discard unsaved input.
 
 The completed follow-up is the separately
-[reviewed file-ownership plan](../.turbo/plans/cortex-reviewed-file-ownership.md),
+reviewed file-ownership plan,
 covering queue items 2 and 3 below. Corrected native encoding acceptance and the
 combined workbench gate have passed. Actual producer, store/filesystem and
 mounted-card/VCS regressions first reproduced the existing gaps. Final types/build,
@@ -59,13 +59,13 @@ The actual producer tests substitute provider transport; native cards are seeded
 Neither establishes live provider connectivity or native race timing.
 
 The completed next slice is the separately
-[reviewed library-documentation plan](../.turbo/plans/cortex-library-docs-provenance.md),
+reviewed library-documentation plan,
 covering queue item 4. Qualified ownership, accepted raw resolution state and
 cursor-specific lexical hardware help now pass 182 focused cases, final types/build,
 112 suites/2138 passes with five unchanged skips, serial CLI checks and genuine
 clangd hover/completion/save controls. Native evidence is limited to the documented
 fixtures, not every installed-server payload. The completed compiler follow-up
-uses the [reviewed capture plan](../.turbo/plans/cortex-bounded-compiler-diagnostics.md):
+uses the reviewed capture plan:
 measured whole-record/normalized-array budgets, strict structured Rust data,
 authoritative Cargo terminal outcomes and conditional persistent omission evidence.
 Final types/build, 116 suites/2311 passes with five unchanged skips, serial CLI
@@ -84,7 +84,7 @@ visible layout follow-up without claiming every badge was readable.
 Keyboard panel resizing has now passed focused regressions, guard/direction
 mutations, independent review, types/build, the 118-file regression and owned
 native controls under the
-[reviewed plan](../.turbo/plans/cortex-keyboard-panel-resizing.md), with implementation
+reviewed plan, with implementation
 commits `6f868d5`, `e007e8d` and `72e63dd`; see the
 [separate checkpoint](RELEASE-VALIDATION.md#keyboard-panel-resizing-checkpoint)
 for exact receipts and retained failed attempts. The long-filename review badge

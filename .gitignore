@@ -14,5 +14,6 @@ target/
 examples/multilang/firmware.elf
 # Cortex compiled-user-program scratch outputs
 .cortex/
-# Runtime lock for the scheduled stdlib-dictionary agent
-.claude/scheduled_tasks.lock
+# Local agent tooling and planning notes: not part of the product
+.claude/
+.turbo/
