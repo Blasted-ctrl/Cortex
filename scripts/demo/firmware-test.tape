@@ -10,13 +10,13 @@
 
 Output docs/media/firmware-test.gif
 
+# VHS cannot parse "Require g++"; the CLI itself stops with a clear error without a compiler.
 Require npm
-Require g++
 
 Set Shell "powershell"
 Set FontSize 16
 Set Width 1100
-Set Height 430
+Set Height 330
 Set Padding 20
 Set Theme "Builtin Dark"
 Set PlaybackSpeed 3

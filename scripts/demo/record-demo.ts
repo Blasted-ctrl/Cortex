@@ -28,12 +28,18 @@ const FFMPEG = process.env.FFMPEG || 'ffmpeg'
 const SIZE = { width: 1280, height: 720 }
 const MP4_LIMIT = 9 * 1024 * 1024
 const GIF_LIMIT = 5 * 1024 * 1024
-/** How long each fast-forwarded wait lasts in the final video, in seconds. */
+/** How long a fast-forwarded compile wait lasts in the final video, in seconds. */
 const FAST_SECONDS = 2
+/**
+ * Upper bound for one driver call. Generous because a busy laptop rendering WebGL
+ * while recording can take many seconds to answer; a truly stalled call still fails.
+ */
+const STEP_LIMIT_MS = 30_000
 const TEST_RUN_BUTTON = 'button[title="Run deterministic firmware scenarios in the Uno host model"]'
 
 interface Segment { start: number; end: number; speed: number }
 interface Clip { start: number; end: number }
+interface Wait extends Clip { seconds: number; label: string }
 interface Store { getState(): Record<string, any> }
 declare global { interface Window { __cortexStore: Store; __cortexEditor?: any; __demoPrevious?: unknown } }
 
@@ -52,13 +58,13 @@ const works = (command: string, args: string[]): boolean => spawnSync(command, a
 class Timeline {
   readonly t0 = Date.now()
   readonly marks: Record<string, number> = {}
-  readonly fast: Clip[] = []
+  readonly fast: Wait[] = []
   private fastStart: number | null = null
   now(): number { return (Date.now() - this.t0) / 1000 }
   mark(name: string): void { this.marks[name] = this.now() }
   beginFast(): void { this.fastStart = this.now() }
-  endFast(): void {
-    if (this.fastStart !== null) this.fast.push({ start: this.fastStart, end: this.now() })
+  endFast(seconds: number, label: string): void {
+    if (this.fastStart !== null) this.fast.push({ start: this.fastStart, end: this.now(), seconds, label })
     this.fastStart = null
   }
 }
@@ -137,7 +143,7 @@ class Director {
 
   async caption(text: string | null): Promise<void> {
     if (text) this.log(`caption: ${text}`)
-    await within(10_000, 'Setting a caption', this.page.evaluate((value) => {
+    await within(STEP_LIMIT_MS, 'Setting a caption', this.page.evaluate((value) => {
       const el = document.getElementById('demo-caption')!
       if (value) el.textContent = value
       el.style.opacity = value ? '1' : '0'
@@ -145,20 +151,20 @@ class Director {
   }
 
   private async drawCursor(x: number, y: number): Promise<void> {
-    await within(10_000, 'Moving the drawn cursor', this.page.evaluate(([px, py]) => {
+    await within(STEP_LIMIT_MS, 'Moving the drawn cursor', this.page.evaluate(([px, py]) => {
       document.getElementById('demo-cursor')!.style.transform = `translate(${px}px, ${py}px)`
     }, [x, y]))
   }
 
   async moveTo(x: number, y: number): Promise<void> {
     await this.drawCursor(x, y)
-    await within(10_000, 'Moving the mouse', this.page.mouse.move(x, y))
+    await within(STEP_LIMIT_MS, 'Moving the mouse', this.page.mouse.move(x, y))
     await sleep(520)
   }
 
   private async box(target: Locator, what: string): Promise<{ x: number; y: number }> {
     await target.waitFor({ state: 'visible', timeout: 30_000 })
-    const box = await within(10_000, `Measuring ${what}`, target.boundingBox()) ?? fail(`${what} is not on screen`)
+    const box = await within(STEP_LIMIT_MS, `Measuring ${what}`, target.boundingBox()) ?? fail(`${what} is not on screen`)
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
   }
 
@@ -171,7 +177,7 @@ class Director {
   async clickAt(x: number, y: number, what: string): Promise<void> {
     this.log(`click: ${what}`)
     await this.moveTo(x, y)
-    await within(10_000, 'Drawing the click', this.page.evaluate(([px, py]) => {
+    await within(STEP_LIMIT_MS, 'Drawing the click', this.page.evaluate(([px, py]) => {
       const ring = document.createElement('div')
       ring.className = 'demo-ring'
       ring.style.left = `${px}px`
@@ -179,7 +185,7 @@ class Director {
       document.body.appendChild(ring)
       setTimeout(() => ring.remove(), 600)
     }, [x, y]))
-    await within(10_000, `Clicking ${what}`, this.page.mouse.click(x, y))
+    await within(STEP_LIMIT_MS, `Clicking ${what}`, this.page.mouse.click(x, y))
     await sleep(250)
   }
 
@@ -188,13 +194,13 @@ class Director {
     this.log(`drag: ${what} by ${dy}px`)
     const { x, y } = await this.box(target, what)
     await this.moveTo(x, y)
-    await within(10_000, `Pressing on ${what}`, this.page.mouse.down())
+    await within(STEP_LIMIT_MS, `Pressing on ${what}`, this.page.mouse.down())
     for (let step = 1; step <= 5; step++) {
       const at = y + (dy * step) / 5
       await this.drawCursor(x, at)
-      await within(10_000, `Dragging ${what}`, this.page.mouse.move(x, at))
+      await within(STEP_LIMIT_MS, `Dragging ${what}`, this.page.mouse.move(x, at))
     }
-    await within(10_000, `Releasing ${what}`, this.page.mouse.up())
+    await within(STEP_LIMIT_MS, `Releasing ${what}`, this.page.mouse.up())
     await sleep(500)
   }
 
@@ -208,27 +214,27 @@ class Director {
     const { x, y } = await this.box(target, what)
     await this.moveTo(x, y)
     for (let step = 0; step < 6; step++) {
-      await within(10_000, `Zooming ${what}`, this.page.evaluate(([px, py, delta]) => {
+      await within(STEP_LIMIT_MS, `Zooming ${what}`, this.page.evaluate(([px, py, delta]) => {
         document.querySelector('canvas[data-engine^="three.js"]')?.dispatchEvent(
           new WheelEvent('wheel', { deltaY: delta, clientX: px, clientY: py, bubbles: true, cancelable: true }))
       }, [x, y, dy / 6]))
       await sleep(90)
     }
-    await sleep(700)
+    await sleep(400)
   }
 
   async type(text: string): Promise<void> {
     this.log(`type: ${text}`)
-    await within(60_000, 'Typing', this.page.keyboard.type(text, { delay: 25 }))
+    await within(4 * STEP_LIMIT_MS, 'Typing', this.page.keyboard.type(text, { delay: 25 }))
   }
 
   async press(key: string): Promise<void> {
-    await within(10_000, `Pressing ${key}`, this.page.keyboard.press(key))
+    await within(STEP_LIMIT_MS, `Pressing ${key}`, this.page.keyboard.press(key))
   }
 
   /** Runs a slow step while the badge shows the real elapsed time; the cut speeds it up. */
-  async fastForward<T>(label: string, work: () => Promise<T>): Promise<T> {
-    await within(10_000, 'Showing the fast-forward badge', this.page.evaluate((text) => {
+  async fastForward<T>(label: string, work: () => Promise<T>, seconds = FAST_SECONDS): Promise<T> {
+    await within(STEP_LIMIT_MS, 'Showing the fast-forward badge', this.page.evaluate((text) => {
       const badge = document.getElementById('demo-ff')!
       const started = performance.now()
       const render = (): void => { badge.textContent = `>> fast-forward: ${text}, ${((performance.now() - started) / 1000).toFixed(1)} s real time` }
@@ -241,9 +247,9 @@ class Director {
     try {
       return await work()
     } finally {
-      this.timeline.endFast()
+      this.timeline.endFast(seconds, label)
       await sleep(300)
-      await within(10_000, 'Hiding the fast-forward badge', this.page.evaluate(() => {
+      await within(STEP_LIMIT_MS, 'Hiding the fast-forward badge', this.page.evaluate(() => {
         const badge = document.getElementById('demo-ff') as HTMLElement & { timer?: number }
         window.clearInterval(badge.timer)
         badge.style.display = 'none'
@@ -259,7 +265,7 @@ class Director {
  */
 async function waitFor(page: Page, what: string, predicate: () => unknown, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
-  while (!(await within(15_000, `Checking ${what}`, page.evaluate(predicate)))) {
+  while (!(await within(STEP_LIMIT_MS, `Checking ${what}`, page.evaluate(predicate)))) {
     if (Date.now() > deadline) fail(`Timed out waiting for ${what}`)
     await sleep(250)
   }
@@ -287,10 +293,10 @@ async function runTests(page: Page, director: Director): Promise<{ exitCode: num
   })
 }
 
-/** Closes the result toast so it does not cover the report. */
-async function dismissNotifications(page: Page, director: Director): Promise<void> {
+/** Closes the failed run's toast, as a person would, so it is not left beside the passing one. */
+async function dismissNotification(page: Page, director: Director): Promise<void> {
   const close = page.locator('button[aria-label="Dismiss notification"]').first()
-  if (await close.isVisible().catch(() => false)) await director.click(close, 'the notification close button')
+  if (await within(STEP_LIMIT_MS, 'Looking for a notification', close.isVisible())) await director.click(close, 'the old notification')
 }
 
 /** Clicks into the sketch where the fix goes and types it the way a person would. */
@@ -314,11 +320,14 @@ async function typeFix(page: Page, director: Director): Promise<void> {
     window.__cortexEditor.setPosition({ lineNumber, column })
     window.__cortexEditor.focus()
   }, target)
-  await director.type('if (reading < 100 || reading > 900) transition(INVALID);')
-  await director.press('Escape')
-  await director.press('Enter')
-  await director.type('else ')
-  await director.press('Escape')
+  // Typing runs at whatever speed a busy machine allows; it is shown sped up, with its real duration.
+  await director.fastForward('typing the fix', async () => {
+    await director.type('if (reading < 100 || reading > 900) transition(INVALID);')
+    await director.press('Escape')
+    await director.press('Enter')
+    await director.type('else ')
+    await director.press('Escape')
+  }, 3)
   const text = await page.evaluate(() => window.__cortexEditor.getModel().getValue() as string)
   const expected = '    if (reading < 100 || reading > 900) transition(INVALID);\n    else transition(reading < 400 ? HEATING : IDLE);'
   if (!text.replace(/\r\n/g, '\n').includes(expected)) fail(`The typed fix did not produce the expected code:\n${text}`)
@@ -336,13 +345,13 @@ async function story(app: ElectronApplication, page: Page, timeline: Timeline, p
   await installOverlay(page)
   timeline.mark('start')
   await director.caption('Cortex: write, simulate and test embedded firmware in one app')
-  await sleep(2200)
+  await sleep(1800)
 
   await director.caption('Open the example heater controller')
   await director.click(page.getByRole('button', { name: 'Open folder' }).first(), 'Open folder')
   await director.click(page.locator('[role="treeitem"][aria-label="controller.ino"]'), 'controller.ino')
   await waitFor(page, 'the sketch to open', () => String(window.__cortexStore.getState().activePath ?? '').endsWith('controller.ino'), 15_000)
-  await sleep(1800)
+  await sleep(1400)
 
   await director.caption('Run the sketch on a simulated 3D Arduino Uno')
   await director.click(page.locator('button[aria-label="Simulator"]'), 'Simulator')
@@ -360,7 +369,7 @@ async function story(app: ElectronApplication, page: Page, timeline: Timeline, p
   if (block) fail(`The simulator refused to run: ${JSON.stringify(block)}`)
   timeline.mark('sim-running')
   await director.caption('No sensor samples arrive, so it times out safely: heater off, fault LED on')
-  await sleep(3300)
+  await sleep(3000)
   await director.click(page.getByRole('button', { name: 'Stop', exact: true }), 'Stop')
   await waitFor(page, 'the simulation to stop', () => !window.__cortexStore.getState().simRunning, 20_000)
 
@@ -377,7 +386,6 @@ async function story(app: ElectronApplication, page: Page, timeline: Timeline, p
   }
   timeline.mark('tests-failed')
   await director.caption(`invalid-input fails ${broken.total - broken.passed} of ${broken.total} checks`)
-  await dismissNotifications(page, director)
   // Bring the assertion that shows the hazard into view, with its evidence.
   await page.evaluate(() => {
     const summary = Array.from(document.querySelectorAll('summary')).find((el) => el.textContent?.includes('invalid-low-shutdown'))
@@ -392,22 +400,22 @@ async function story(app: ElectronApplication, page: Page, timeline: Timeline, p
   // The caption below restates this assertion; refuse to record if the report says otherwise.
   if (evidence !== 'pwm pin 9 at 430ms: expected 0, observed 180') fail(`Unexpected invalid-low-shutdown evidence: ${evidence}`)
   await director.caption('Sensor reads 0 at 420 ms, yet the heater PWM is still 180 at 430 ms (expected 0)')
-  await sleep(5000)
+  await sleep(4600)
 
   await director.caption('Fix it: treat readings outside 100 to 900 as a sensor fault')
   await typeFix(page, director)
   timeline.mark('fixed')
-  await sleep(800)
+  await sleep(500)
 
   await director.caption('Run the same scenarios again')
+  await dismissNotification(page, director)
   const second = await runTests(page, director)
   if (second.exitCode !== 0 || second.results.some((r) => r.status !== 'passed')) fail(`Expected every scenario to pass after the fix: ${JSON.stringify(second)}`)
   timeline.mark('tests-passed')
-  await dismissNotifications(page, director)
   const passed = second.results.reduce((n, r) => n + r.passed, 0)
   const total = second.results.reduce((n, r) => n + r.total, 0)
   await director.caption(`All ${second.results.length} scenarios pass: ${passed} of ${total} checks`)
-  await sleep(3500)
+  await sleep(3200)
   await director.caption(null)
   timeline.mark('end')
   return { first, second }
@@ -431,9 +439,9 @@ function cutList(timeline: Timeline, offset: number): Segment[] {
   const end = timeline.marks.end - offset
   const segments: Segment[] = []
   let cursor = start
-  for (const wait of timeline.fast.map((f) => ({ start: f.start - offset, end: f.end - offset })).filter((f) => f.start >= start && f.end <= end)) {
+  for (const wait of timeline.fast.map((f) => ({ ...f, start: f.start - offset, end: f.end - offset })).filter((f) => f.start >= start && f.end <= end)) {
     if (wait.start > cursor) segments.push({ start: cursor, end: wait.start, speed: 1 })
-    segments.push({ start: wait.start, end: wait.end, speed: Math.max(1, (wait.end - wait.start) / FAST_SECONDS) })
+    segments.push({ start: wait.start, end: wait.end, speed: Math.max(1, (wait.end - wait.start) / wait.seconds) })
     cursor = wait.end
   }
   segments.push({ start: cursor, end, speed: 1 })
@@ -527,11 +535,11 @@ async function main(): Promise<void> {
     await waitFor(page, 'board tools setup', () => !window.__cortexStore.getState().boardSetupBusy, 300_000)
     await sleep(1500)
     for (const dismiss of await page.locator('button[aria-label="Dismiss notification"]').all()) {
-      await within(10_000, 'Dismissing a startup notification', dismiss.dispatchEvent('click'))
+      await within(STEP_LIMIT_MS, 'Dismissing a startup notification', dismiss.dispatchEvent('click'))
     }
     outcome = await story(app, page, timeline, project)
   } catch (error) {
-    await within(10_000, 'Saving a failure screenshot', page.screenshot({ path: join(work, 'failure.png') })).catch(() => {})
+    await within(STEP_LIMIT_MS, 'Saving a failure screenshot', page.screenshot({ path: join(work, 'failure.png') })).catch(() => {})
     throw error
   } finally {
     const closed = await within(60_000, 'Closing the app', app.close()).then(() => true, () => false)
@@ -563,12 +571,13 @@ async function main(): Promise<void> {
   const provenance = {
     recordedAt: new Date().toISOString(),
     commit: git(['rev-parse', 'HEAD']),
-    dirtyWorktree: git(['status', '--porcelain']).length > 0,
+    // The outputs being written right now do not count as uncommitted source.
+    dirtyWorktree: git(['status', '--porcelain', '--', '.', ':!docs/media']).length > 0,
     host: { platform: process.platform, release: release(), cpu: cpus()[0]?.model ?? 'unknown', node: process.version },
     compiler: spawnSync('g++', ['--version'], { encoding: 'utf8' }).stdout.split(/\r?\n/)[0],
     rawRecordingSeconds: Number(duration.toFixed(2)),
     finalVideoSeconds: Number(finalSeconds.toFixed(2)),
-    fastForwarded: segments.filter((s) => s.speed > 1).map((s) => ({ realSeconds: Number((s.end - s.start).toFixed(2)), speed: Number(s.speed.toFixed(2)) })),
+    fastForwarded: timeline.fast.map((w) => ({ what: w.label, realSeconds: Number((w.end - w.start).toFixed(2)), shownSeconds: Number(Math.min(w.end - w.start, w.seconds).toFixed(2)) })),
     firstRun: outcome.first,
     afterFix: outcome.second,
     mp4,

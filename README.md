@@ -5,7 +5,11 @@
 
 Cortex is a desktop app for writing, testing and running the code that goes on small electronics boards like Arduino, ESP32 and Raspberry Pi Pico. We built it because embedded work is scattered across an editor, board tools, serial terminals and test scripts that don't talk to each other, so Cortex is one Electron app that drives the real compilers, debuggers and board tools, and runs Arduino sketches on a simulated board so they can be tested before any hardware is plugged in.
 
+![Cortex running a sketch on the 3D board, a firmware test failing with its evidence, and every scenario passing after the fix](docs/media/cortex-teaser.gif)
+
 <!-- VIDEO: Ali drags cortex-demo.mp4 into the GitHub editor here -->
+
+[Watch the 50-second demo](docs/media/cortex-demo.mp4): open a project, run it on the 3D board, catch a real bug with the firmware tests, fix it, rerun. It is recorded by a script against the real app; compile waits are fast-forwarded with the real time shown, and [how it was made](docs/media/README.md) is documented.
 
 ## What it does
 
@@ -54,6 +58,10 @@ npm run firmware:test       # the three example scenarios
 npm run firmware:selftest   # proves a broken and a hanging firmware are caught
 npm run firmware:bench      # times a fixed 60-second virtual workload
 ```
+
+![The firmware test CLI running the three example scenarios, all passing with exit code 0](docs/media/firmware-test.gif)
+
+*Played back at 3x; most of the real run is g++ compiling each scenario.*
 
 A passing run (commit `a922831`, Windows laptop, g++ 16.1):
 
