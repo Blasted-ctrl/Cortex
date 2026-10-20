@@ -174,17 +174,25 @@ class Director {
     await this.clickAt(x, y, what)
   }
 
+  /**
+   * One page call animates the drawn cursor and schedules the ring for when it arrives;
+   * mouse.click then moves the real pointer and clicks. Fewer round trips keep a busy
+   * machine from stretching every click in the video.
+   */
   async clickAt(x: number, y: number, what: string): Promise<void> {
     this.log(`click: ${what}`)
-    await this.moveTo(x, y)
-    await within(STEP_LIMIT_MS, 'Drawing the click', this.page.evaluate(([px, py]) => {
-      const ring = document.createElement('div')
-      ring.className = 'demo-ring'
-      ring.style.left = `${px}px`
-      ring.style.top = `${py}px`
-      document.body.appendChild(ring)
-      setTimeout(() => ring.remove(), 600)
-    }, [x, y]))
+    await within(STEP_LIMIT_MS, 'Drawing the click', this.page.evaluate(([px, py, travelMs]) => {
+      document.getElementById('demo-cursor')!.style.transform = `translate(${px}px, ${py}px)`
+      setTimeout(() => {
+        const ring = document.createElement('div')
+        ring.className = 'demo-ring'
+        ring.style.left = `${px}px`
+        ring.style.top = `${py}px`
+        document.body.appendChild(ring)
+        setTimeout(() => ring.remove(), 600)
+      }, travelMs)
+    }, [x, y, 480]))
+    await sleep(520)
     await within(STEP_LIMIT_MS, `Clicking ${what}`, this.page.mouse.click(x, y))
     await sleep(250)
   }
