@@ -207,6 +207,7 @@ const api = {
   serialOpen: (opts: SerialOpenOptions): Promise<boolean> => ipcRenderer.invoke(IPC.SERIAL_OPEN, opts),
   serialClose: (): Promise<void> => ipcRenderer.invoke(IPC.SERIAL_CLOSE),
   serialWrite: (data: string): Promise<void> => ipcRenderer.invoke(IPC.SERIAL_WRITE, data),
+  serialReset: (): Promise<boolean> => ipcRenderer.invoke(IPC.SERIAL_RESET),
   onSerialData: (cb: (d: { data: string; path?: string }) => void): Unsub => on(IPC.SERIAL_DATA, cb),
   onSerialStatus: (cb: (s: { open: boolean; path: string; message?: string }) => void): Unsub =>
     on(IPC.SERIAL_STATUS, cb),

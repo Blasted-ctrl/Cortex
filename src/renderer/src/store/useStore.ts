@@ -258,7 +258,10 @@ export interface OutputLine {
 export interface SerialLine {
   text: string
   ts: number
+  /** Stable identity for rendering: index keys made every row repaint once the cap scrolled. */
+  id?: number
 }
+let serialLineSeq = 0
 
 /** A simulator console line. `system` lines are ours (build errors, status),
  *  `serial` lines came from the sketch's Serial.print. Rendering a compile
@@ -714,6 +717,8 @@ interface State {
   buildActive: () => Promise<void>
   /** Build the PlatformIO project and flash it to the chosen (or only USB) serial port. */
   uploadPlatformio: () => Promise<void>
+  /** Restart the connected board through the open serial port so its boot output is shown. */
+  resetBoard: () => Promise<void>
   stopRun: () => Promise<void>
   clearOutput: () => void
   appendOutput: (c: RunOutputChunk) => void
@@ -2175,6 +2180,17 @@ export const useStore = create<State>((set, get) => ({
       preparation.finish()
     }
   },
+  async resetBoard() {
+    if (!get().serialOpen) return
+    // An app whose main process predates this call simply cannot reset; say so.
+    if (typeof window.api.serialReset !== 'function') return
+    try {
+      const done = await window.api.serialReset()
+      if (!done) get().notify('error', 'Could not reset the board', 'The serial port is not open.')
+    } catch (error) {
+      get().notify('error', 'Could not reset the board', String(error))
+    }
+  },
   async uploadPlatformio() {
     const { activePath, workspaceRoot, running } = get()
     if (running || runStartToken || !workspaceRoot || !isPlatformioProject(get().tree, get().projectModel)) return
@@ -2337,7 +2353,11 @@ export const useStore = create<State>((set, get) => ({
         reopenSerialAfterUpload = null
         if (monitor.runId === e.id && monitor.workspaceRoot === get().workspaceRoot &&
           monitor.port === get().serialPath && monitor.operation === serialMonitorSeq && !get().serialOpen) {
-          void get().toggleSerial().catch((error) => get().notify('error', 'Could not reopen serial monitor', String(error)))
+          void get().toggleSerial()
+            // The new firmware booted while the monitor was detached, so whatever it
+            // printed once in setup() is gone. Restart it now that we are listening.
+            .then(() => { if (e.code === 0 && get().serialOpen) return get().resetBoard() })
+            .catch((error) => get().notify('error', 'Could not reopen serial monitor', String(error)))
         }
       }
       return
@@ -2449,7 +2469,7 @@ export const useStore = create<State>((set, get) => ({
     const plot = { ...get().plotSeries }
     const newLines = [...get().serialLines]
     for (const line of parts) {
-      newLines.push({ text: line, ts: performance.now() })
+      newLines.push({ text: line, ts: performance.now(), id: ++serialLineSeq })
       const series = extractSeries(line)
       for (const key of Object.keys(series)) {
         plot[key] = [...(plot[key] || []), series[key]].slice(-200)

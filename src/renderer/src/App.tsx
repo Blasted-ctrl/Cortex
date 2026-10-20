@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { useStore } from './store/useStore'
 import { startAutoSave } from './store/autoSave'
+import { createChunkBatcher } from './store/serialBatch'
 import CommandPalette, { type PaletteMode } from './components/CommandPalette'
 import ConfirmDialog from './components/ConfirmDialog'
 import Toasts from './components/Toasts'
@@ -86,7 +87,11 @@ export default function App(): JSX.Element {
 
   // Subscribe to streamed events from the main process.
   useEffect(() => {
+    // Serial data is coalesced so a device printing hundreds of lines a second cannot
+    // starve the window (see store/serialBatch.ts).
+    const serialBatch = createChunkBatcher(appendSerial)
     const unsubs = [
+      () => serialBatch.cancel(),
       window.api.onRunOutput(appendOutput),
       window.api.onRunExit(handleRunExit),
       window.api.onRunDiagnostics(handleDiagnostics),
@@ -95,7 +100,7 @@ export default function App(): JSX.Element {
       window.api.onDebugState((s) => useStore.getState().setDebug(s)),
       window.api.onDebugOutput((o) => useStore.getState().appendDebugOutput(o)),
       window.api.onSerialData((d) => {
-        if (d.path === useStore.getState().serialPath) appendSerial(d.data)
+        if (d.path === useStore.getState().serialPath) serialBatch.push(d.data)
       }),
       // Keep s.message: "Access is denied" / "port not found" is the whole
       // explanation, and discarding it left the user with a toggle that did nothing.

@@ -622,6 +622,7 @@ function registerIpc(): void {
   handle(IPC.SERIAL_OPEN, (_e, opts: SerialOpenOptions) => serial.openPort(requireWindow(), opts))
   handle(IPC.SERIAL_CLOSE, () => serial.closePort())
   handle(IPC.SERIAL_WRITE, (_e, data: string) => serial.writePort(data))
+  handle(IPC.SERIAL_RESET, () => serial.resetBoard())
 
   // ---- language servers (LSP) ----
   // `root` comes from the renderer and drives privileged sinks (spawn cwd, the

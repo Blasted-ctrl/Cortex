@@ -1,5 +1,6 @@
+import { useShallow } from 'zustand/react/shallow'
 import { useEffect, useRef, useState } from 'react'
-import { Send, Plug, PlugZap, LineChart, List, Radio } from 'lucide-react'
+import { Send, Plug, PlugZap, LineChart, List, Radio, RotateCcw } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import SerialPlotter from './SerialPlotter'
 import EmptyState from './EmptyState'
@@ -16,10 +17,29 @@ export default function SerialMonitor(): JSX.Element {
     setSerialPath,
     setSerialBaud,
     toggleSerial,
+    resetBoard,
     refreshPorts,
     serialPlot: showPlot,
     setSerialPlot
-  } = useStore()
+  } = useStore(
+    // Only what this panel shows: subscribing to the whole store re-rendered every
+    // serial line whenever anything else in the app changed.
+    useShallow((s) => ({
+      serialOpen: s.serialOpen,
+      serialLines: s.serialLines,
+      serialCarry: s.serialCarry,
+      ports: s.ports,
+      serialPath: s.serialPath,
+      serialBaud: s.serialBaud,
+      setSerialPath: s.setSerialPath,
+      setSerialBaud: s.setSerialBaud,
+      toggleSerial: s.toggleSerial,
+      resetBoard: s.resetBoard,
+      refreshPorts: s.refreshPorts,
+      serialPlot: s.serialPlot,
+      setSerialPlot: s.setSerialPlot
+    }))
+  )
   const [input, setInput] = useState('')
   const [timestamps, setTimestamps] = useState(false)
   const [autoscroll, setAutoscroll] = useState(true)
@@ -75,6 +95,15 @@ export default function SerialMonitor(): JSX.Element {
           {serialOpen ? <PlugZap size={14} /> : <Plug size={14} />}
           {serialOpen ? 'Disconnect' : 'Connect'}
         </button>
+        {serialOpen && (
+          <button
+            className="btn"
+            onClick={() => void resetBoard()}
+            title="Restart the board to see what it prints at boot (for example in setup())"
+          >
+            <RotateCcw size={14} /> Reset board
+          </button>
+        )}
         <div className="flex-1" />
         <label className="row gap-1 text-ide-muted">
           <input type="checkbox" checked={timestamps} onChange={(e) => setTimestamps(e.target.checked)} /> time
@@ -105,7 +134,7 @@ export default function SerialMonitor(): JSX.Element {
               </EmptyState>
             ) : (
               serialLines.map((line, i) => (
-                <div key={i} className="whitespace-pre-wrap text-ide-green">
+                <div key={line.id ?? `i${i}`} className="whitespace-pre-wrap text-ide-green">
                   {timestamps && <span className="mr-2 text-ide-faint">[{(line.ts / 1000).toFixed(2)}s]</span>}
                   {line.text}
                 </div>

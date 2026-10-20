@@ -7,7 +7,8 @@ const api = {
   runStop: vi.fn(),
   serialClose: vi.fn(),
   serialOpen: vi.fn(),
-  serialList: vi.fn()
+  serialList: vi.fn(),
+  serialReset: vi.fn()
 }
 vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} })
 vi.stubGlobal('window', { api })
@@ -111,5 +112,32 @@ describe('PlatformIO upload', () => {
     api.runStart.mockClear()
     await useStore.getState().runActive()
     for (const [request] of api.runStart.mock.calls) expect(request).not.toHaveProperty('uploadPort')
+  })
+
+  it('reopens the monitor after a successful upload and restarts the board so setup() output is seen', async () => {
+    api.serialOpen.mockResolvedValue(true)
+    api.serialReset.mockResolvedValue(true)
+    useStore.setState({ serialPath: 'COM5', serialOpen: true })
+    await useStore.getState().uploadPlatformio()
+    const id = useStore.getState().runId!
+    useStore.getState().handleRunExit({ id, code: 0, signal: null, durationMs: 1, phase: 'run' })
+    await vi.waitFor(() => expect(api.serialReset).toHaveBeenCalledOnce())
+    expect(api.serialOpen.mock.invocationCallOrder[0]).toBeLessThan(api.serialReset.mock.invocationCallOrder[0])
+  })
+
+  it('reopens the monitor but does not restart the board after a failed upload', async () => {
+    api.serialOpen.mockResolvedValue(true)
+    useStore.setState({ serialPath: 'COM5', serialOpen: true })
+    await useStore.getState().uploadPlatformio()
+    const id = useStore.getState().runId!
+    useStore.getState().handleRunExit({ id, code: 2, signal: null, durationMs: 1, phase: 'compile' })
+    await vi.waitFor(() => expect(api.serialOpen).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(api.serialReset).not.toHaveBeenCalled()
+  })
+
+  it('Reset board is a no-op while the monitor is closed', async () => {
+    await useStore.getState().resetBoard()
+    expect(api.serialReset).not.toHaveBeenCalled()
   })
 })

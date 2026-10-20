@@ -174,6 +174,25 @@ export async function writePort(data: string): Promise<void> {
   if (port?.isOpen) port.write(data)
 }
 
+/**
+ * Restart the board through the USB-serial adapter, the way esptool and the Arduino IDE
+ * do: RTS pulls the chip's EN (reset) line low for a moment while DTR stays released, so
+ * GPIO0 is high and the chip boots normally rather than into its flash bootloader. This
+ * lets the monitor show output a sketch prints once in setup(), which would otherwise be
+ * over before the monitor attached. A board whose reset is not wired to RTS is unaffected.
+ * Resolves false when no port is open.
+ */
+export async function resetBoard(): Promise<boolean> {
+  const candidate = port
+  if (!candidate?.isOpen) return false
+  const setSignals = (signals: { dtr: boolean; rts: boolean }): Promise<void> =>
+    new Promise((resolve, reject) => candidate.set(signals, (error) => (error ? reject(error) : resolve())))
+  await setSignals({ dtr: false, rts: true })
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  await setSignals({ dtr: false, rts: false })
+  return true
+}
+
 export async function closePort(): Promise<void> {
   const operation = ++operationSeq
   const candidate = port

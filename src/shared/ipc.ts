@@ -142,6 +142,7 @@ export const IPC = {
   SERIAL_OPEN: 'serial:open',
   SERIAL_CLOSE: 'serial:close',
   SERIAL_WRITE: 'serial:write',
+  SERIAL_RESET: 'serial:reset', // pulse the board's reset line through the open port
   SERIAL_DATA: 'serial:data', // main -> renderer
   SERIAL_STATUS: 'serial:status', // main -> renderer
 
