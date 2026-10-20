@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "scripts/demo",
+    "outDir": "out/demo",
+    "noEmit": false
+  },
+  "include": ["scripts/demo/**/*.ts"]
+}
