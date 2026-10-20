@@ -7,7 +7,7 @@ Cortex is a desktop app for writing, testing and running the code that goes on s
 
 ![Cortex running a sketch on the 3D board, a firmware test failing with its evidence, and every scenario passing after the fix](docs/media/cortex-teaser.gif)
 
-<!-- VIDEO: Ali drags cortex-demo.mp4 into the GitHub editor here -->
+C:\Users\kings\customIDE\docs\media\cortex-demo.mp4
 
 [Watch the 50-second demo](docs/media/cortex-demo.mp4): open a project, run it on the 3D board, catch a real bug with the firmware tests, fix it, rerun. It is recorded by a script against the real app; compile waits are fast-forwarded with the real time shown, and [how it was made](docs/media/README.md) is documented.
 
