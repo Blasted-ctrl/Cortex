@@ -77,6 +77,13 @@ describe('behavior assertions', () => {
     ]).passed).toBe(true)
   })
 
+  it('names digital outputs once in failure messages', () => {
+    const events: TimelineEvent[] = [{ atMs: 0, kind: 'pin', pin: 13, value: 0 }, { atMs: 0, kind: 'pwm', pin: 9, value: 0 }]
+    expect(check({ id: 'fault', kind: 'event', event: 'pin', pin: 13, value: 1, fromMs: 0, toMs: 10 }, events).message).toBe('pin 13 = 1 not observed within [0, 10]ms')
+    expect(check({ id: 'fault-state', kind: 'state', event: 'pin', pin: 13, value: 1, atMs: 5 }, events).message).toBe('pin 13 at 5ms: expected 1, observed 0')
+    expect(check({ id: 'heat', kind: 'state', event: 'pwm', pin: 9, value: 180, atMs: 5 }, events).message).toBe('pwm pin 9 at 5ms: expected 180, observed 0')
+  })
+
   it('fails unknown output instead of assuming a safe default', () => {
     expect(check({ id: 'unknown', kind: 'state', event: 'pwm', pin: 10, value: 0, atMs: 0 }).passed).toBe(false)
     expect(check({ id: 'range', kind: 'range', event: 'pwm', pin: 10, min: 0, max: 180, fromMs: 0, toMs: 100 }).passed).toBe(false)
