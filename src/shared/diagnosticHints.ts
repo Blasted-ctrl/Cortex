@@ -104,6 +104,12 @@ export function diagnosticHint(message: string, ctx: HintContext = {}): string |
     return 'Fix: declare madhephaestus/ESP32Servo under lib_deps in platformio.ini (not libs_deps), select a library version compatible with your Arduino-ESP32 core, and build again. PlatformIO installs declared dependencies during the build.'
   }
 
+  // Not gated on ctx.embedded: sketches rarely include Arduino.h. Other cores
+  // (e.g. Arduino Portenta) do ship a camera.h, so the hint names ESP32.
+  if (missing.toLowerCase() === 'camera.h') {
+    return 'Fix: on ESP32 boards the camera driver header is esp_camera.h, which ships with the ESP32 core. Write #include "esp_camera.h" and set the camera pins from your camera board\'s pin map.'
+  }
+
   const pool = [...(ctx.candidates ?? []), ...COMMON_HEADERS]
   const near = closestHeader(missing, pool)
   if (near && near !== missing) {

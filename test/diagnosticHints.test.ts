@@ -48,6 +48,9 @@ describe('diagnosticHint', () => {
     expect(hint).toMatch(/PC.*VideoCapture.*imshow.*waitKey/)
     expect(hint).not.toContain('Install OpenCV')
   })
+  it.each(["'camera.h' file not found", 'camera.h: No such file or directory', 'Camera.h: No such file or directory'])('points %s at the ESP32 camera driver header', message => {
+    expect(diagnosticHint(message, { build: true })).toMatch(/ESP32.*esp_camera\.h/)
+  })
   it('suggests from caller-supplied project headers', () => {
     expect(diagnosticHint("'motor_ctl.h' file not found", { candidates: ['motor_ctrl.h'] })).toMatch(/<motor_ctrl\.h>/)
   })
