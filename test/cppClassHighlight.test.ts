@@ -18,6 +18,27 @@ describe('curated C++ class highlighting', () => {
     expect(curatedClassRanges('const char* s = "#include <ESP32Servo.h>";\nServo x;')).toEqual([])
   })
 
+  it('colors _t library types and types the file declares', () => {
+    const source = [
+      '#include "esp_camera.h"',
+      'camera_config_t cam = {};',
+      'enum class State { Effective };',
+      'struct Object { State status; };',
+      'typedef struct { int x; } Point;',
+      'typedef unsigned long Ticks;',
+      'using Callback = void (*)(int);',
+      'esp_err_t err = esp_camera_init(&cam);',
+      'Point p; Ticks t; Callback cb;',
+      'obj.size_t = 1; // State in a comment',
+      'const char* s = "Object";'
+    ].join('\n')
+    const colored = curatedClassRanges(source).map(({ start, end }) => source.slice(start, end))
+    expect(colored).toEqual([
+      'camera_config_t', 'State', 'Object', 'State', 'Point', 'Ticks', 'Callback',
+      'esp_err_t', 'Point', 'Ticks', 'Callback'
+    ])
+  })
+
   it('refreshes decorations as the code changes and clears them on dispose', () => {
     let source = '#include <ESP32Servo.h>\nServo my_s;'
     let onChange = (): void => {}
