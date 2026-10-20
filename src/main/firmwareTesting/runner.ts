@@ -101,7 +101,7 @@ export async function prepareScenario(scenarioPath: string, options: RunnerOptio
     if (compiled.error || compiled.code !== 0) throw new Error(`${compiled.error || `Compilation failed (exit ${compiled.code})`}\n${compilerLog}`)
     return { scenario, scenarioPath: path, build, compilerLog, exePath: prepared.exePath, directory }
   } catch (error) {
-    await rm(directory, { recursive: true, force: true })
+    await removeScratch(directory)
     throw new ScenarioPreparationError({
       version: 1, scenarioPath: path, scenario, firmwarePath: sourcePath,
       status: 'error', error: error instanceof Error ? error.message : String(error),
@@ -182,8 +182,19 @@ export async function executePrepared(prepared: PreparedScenario, signal?: Abort
   }
 }
 
+/**
+ * Best-effort removal of a scenario's scratch directory. On Windows a firmware
+ * executable that has just exited can stay locked for a moment (process teardown, an
+ * antivirus scan), and unlinking it fails with EPERM or EBUSY. Node retries those with
+ * a backoff; if the directory still cannot go, it is left in the temp folder rather than
+ * turning a finished run, or the error being reported, into a cleanup failure.
+ */
+async function removeScratch(directory: string): Promise<void> {
+  await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {})
+}
+
 export async function disposePrepared(prepared: PreparedScenario): Promise<void> {
-  await rm(prepared.directory, { recursive: true, force: true })
+  await removeScratch(prepared.directory)
 }
 
 export async function runScenario(path: string, options: RunnerOptions = {}): Promise<FirmwareReport> {
