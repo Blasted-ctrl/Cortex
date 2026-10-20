@@ -70,6 +70,17 @@ wall-clock watchdog terminates stuck firmware with runner-error exit code 2.
 npm run firmware:selftest
 ```
 
+`fixtures/missing-range-check.ino` removes only the ADC range check, so a
+disconnected sensor reading 0 turns the heater on. The scripted demo
+(`npm run demo:record`) starts from this file and types the fix. Against the
+invalid-input scenario it fails 8 of 14 assertions, including
+`invalid-low-shutdown` (PWM 180 at 430ms where 0 is required); the normal and
+stopped-sensor scenarios still pass:
+
+```sh
+npm run firmware:test -- examples/firmware-testing/scenarios --firmware examples/firmware-testing/fixtures/missing-range-check.ino --report-dir .cortex/missing-range-check
+```
+
 The self-test treats the expected broken assertion and watchdog termination as
 successful harness checks; it does not add those fixtures to the passing suite.
 It saves its evidence in `.cortex/selftest-results/report.json` and `summary.md`.

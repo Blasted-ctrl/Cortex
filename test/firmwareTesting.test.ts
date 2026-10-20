@@ -166,6 +166,16 @@ describe.skipIf(!hasCompiler)('real compiled firmware testing', () => {
     expect(summary).toContain('"atMs": 220')
   })
 
+  it('catches the missing ADC range check that the scripted demo fixes', async () => {
+    const invalidInput = resolve('examples/firmware-testing/scenarios/invalid-input.json')
+    const report = await runScenario(invalidInput, { firmware: 'examples/firmware-testing/fixtures/missing-range-check.ino' })
+    expect(report.status, report.error).toBe('failed')
+    // A disconnected sensor reading 0 must not turn the heater on.
+    expect(report.assertions.find(a => a.id === 'invalid-low-shutdown')).toMatchObject({ passed: false, message: 'pwm pin 9 at 430ms: expected 0, observed 180' })
+    expect(report.assertions.find(a => a.id === 'invalid-fault')?.passed).toBe(false)
+    expect(report.assertions.find(a => a.id === 'actuator-safety-limit')?.passed).toBe(true)
+  })
+
   it('kills stuck firmware using the independent wall clock, retaining partial logs', async () => {
     const scenario = structuredClone(example)
     scenario.limits.wallTimeoutMs = 1500

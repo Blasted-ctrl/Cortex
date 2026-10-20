@@ -1,0 +1,18 @@
+{
+  "version": 3,
+  "board": "uno",
+  "parts": [
+    { "id": "heater", "type": "led", "x": 90, "y": 70, "rotation": 0, "color": "#E8952B", "pins": { "sig": 9, "gnd": -1 } },
+    { "id": "fault", "type": "led", "x": 205, "y": 70, "rotation": 0, "color": "#E5484D", "pins": { "sig": 13, "gnd": -1 } },
+    { "id": "sensor", "type": "potentiometer", "x": 320, "y": 70, "rotation": 0, "pins": { "sig": 14, "vcc": -2, "gnd": -1 } }
+  ],
+  "wires": [
+    { "id": "heater-sig", "from": { "kind": "part", "partId": "heater", "pin": "sig" }, "to": { "kind": "board", "pin": 9 }, "kind": "male-male" },
+    { "id": "heater-gnd", "from": { "kind": "part", "partId": "heater", "pin": "gnd" }, "to": { "kind": "board", "pin": -1 }, "kind": "male-male" },
+    { "id": "fault-sig", "from": { "kind": "part", "partId": "fault", "pin": "sig" }, "to": { "kind": "board", "pin": 13 }, "kind": "male-male" },
+    { "id": "fault-gnd", "from": { "kind": "part", "partId": "fault", "pin": "gnd" }, "to": { "kind": "board", "pin": -1 }, "kind": "male-male" },
+    { "id": "sensor-sig", "from": { "kind": "part", "partId": "sensor", "pin": "sig" }, "to": { "kind": "board", "pin": 14 }, "kind": "male-male" },
+    { "id": "sensor-vcc", "from": { "kind": "part", "partId": "sensor", "pin": "vcc" }, "to": { "kind": "board", "pin": -2 }, "kind": "male-male" },
+    { "id": "sensor-gnd", "from": { "kind": "part", "partId": "sensor", "pin": "gnd" }, "to": { "kind": "board", "pin": -1 }, "kind": "male-male" }
+  ]
+}

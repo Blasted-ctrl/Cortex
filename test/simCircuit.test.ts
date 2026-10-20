@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   BOARD_RAILS,
   PART_PINS,
@@ -370,5 +372,14 @@ describe('signal-controlled loads', () => {
     const two = advanceActuator(actuator, half, 500, { 9: 128, 8: 1 }, { 9: true })
     expect(two.positionMm).toBeCloseTo(one.positionMm)
     expect(() => advanceActuator(actuator, initial, -1, {}, {})).toThrow(/elapsed/i)
+  })
+})
+
+describe('scripted demo circuit', () => {
+  it('loads cleanly and wires the heater controller pins without circuit findings', () => {
+    const diagram = decodeSimDiagram(JSON.parse(readFileSync(resolve('scripts/demo/heater-circuit.json'), 'utf8')))
+    const pins = Object.fromEntries(diagram.parts.map((p) => [p.id, p.pins.sig]))
+    expect(pins).toEqual({ heater: 9, fault: 13, sensor: 14 })
+    expect(inspectCircuit(diagram, {}, { 9: 1, 13: 1, 14: 0 })).toEqual([])
   })
 })
