@@ -1,0 +1,92 @@
+{
+  "recordedAt": "2026-10-20T17:08:56.087Z",
+  "commit": "6255b6238e02d92a3185b2abde6d7244fa9721e7",
+  "dirtyWorktree": false,
+  "host": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "Intel(R) Core(TM) i5-1035G1 CPU @ 1.00GHz",
+    "node": "v24.12.0"
+  },
+  "compiler": "g++ (Rev5, Built by MSYS2 project) 16.1.0",
+  "rawRecordingSeconds": 264.32,
+  "finalVideoSeconds": 69.5,
+  "fastForwarded": [
+    {
+      "what": "g++ compiling the sketch",
+      "realSeconds": 52.96,
+      "shownSeconds": 2
+    },
+    {
+      "what": "g++ compiling 3 scenarios",
+      "realSeconds": 89.13,
+      "shownSeconds": 2
+    },
+    {
+      "what": "typing the fix",
+      "realSeconds": 13.77,
+      "shownSeconds": 3
+    },
+    {
+      "what": "g++ compiling 3 scenarios",
+      "realSeconds": 43.42,
+      "shownSeconds": 2
+    }
+  ],
+  "firstRun": {
+    "exitCode": 1,
+    "results": [
+      {
+        "id": "invalid-input",
+        "status": "failed",
+        "passed": 6,
+        "total": 14
+      },
+      {
+        "id": "normal",
+        "status": "passed",
+        "passed": 8,
+        "total": 8
+      },
+      {
+        "id": "sensor-timeout",
+        "status": "passed",
+        "passed": 7,
+        "total": 7
+      }
+    ]
+  },
+  "afterFix": {
+    "exitCode": 0,
+    "results": [
+      {
+        "id": "invalid-input",
+        "status": "passed",
+        "passed": 14,
+        "total": 14
+      },
+      {
+        "id": "normal",
+        "status": "passed",
+        "passed": 8,
+        "total": 8
+      },
+      {
+        "id": "sensor-timeout",
+        "status": "passed",
+        "passed": 7,
+        "total": 7
+      }
+    ]
+  },
+  "mp4": {
+    "crf": 23,
+    "fps": 25,
+    "bytes": 1331911
+  },
+  "teaser": {
+    "width": 960,
+    "fps": 10,
+    "bytes": 2367363
+  }
+}

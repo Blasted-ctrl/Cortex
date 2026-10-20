@@ -15,8 +15,10 @@ export function renderSuiteSummary(report: SuiteReport): string {
     report.expectedNegativeTests ? '# Cortex harness self-test (expected negative fixtures)' : '# Cortex firmware tests', '',
     `${counts('passed')} passed, ${counts('failed')} failed, ${counts('error')} runner errors. Exit code: ${report.exitCode}.`,
     `Repeated scenario traces are ${report.reproducible ? 'identical' : 'NOT identical'}.`, '',
-    'All timestamps below are virtual simulation milliseconds. Host time is reported separately.', '',
-    '| Scenario / run | Status | Host ms | Virtual ms |', '| --- | --- | ---: | ---: |'
+    report.target
+      ? `Target: ${report.target}. Timestamps below are board milliseconds from the MCU's own clock. Host time is reported separately.`
+      : 'All timestamps below are virtual simulation milliseconds. Host time is reported separately.', '',
+    `| Scenario / run | Status | Host ms | ${report.target ? 'Board' : 'Virtual'} ms |`, '| --- | --- | ---: | ---: |'
   ]
   if (report.expectedNegativeTests) lines.splice(2, 0, `The broken firmware must fail its shutdown assertion and the hanging firmware must cause a watchdog error. Harness verification ${report.exitCode === 0 ? 'PASSED' : 'FAILED'}.`, '')
   if (report.cancelled) lines.splice(2, 0, 'Suite cancelled or its host watchdog expired. Unexecuted scenarios retain their configuration and are runner errors, not passes.', '')

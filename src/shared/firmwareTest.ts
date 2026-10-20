@@ -72,6 +72,8 @@ export interface SuiteReport {
   reproducible: boolean
   expectedNegativeTests?: boolean
   cancelled?: boolean
+  /** Where the scenarios ran when it was not the host simulator, e.g. a board and port. */
+  target?: string
   results: SuiteResult[]
 }
 export type FirmwareTestSelection = 'scenario' | 'scenarios' | 'report' | 'firmware'
