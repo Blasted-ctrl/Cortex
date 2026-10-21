@@ -2348,6 +2348,9 @@ export const useStore = create<State>((set, get) => ({
       const verb = runAction === 'verify' ? 'Verify' : 'Upload'
       if (e.code === 0) get().notify('success', `${verb} complete`, file)
       else get().notify('error', `${verb} failed`, cause)
+      // New firmware is on the board: earlier lines came from the old one. A
+      // failed upload leaves the old firmware running, so its output stays.
+      if (runAction === 'upload' && e.code === 0) get().clearSerial()
       if (runAction === 'upload' && reopenSerialAfterUpload) {
         const monitor = reopenSerialAfterUpload
         reopenSerialAfterUpload = null

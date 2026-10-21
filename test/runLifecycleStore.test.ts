@@ -380,6 +380,18 @@ describe('run and board preparation boundaries', () => {
     await vi.waitFor(() => expect(api.serialOpen).toHaveBeenCalledWith({ path: 'COM5', baudRate: initial.serialBaud }))
   })
 
+  it('clears the serial monitor only after a successful upload', async () => {
+    const old = { serialLines: [{ text: 'old firmware', ts: 1 }], serialCarry: 'partial', plotSeries: { a: [1] } }
+    useStore.setState(old)
+    await useStore.getState().uploadBoard()
+    useStore.getState().handleRunExit({ id: api.boardUpload.mock.calls[0][0].id, phase: 'compile', code: 1 })
+    expect(useStore.getState().serialLines).toEqual(old.serialLines)
+
+    await useStore.getState().uploadBoard()
+    useStore.getState().handleRunExit({ id: api.boardUpload.mock.calls[1][0].id, phase: 'compile', code: 0 })
+    expect(useStore.getState()).toMatchObject({ serialLines: [], serialCarry: '', plotSeries: {} })
+  })
+
   it('does not open a newly selected port when an old upload completes', async () => {
     useStore.setState({ serialOpen: true })
     await useStore.getState().uploadBoard()
